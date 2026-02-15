@@ -37,7 +37,7 @@ jobs:
           # CKV_DOCKER_3: user instruction (dev container)
 
       - name: Upload Terraform SARIF
-        if: always()
+        if: always() && hashFiles('/tmp/checkov-tf.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: /tmp/checkov-tf.sarif
@@ -59,7 +59,7 @@ jobs:
           soft_fail: false
 
       - name: Upload Secrets SARIF
-        if: always()
+        if: always() && hashFiles('/tmp/checkov-secrets.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: /tmp/checkov-secrets.sarif
@@ -81,7 +81,7 @@ jobs:
           soft_fail: true
 
       - name: Upload GHA SARIF
-        if: always()
+        if: always() && hashFiles('/tmp/checkov-gha.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: /tmp/checkov-gha.sarif
