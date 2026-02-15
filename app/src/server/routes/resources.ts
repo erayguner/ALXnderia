@@ -33,14 +33,14 @@ export async function handleResourcesList(req: NextRequest): Promise<NextRespons
     const awsWhere = [whereBase, 'deleted_at IS NULL'].filter(Boolean).join(' AND ');
     const awsSql = `
       SELECT id, account_id AS external_id, account_name AS name,
-             account_status AS status, last_seen_at, 'aws' AS provider
+             status, last_seen_at, 'aws' AS provider
       FROM aws_account
       WHERE ${awsWhere}
     `;
 
-    const gcpWhere = [whereBase ? whereBase.replace(/name/g, 'project_name').replace(/external_id/g, 'gcp_project_id') : '', 'deleted_at IS NULL'].filter(Boolean).join(' AND ');
+    const gcpWhere = [whereBase ? whereBase.replace(/name/g, 'project_name').replace(/external_id/g, 'project_id') : '', 'deleted_at IS NULL'].filter(Boolean).join(' AND ');
     const gcpSql = `
-      SELECT id, gcp_project_id AS external_id, project_name AS name,
+      SELECT id, project_id AS external_id, project_name AS name,
              lifecycle_state AS status, last_seen_at, 'gcp' AS provider
       FROM gcp_project
       WHERE ${gcpWhere || 'deleted_at IS NULL'}

@@ -50,50 +50,46 @@ Alxderia enables security teams, compliance officers, and identity administrator
 
 ### Prerequisites
 
-| Tool          | Version |
-|---------------|---------|
-| Node.js       | 22+     |
-| Docker        | 24+     |
-| Terraform     | 1.14+   |
+| Tool          | Version | Required for |
+|---------------|---------|-------------|
+| Node.js       | 22+     | Always |
+| npm           | 10+     | Always |
+| PostgreSQL    | 14+     | Native setup (Option A) |
+| Docker        | 24+     | Docker setup (Option B) |
+| Terraform     | 1.14+   | Docker setup (Option B) |
 
-### 1. Start the database
+You also need **one** LLM API key: Anthropic (`ANTHROPIC_API_KEY`), OpenAI (`OPENAI_API_KEY`), or Google Gemini (`GOOGLE_API_KEY`).
+
+### Option A: Native PostgreSQL (macOS / Linux)
+
+```bash
+# 1. Create roles and database
+psql -U $(whoami) -d postgres -c "CREATE ROLE cloudintel WITH LOGIN PASSWORD 'localdev-change-me' CREATEDB;"
+psql -U $(whoami) -d postgres -c "CREATE DATABASE cloud_identity_intel OWNER cloudintel;"
+
+# 2. Apply schema and seed data (see docs/LOCAL_SETUP.md for full commands)
+
+# 3. Configure and run the app
+cd app
+cp .env.example .env.local   # then set your LLM_API_KEY
+npm install && npm run dev
+```
+
+### Option B: Docker + Terraform
 
 ```bash
 cd infra
-terraform init
-terraform apply -auto-approve
-```
-
-This provisions a PostgreSQL 16 container, applies all 39 SQL migration files, and seeds mock data for AWS, GCP, and GitHub providers.
-
-### 2. Configure environment
-
-```bash
-cp app/.env.example app/.env.local
-# Edit app/.env.local with your LLM API key
-```
-
-```env
-PG_HOST=localhost
-PG_PORT=5432
-PG_USER=cloudintel
-PG_PASSWORD=localdev-change-me
-PG_DATABASE=cloud_identity_intel
-LLM_PROVIDER=anthropic          # or openai, gemini
-LLM_API_KEY=sk-ant-your-key
-```
-
-### 3. Run the application
-
-```bash
-cd app
-npm install
-npm run dev
+terraform init && terraform apply -auto-approve
+cd ../app
+cp .env.example .env.local   # then set your LLM_API_KEY
+npm install && npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) and try a question like *"Show all GitHub org admins"* or *"Who has access to the production AWS account?"*.
 
-### 4. Run tests
+> **Detailed setup guide**: See [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md) for step-by-step instructions, schema application order, troubleshooting, and database reset procedures.
+
+### Run tests
 
 ```bash
 cd app
@@ -114,28 +110,32 @@ alxderia/
 
 ### Schema overview
 
-| Directory | Tables |
-|-----------|--------|
+| Directory | Contents |
+|-----------|----------|
+| `00-extensions` | `pgcrypto`, `uuid-ossp` |
 | `01-reference` | `cloud_provider`, `tenant` |
-| `02-aws` | `aws_account`, `aws_iam_user`, `aws_idc_user`, `aws_idc_group`, `aws_idc_group_membership`, `aws_idc_permission_set`, `aws_idc_account_assignment` |
+| `02-aws` | `aws_account`, `aws_iam_user`, `aws_iam_user_policy_attachment`, `aws_idc_user`, `aws_idc_group`, `aws_idc_group_membership`, `aws_idc_permission_set`, `aws_idc_account_assignment` |
 | `03-gcp` | `gcp_project`, `gcp_workspace_user`, `gcp_workspace_group`, `gcp_workspace_group_membership`, `gcp_iam_binding` |
-| `04-identity` | `person`, `person_link` |
-| `05-access` | `mv_effective_access` (materialised view) |
-| `06-history` | `entity_history` (hash-chained, monthly partitioned) |
-| `09-audit` | `audit_log` (quarterly partitioned) |
-| `10-dlp` | PII redaction views, retention policies |
+| `04-identity` | `person`, `person_link` (cross-provider graph) |
+| `05-views` | `mv_effective_access` (materialised view), `fn_effective_access_as_of` |
+| `07-indexes` | Performance indexes |
+| `08-security` | Database roles and RLS policies |
+| `09-history` | `entity_history` (hash-chained), `snapshot_registry`, hash verify function |
+| `10-dlp` | Retention policies, legal holds, PII redaction views |
 | `11-github` | `github_organisation`, `github_user`, `github_team`, `github_team_membership`, `github_org_membership` |
+| `99-seed` | Mock data (1,000 persons, ~15,000 rows total) |
 
 ### Database roles
 
 | Role | Access |
 |------|--------|
-| `admin` | Schema management (DDL) |
-| `ingest` | Data loading (INSERT/UPDATE) |
-| `analyst` | Full read with PII |
-| `readonly` | Redacted views only |
-| `audit` | Audit log access |
-| `app` | Application runtime queries |
+| `cloudintel` | Application login role (connects to the database) |
+| `cloudintel_admin` | Schema management (DDL) |
+| `cloudintel_ingest` | Data loading (INSERT/UPDATE) |
+| `cloudintel_analyst` | Full read with PII (used by the app via `SET LOCAL ROLE`) |
+| `cloudintel_readonly` | Redacted views only |
+| `cloudintel_audit` | Audit log access |
+| `cloudintel_app` | Application runtime queries |
 
 ## Security
 
@@ -185,7 +185,7 @@ cd infra/deploy/gcp && terraform apply
 | [SRE Operations Guide](docs/05_SRE_Operations_Guide.md) | Deployment, monitoring, runbooks |
 | [GitHub Identity Integration](docs/06_GitHub_Identity_Integration.md) | GitHub provider design and mapping |
 | [Target Architecture](docs/07_Target_Architecture_GraphQL_DLP.md) | GraphQL API and Export/DLP roadmap |
-| [Local Setup](docs/LOCAL_SETUP.md) | Quick-start guide |
+| [Local Setup](docs/LOCAL_SETUP.md) | Complete local setup guide (native PG + Docker options, troubleshooting, reset procedures) |
 | [Performance Metrics](docs/performance-metrics.md) | Query benchmarks and index analysis |
 
 ## Tech Stack
