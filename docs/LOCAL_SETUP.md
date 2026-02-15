@@ -51,6 +51,11 @@ psql -U $(whoami) -d cloud_identity_intel -f schema/01_schema.sql
 psql -U $(whoami) -d cloud_identity_intel -f schema/02_seed_and_queries.sql
 ```
 
+# Load mock data (~700 users, ~10K rows total)
+```bash
+psql -U $(whoami) -d cloud_identity_intel -f schema/99-seed/010_mock_data.sql
+```
+
 ### 3. Grant permissions
 
 ```bash
