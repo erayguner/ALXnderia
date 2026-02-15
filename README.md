@@ -2,11 +2,11 @@
 
 **Cloud Identity Intelligence -- Natural Language to SQL**
 
-[![CI](https://github.com/erayg/alxderia/actions/workflows/ci.yml/badge.svg)](https://github.com/erayg/alxderia/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/erayg/alxderia/actions/workflows/codeql.yml/badge.svg)](https://github.com/erayg/alxderia/actions/workflows/codeql.yml)
-[![Checkov](https://github.com/erayg/alxderia/actions/workflows/checkov.yml/badge.svg)](https://github.com/erayg/alxderia/actions/workflows/checkov.yml)
-[![Security Audit](https://github.com/erayg/alxderia/actions/workflows/security-audit.yml/badge.svg)](https://github.com/erayg/alxderia/actions/workflows/security-audit.yml)
-[![Bundle Analysis](https://github.com/erayg/alxderia/actions/workflows/nextjs-bundle.yml/badge.svg)](https://github.com/erayg/alxderia/actions/workflows/nextjs-bundle.yml)
+[![CI](https://github.com/erayguner/ALXnderia/actions/workflows/ci.yml/badge.svg)](https://github.com/erayguner/ALXnderia/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/erayguner/ALXnderia/actions/workflows/codeql.yml/badge.svg)](https://github.com/erayguner/ALXnderia/actions/workflows/codeql.yml)
+[![Checkov](https://github.com/erayguner/ALXnderia/actions/workflows/checkov.yml/badge.svg)](https://github.com/erayguner/ALXnderia/actions/workflows/checkov.yml)
+[![Security Audit](https://github.com/erayguner/ALXnderia/actions/workflows/security-audit.yml/badge.svg)](https://github.com/erayguner/ALXnderia/actions/workflows/security-audit.yml)
+[![Bundle Analysis](https://github.com/erayguner/ALXnderia/actions/workflows/nextjs-bundle.yml/badge.svg)](https://github.com/erayguner/ALXnderia/actions/workflows/nextjs-bundle.yml)
 
 ![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
