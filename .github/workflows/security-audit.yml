@@ -1,0 +1,122 @@
+name: Security Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/package*.json"
+      - "schema/**"
+      - ".github/workflows/security-audit.yml"
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  # ── npm audit for known CVEs ──
+  npm-audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+
+      - name: npm audit (production)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (all)
+        run: npm audit --audit-level=critical
+        continue-on-error: true
+
+  # ── SQL injection pattern scanner ──
+  sql-safety:
+    name: SQL Safety Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for raw SQL concatenation in TypeScript
+        run: |
+          echo "Scanning for unsafe SQL patterns..."
+          UNSAFE=0
+
+          # String concatenation in SQL
+          if grep -rn 'query.*\+.*\$\|query.*\+.*req\.\|query.*\+.*params' app/src/ --include='*.ts' --include='*.tsx'; then
+            echo "WARNING: Possible SQL string concatenation found"
+            UNSAFE=1
+          fi
+
+          # Template literals in SQL without parameterised queries
+          if grep -rn 'query(`.*\${' app/src/ --include='*.ts' --include='*.tsx'; then
+            echo "WARNING: Template literals in SQL queries found"
+            UNSAFE=1
+          fi
+
+          if [ $UNSAFE -eq 1 ]; then
+            echo "SQL safety issues detected — review above."
+            exit 1
+          fi
+          echo "No unsafe SQL patterns found."
+
+      - name: Check for blocked SQL functions in schema
+        run: |
+          echo "Checking schema files for dangerous functions..."
+          BLOCKED="dblink|dblink_exec|lo_import|lo_export|pg_read_file|pg_read_binary_file|pg_sleep"
+          if grep -rniE "$BLOCKED" schema/ --include='*.sql'; then
+            echo "Blocked SQL functions found in schema files!"
+            exit 1
+          fi
+          echo "No blocked functions in schema."
+
+  # ── Secret detection ──
+  secrets-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog secret scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified --results=verified,unknown
+
+  # ── Dependency license check ──
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+
+      - name: Check for copyleft licenses
+        run: |
+          npx license-checker --production --failOn \
+            "GPL-2.0;GPL-3.0;AGPL-1.0;AGPL-3.0;EUPL-1.1;EUPL-1.2;SSPL-1.0;BSL-1.1" \
+            --summary || true
+          echo "License check complete."

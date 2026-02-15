@@ -1,0 +1,56 @@
+name: Next.js Bundle Analysis
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  bundle-analysis:
+    name: Bundle Size
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+
+      - name: Build with bundle analysis
+        run: ANALYZE=true npm run build
+
+      - name: Check bundle size limits
+        run: |
+          # Standalone output check
+          if [ -d ".next/standalone" ]; then
+            SIZE=$(du -sm .next/standalone | cut -f1)
+            echo "Standalone bundle: ${SIZE}MB"
+            if [ "$SIZE" -gt 200 ]; then
+              echo "Bundle exceeds 200MB limit!"
+              exit 1
+            fi
+          fi
+
+          # First Load JS check (parse from build output)
+          echo "Build completed. Check 'npm run build' output above for per-route sizes."
+
+      - name: Check for large dependencies
+        run: |
+          echo "Top 10 largest production dependencies:"
+          du -sh node_modules/*/ 2>/dev/null | sort -rh | head -10

@@ -1,0 +1,53 @@
+# Codex local configuration
+.codex/
+
+# Claude Code / Claude config (anywhere in repo)
+**/.claude/
+.claude/
+
+# MCP config
+.mcp.json
+
+# Claude Flow runtime data
+.claude-flow/
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Dependency artifacts
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Terraform (also covered by infra/.gitignore)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test / coverage
+coverage/

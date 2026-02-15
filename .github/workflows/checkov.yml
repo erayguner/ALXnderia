@@ -1,0 +1,88 @@
+name: Checkov IaC Security
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - "schema/**"
+      - ".github/workflows/checkov.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - "schema/**"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  checkov-terraform:
+    name: Checkov — Terraform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Checkov on Terraform
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: infra
+          framework: terraform
+          output_format: cli,sarif
+          output_file_path: console,/tmp/checkov-tf.sarif
+          soft_fail: false
+          skip_check: CKV_DOCKER_2,CKV_DOCKER_3
+          # CKV_DOCKER_2: healthcheck (we have one)
+          # CKV_DOCKER_3: user instruction (dev container)
+
+      - name: Upload Terraform SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: /tmp/checkov-tf.sarif
+          category: checkov-terraform
+
+  checkov-sql:
+    name: Checkov — SQL / Secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Checkov secrets scanner
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: secrets
+          output_format: cli,sarif
+          output_file_path: console,/tmp/checkov-secrets.sarif
+          soft_fail: false
+
+      - name: Upload Secrets SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: /tmp/checkov-secrets.sarif
+          category: checkov-secrets
+
+  checkov-github-actions:
+    name: Checkov — GitHub Actions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Checkov on GitHub Actions
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .github
+          framework: github_actions
+          output_format: cli,sarif
+          output_file_path: console,/tmp/checkov-gha.sarif
+          soft_fail: true
+
+      - name: Upload GHA SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: /tmp/checkov-gha.sarif
+          category: checkov-github-actions
