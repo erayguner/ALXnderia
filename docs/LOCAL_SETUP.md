@@ -1,6 +1,6 @@
 # Alxderia - Local Setup Guide
 
-A Next.js app (NL2SQL) that lets you ask natural-language questions about cloud identity data (AWS, GCP, and GitHub). It uses an LLM to generate SQL, runs it against PostgreSQL, and returns results.
+A Next.js app (NL2SQL) that lets you ask natural-language questions about cloud identity data (Google Workspace, AWS Identity Center, and GitHub). It uses an LLM to generate SQL, runs it against PostgreSQL, and returns results.
 
 ## Prerequisites
 
@@ -33,87 +33,25 @@ Use this if you have PostgreSQL installed locally (e.g. via Homebrew).
 # Create the application role
 psql -U $(whoami) -d postgres -c "CREATE ROLE cloudintel WITH LOGIN PASSWORD 'localdev-change-me' CREATEDB;"
 
-# Create the application-level roles used by RLS policies
-psql -U $(whoami) -d postgres -c "CREATE ROLE cloudintel_admin;"
-psql -U $(whoami) -d postgres -c "CREATE ROLE cloudintel_analyst;"
-psql -U $(whoami) -d postgres -c "CREATE ROLE cloudintel_readonly;"
-psql -U $(whoami) -d postgres -c "CREATE ROLE cloudintel_audit;"
-psql -U $(whoami) -d postgres -c "CREATE ROLE cloudintel_ingest;"
-psql -U $(whoami) -d postgres -c "CREATE ROLE cloudintel_app;"
-psql -U $(whoami) -d postgres -c "GRANT cloudintel_analyst TO cloudintel;"
-psql -U $(whoami) -d postgres -c "GRANT cloudintel_app TO cloudintel;"
-
 # Create the database
 psql -U $(whoami) -d postgres -c "CREATE DATABASE cloud_identity_intel OWNER cloudintel;"
 ```
 
 ### 2. Apply the schema
 
-The schema files must be applied in a specific order. GitHub tables must be created before the identity tables (which add foreign keys to them).
+The schema is defined in two flat SQL files. Apply them in order:
 
 ```bash
 cd /path/to/ALXnderia
 
-# Extensions (requires superuser)
-psql -U $(whoami) -d cloud_identity_intel -f schema/00-extensions/extensions.sql
+# DDL: extensions, tables, indexes, enums
+psql -U $(whoami) -d cloud_identity_intel -f schema/01_schema.sql
 
-# Schema files in dependency order
-for f in \
-  schema/01-reference/010_cloud_provider.sql \
-  schema/01-reference/020_tenant.sql \
-  schema/02-aws/010_aws_account.sql \
-  schema/02-aws/020_aws_iam_user.sql \
-  schema/02-aws/030_aws_iam_user_policy_attachment.sql \
-  schema/02-aws/040_aws_idc_user.sql \
-  schema/02-aws/050_aws_idc_group.sql \
-  schema/02-aws/060_aws_idc_group_membership.sql \
-  schema/02-aws/070_aws_idc_permission_set.sql \
-  schema/02-aws/080_aws_idc_account_assignment.sql \
-  schema/03-gcp/010_gcp_project.sql \
-  schema/03-gcp/020_gcp_workspace_user.sql \
-  schema/03-gcp/030_gcp_workspace_group.sql \
-  schema/03-gcp/040_gcp_workspace_group_membership.sql \
-  schema/03-gcp/050_gcp_iam_binding.sql \
-  schema/11-github/010_github_organisation.sql \
-  schema/11-github/020_github_user.sql \
-  schema/11-github/030_github_team.sql \
-  schema/11-github/040_github_team_membership.sql \
-  schema/11-github/050_github_org_membership.sql \
-  schema/04-identity/010_person.sql \
-  schema/04-identity/020_person_link.sql \
-  schema/05-views/010_mv_effective_access.sql \
-  schema/05-views/020_fn_effective_access_as_of.sql \
-  schema/07-indexes/010_indexes.sql \
-  schema/09-history/010_entity_history.sql \
-  schema/09-history/020_snapshot_registry.sql \
-  schema/09-history/030_hash_verify_function.sql \
-  schema/10-dlp/010_retention_policy.sql \
-  schema/10-dlp/020_legal_hold.sql \
-  schema/10-dlp/030_pii_redaction_views.sql \
-  schema/11-github/060_github_post_setup.sql \
-  schema/08-security/010_roles.sql \
-  schema/08-security/020_rls_policies.sql; do
-  echo "==> $f"
-  psql -U $(whoami) -d cloud_identity_intel -f "$f"
-done
+# Seed data and example queries
+psql -U $(whoami) -d cloud_identity_intel -f schema/02_seed_and_queries.sql
 ```
 
-**PostgreSQL 14 users:** The materialized view index uses `NULLS NOT DISTINCT` (PG 15+). If you see a syntax error, run this manually:
-
-```sql
-CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_ea_unique ON mv_effective_access (
-    person_id, cloud_provider, account_or_project_id,
-    role_or_permission_set, access_path, COALESCE(via_group_name, '')
-);
-```
-
-### 3. Seed mock data
-
-```bash
-psql -U $(whoami) -d cloud_identity_intel -f schema/99-seed/010_mock_data.sql
-```
-
-### 4. Grant permissions
+### 3. Grant permissions
 
 ```bash
 psql -U $(whoami) -d cloud_identity_intel -c "
@@ -123,17 +61,14 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO cloudintel;
 "
 ```
 
-### 5. Verify
+### 4. Verify
 
 ```bash
 psql -U cloudintel -h localhost -d cloud_identity_intel -c "
-SET ROLE cloudintel_analyst;
-BEGIN;
-SET LOCAL app.current_tenant_id = 'a0000000-0000-0000-0000-000000000001';
-SELECT COUNT(*) AS people FROM person WHERE deleted_at IS NULL;
-COMMIT;
+SELECT COUNT(*) AS canonical_users FROM canonical_users
+WHERE tenant_id = '11111111-1111-1111-1111-111111111111';
 "
-# Expected: 680 rows
+# Expected: 3 rows (Alice, Bob, Dave from seed data)
 ```
 
 ---
@@ -150,7 +85,7 @@ terraform init
 terraform apply -auto-approve
 ```
 
-This spins up a PostgreSQL 16 container on **port 5432** with the `cloud_identity_intel` database, applies all schema files, and seeds mock data.
+This spins up a PostgreSQL 16 container on **port 5432** with the `cloud_identity_intel` database, applies both schema files, and seeds mock data.
 
 Verify it's running:
 
@@ -202,11 +137,11 @@ Open **http://localhost:3000** in your browser.
 Check all API endpoints return data:
 
 ```bash
-curl -s http://localhost:3000/api/health   # {"status":"ok"}
-curl -s http://localhost:3000/api/people   # 680 people (Northwind tenant)
-curl -s http://localhost:3000/api/groups   # 230 groups
-curl -s http://localhost:3000/api/resources # 150 resources (AWS accounts + GCP projects)
-curl -s http://localhost:3000/api/audit    # 0 entries (empty until queries are made)
+curl -s http://localhost:3000/api/health    # {"status":"ok"}
+curl -s http://localhost:3000/api/people    # canonical users list
+curl -s http://localhost:3000/api/groups    # groups across all 3 providers
+curl -s http://localhost:3000/api/resources # GitHub repositories
+curl -s http://localhost:3000/api/audit     # "Audit logging table not yet provisioned"
 ```
 
 ### 4. Run tests
@@ -223,50 +158,74 @@ npm run lint    # ESLint 9 with eslint-config-next
 | Page | URL | Description |
 | ---- | --- | ----------- |
 | Chat | `/` | Natural-language query interface (NL2SQL) |
-| People | `/people` | Browse all persons with identity counts |
-| Resources | `/resources` | AWS accounts and GCP projects |
-| Groups | `/groups` | AWS IDC groups and GCP Workspace groups |
-| Access Explorer | `/access` | Cross-provider effective access view |
-| Audit Log | `/audit` | Query execution audit trail |
+| People | `/people` | Browse canonical users with identity counts |
+| Resources | `/resources` | GitHub repositories with permission counts |
+| Groups | `/groups` | Google Workspace, AWS Identity Center, and GitHub groups |
+| Access Explorer | `/access` | GitHub repository collaborator permissions |
+| Audit Log | `/audit` | Query execution audit trail (console-only, table not yet provisioned) |
 
 ---
 
-## Mock Data Summary
+## Seed Data Summary
 
-The seed file (`schema/99-seed/010_mock_data.sql`) creates a deterministic dataset across two tenants:
+The seed file (`schema/02_seed_and_queries.sql`) creates a deterministic dataset for a single demo tenant (`11111111-1111-1111-1111-111111111111`):
 
-| Entity | Northwind | Southbank | Total |
-| ------ | --------- | --------- | ----- |
-| Persons | 700 | 300 | 1,000 |
-| AWS IDC Users | 410 | 170 | 580 |
-| AWS IAM Users | 105 | 45 | 150 |
-| GCP Workspace Users | 370 | 150 | 520 |
-| GitHub Users | 280 | 120 | 400 |
-| AWS IDC Groups | 120 | 60 | 180 |
-| GCP Workspace Groups | 110 | 50 | 160 |
-| GitHub Teams | 20 | 10 | 30 |
-| Person Links | - | - | ~1,630 |
-| Entity History Events | - | - | 140 |
+| Entity | Count | Details |
+| ------ | ----- | ------- |
+| Canonical Users | 3 | Alice Johnson, Bob Smith, Dave Wilson |
+| Canonical Emails | 3 | One per canonical user |
+| Canonical Provider Links | 5 | Alice (all 3), Bob (GitHub only), Dave (Google only) |
+| Google Workspace Users | 2 | Alice, Dave |
+| Google Workspace Groups | 1 | engineering-team |
+| Google Workspace Memberships | 2 | Alice + Dave in engineering |
+| AWS Identity Center Users | 1 | Alice |
+| AWS Identity Center Groups | 1 | CloudAdmins |
+| AWS Identity Center Memberships | 1 | Alice in CloudAdmins |
+| GitHub Organisations | 1 | demo-org |
+| GitHub Users | 2 | Alice, Bob |
+| GitHub Teams | 1 | platform-team |
+| GitHub Org Memberships | 2 | Alice (admin), Bob (member) |
+| GitHub Team Memberships | 2 | Alice + Bob in platform-team |
+| GitHub Repositories | 1 | infra-core |
+| GitHub Repo Team Permissions | 1 | platform-team has push on infra-core |
+| GitHub Repo Collaborator Permissions | 1 | Carol (external collaborator, read) |
+| Identity Reconciliation Queue | 1 | Bob (pending review, GitHub-only) |
 
-Edge cases included: 20 departed persons, 15 suspended GCP users, 30 stale IDC accounts, 5 display name mismatches, 20 GitHub noreply users.
+### Edge cases in seed data
 
-The app defaults to the **Northwind Holdings** tenant (`a0000000-0000-0000-0000-000000000001`), which shows 680 active people after filtering out departed users.
+- **Bob** is a GitHub-only user with no canonical identity link (queued for reconciliation)
+- **Carol** is an external collaborator (`is_outside_collaborator = TRUE`) with no org membership
+- **Alice** is linked across all three providers (Google Workspace, AWS Identity Center, GitHub)
+- **Dave** exists only in Google Workspace (no GitHub or AWS presence)
 
 ---
 
-## Database Roles
+## Schema Overview
 
-| Role | Purpose |
-| ---- | ------- |
-| `cloudintel` | Application login role (connects to the database) |
-| `cloudintel_admin` | Schema management (DDL) |
-| `cloudintel_ingest` | Data loading (INSERT/UPDATE) |
-| `cloudintel_analyst` | Full read access with PII (used by the app via `SET LOCAL ROLE`) |
-| `cloudintel_readonly` | Redacted views only |
-| `cloudintel_audit` | Audit log access |
-| `cloudintel_app` | Application runtime queries |
+The schema is defined in two flat SQL files:
 
-The app uses `SET LOCAL ROLE cloudintel_analyst` inside each transaction to satisfy RLS policies, which scope all queries to the current tenant via `SET LOCAL app.current_tenant_id`.
+| File | Contents |
+|------|----------|
+| `schema/01_schema.sql` | Extensions (`uuid-ossp`), all table DDL, indexes, `provider_type_enum` |
+| `schema/02_seed_and_queries.sql` | Seed data for demo tenant, 4 example queries |
+
+### Tables by provider
+
+| Provider | Tables |
+|----------|--------|
+| **Google Workspace** | `google_workspace_users`, `google_workspace_groups`, `google_workspace_memberships` |
+| **AWS Identity Center** | `aws_identity_center_users`, `aws_identity_center_groups`, `aws_identity_center_memberships` |
+| **GitHub** | `github_organisations`, `github_users`, `github_teams`, `github_org_memberships`, `github_team_memberships`, `github_repositories`, `github_repo_team_permissions`, `github_repo_collaborator_permissions` |
+| **Canonical Identity** | `canonical_users`, `canonical_emails`, `canonical_user_provider_links`, `identity_reconciliation_queue` |
+
+### Design principles
+
+- All tables use composite primary keys `(id, tenant_id)` for partition-friendly multi-tenancy
+- GitHub tables use `node_id` (TEXT) as the cross-reference key (mirrors GitHub GraphQL API)
+- All provider tables include `raw_response JSONB` for full API response storage
+- All tables include `deleted_at` for soft-delete support
+- `provider_type_enum` classifies links: `GOOGLE_WORKSPACE`, `AWS_IDENTITY_CENTER`, `GITHUB`
+- The application sets `SET LOCAL app.current_tenant_id` per transaction (RLS-ready for future)
 
 ---
 
@@ -281,7 +240,7 @@ lsof -ti:3000 | xargs kill -9 2>/dev/null
 # Drop and recreate (native PostgreSQL)
 psql -U $(whoami) -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'cloud_identity_intel' AND pid <> pg_backend_pid();"
 psql -U $(whoami) -d postgres -c "DROP DATABASE IF EXISTS cloud_identity_intel;"
-psql -U $(whoami) -d postgres -c "DROP ROLE IF EXISTS cloudintel_admin, cloudintel_analyst, cloudintel_readonly, cloudintel_audit, cloudintel_ingest, cloudintel_app, cloudintel;"
+psql -U $(whoami) -d postgres -c "DROP ROLE IF EXISTS cloudintel;"
 
 # Then re-run the setup steps above
 ```
@@ -301,14 +260,12 @@ terraform apply -auto-approve
 | Problem | Fix |
 | ------- | --- |
 | `role "cloudintel" does not exist` | Run the role creation commands from Step 1 of Option A |
-| `NULLS NOT DISTINCT` syntax error | You're on PG 14. Run the `COALESCE` index workaround above |
 | `current transaction is aborted` | Run `ROLLBACK;` in your psql session, then retry |
-| `permission denied for table` | Run the `GRANT SELECT ON ALL TABLES` commands from Step 4 |
-| `Failed to load people` (500) | Check server logs. Common causes: missing `SET LOCAL ROLE`, wrong column names, missing tables |
+| `permission denied for table` | Run the `GRANT SELECT ON ALL TABLES` commands from Step 3 |
 | App can't connect to DB | Verify PostgreSQL is running (`pg_isready`) and `.env.local` credentials match |
 | Chat returns errors | Check your `LLM_API_KEY` is valid and `LLM_PROVIDER` matches |
 | Port 3000 in use | Run `npx next dev --port 3001` or kill the process: `lsof -ti:3000 \| xargs kill` |
-| RLS returns 0 rows | The app must use `SET LOCAL ROLE cloudintel_analyst` before queries. Check `pool.ts` |
+| `relation "canonical_users" does not exist` | Schema not applied. Run `psql -f schema/01_schema.sql` first |
 
 ---
 
@@ -327,24 +284,13 @@ ALXnderia/
 │   │   ├── audit/        # Audit log page
 │   │   └── api/          # API route handlers
 │   ├── src/
-│   │   ├── client/       # React components (9 components)
+│   │   ├── client/       # React components
 │   │   ├── server/       # DB pool, route handlers, NL2SQL agent, SQL validator
-│   │   └── shared/       # TypeScript type definitions
+│   │   └── shared/       # TypeScript types and constants
 │   └── tests/            # Vitest tests (32 tests across 2 suites)
-├── schema/               # 39 SQL files across 12 directories
-│   ├── 00-extensions/    # pgcrypto, uuid-ossp
-│   ├── 01-reference/     # cloud_provider, tenant
-│   ├── 02-aws/           # AWS accounts, IAM users, IDC users/groups/permissions
-│   ├── 03-gcp/           # GCP projects, Workspace users/groups, IAM bindings
-│   ├── 04-identity/      # person, person_link (cross-provider graph)
-│   ├── 05-views/         # mv_effective_access (materialised view)
-│   ├── 06-queries/       # Example and advanced query templates
-│   ├── 07-indexes/       # Performance indexes
-│   ├── 08-security/      # Roles and RLS policies
-│   ├── 09-history/       # entity_history (hash-chained, partitioned)
-│   ├── 10-dlp/           # Retention policies, legal holds, PII redaction views
-│   ├── 11-github/        # GitHub orgs, users, teams, memberships
-│   └── 99-seed/          # Mock data (1,000 persons, ~15,000 rows total)
+├── schema/               # 2 SQL files: DDL + seed data
+│   ├── 01_schema.sql     # All table DDL, indexes, enums, extensions
+│   └── 02_seed_and_queries.sql  # Seed data and example queries
 ├── infra/                # Terraform (local Docker + AWS/GCP cloud deploy)
 ├── scripts/              # Utility scripts (preflight.sh)
 ├── docs/                 # Architecture and operations documentation
