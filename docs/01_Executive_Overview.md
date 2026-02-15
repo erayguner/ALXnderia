@@ -23,7 +23,7 @@ The vision is straightforward: every organisation should be able to answer any i
 
 ## 2. Key Capabilities
 
-**Unified Identity Model.** Alxderia consolidates identities from AWS IAM, AWS Identity Centre, Google Cloud (Workspace and IAM bindings), and GitHub (organisations, users, teams) into a single, person-centric graph. Users, groups, permission sets, account assignments, IAM policy bindings, and GitHub team memberships are linked so that effective access can be computed in one place rather than across multiple provider dashboards.
+**Unified Identity Model.** Alxderia consolidates identities from AWS Identity Center, Google Workspace, and GitHub (organisations, users, teams, repositories) into a single, person-centric canonical identity layer. Users, groups, memberships, and repository permissions are linked via `canonical_users` and `canonical_user_provider_links` so that cross-provider identity questions can be answered in one place rather than across multiple provider dashboards.
 
 **Natural-Language Querying.** Analysts interact with the platform through a conversational interface. An AI agent powered by a configurable LLM provider (supporting Anthropic Claude, OpenAI GPT, and Google Gemini) interprets questions expressed in plain English and converts them into precise, validated SQL queries against the unified data model. No specialist query language or cloud-provider expertise is required.
 
@@ -31,13 +31,13 @@ The vision is straightforward: every organisation should be able to answer any i
 
 **Multi-Tenant Isolation.** The platform enforces tenant boundaries at the database level, guaranteeing that each organisation's identity data is invisible to every other tenant -- even in the event of an application-layer defect.
 
-**Tamper-Evident Audit Trail.** All entity changes are recorded in an append-only history with cryptographic hash chaining, providing an immutable record suitable for forensic review and regulatory examination.
+**Audit Logging.** All queries are logged with metadata (question, SQL, row count, timing, status) for forensic review and compliance. Database-backed, tamper-evident audit logging with hash chaining is planned for a future iteration.
 
-**Role-Based Access Control.** Six distinct roles govern what each user may see and do within the platform, from read-only analyst access through to full administrative control.
+**Multi-Tenant Data Model.** All tables use composite primary keys `(id, tenant_id)` for partition-friendly multi-tenancy. The application sets tenant context per transaction for forward-compatible isolation.
 
 **Continuous Integration and Security Scanning.** Five GitHub Actions pipelines enforce code quality, security, and compliance on every push and pull request: CI (lint, type-check, test, build, schema validation), CodeQL (SAST with security-extended queries), Checkov (Terraform IaC and secrets scanning), Security Audit (npm audit, SQL safety, TruffleHog, license compliance), and Next.js Bundle Analysis.
 
-**PII Redaction and Data Retention.** Dedicated database views redact personally identifiable information for roles that do not require it, supporting General Data Protection Regulation (GDPR) obligations. Configurable retention policies and legal-hold capabilities ensure data lifecycle management aligns with organisational and regulatory requirements.
+**Identity Reconciliation.** An `identity_reconciliation_queue` table captures unresolved cross-provider identity matches for manual review, ensuring data quality in the canonical identity layer. PII redaction views, retention policies, and legal-hold capabilities are planned for future iterations.
 
 ## 3. Business Value and Outcomes
 
@@ -56,11 +56,9 @@ The vision is straightforward: every organisation should be able to answer any i
 Security is treated as a structural property of the platform rather than an afterthought. The following measures are built into the architecture:
 
 - **Query Safety.** A seven-layer validation pipeline prevents the AI agent from executing destructive, unauthorised, or malformed SQL. This includes comment stripping, keyword blocking, abstract syntax tree parsing, statement type enforcement, table allowlisting, function blocking, and automatic result-set limiting.
-- **Tenant Isolation.** Row-level security policies at the database layer enforce tenant boundaries using session-scoped variables, providing isolation that is independent of application logic.
-- **Audit Integrity.** Entity history records are linked by SHA-256 hash chains. Any attempt to alter or delete a historical record would break the chain and be immediately detectable.
-- **Access Control.** A six-role model governs platform access, ensuring least-privilege principles are applied consistently.
-- **Data Protection.** PII redaction views, configurable retention windows, and legal-hold capabilities support GDPR and equivalent data-protection frameworks.
-- **Partitioned Audit Logs.** Audit data is partitioned for efficient querying and long-term retention without performance degradation.
+- **Tenant Isolation.** All tables include `tenant_id` with composite primary keys. The application sets `app.current_tenant_id` per transaction. RLS policies can be added without application changes.
+- **Audit Logging.** Query metadata is logged (question, SQL, row count, timing, status) for compliance review. Database-backed audit with hash chaining is planned.
+- **Data Protection.** PII-containing tables are tracked in the application's `PII_TABLES` configuration. PII redaction views, retention policies, and legal-hold capabilities are planned for future iterations.
 
 ## 5. Operational Model
 
@@ -80,8 +78,8 @@ The platform is designed for horizontal scalability. Serverless compute (App Run
 |---|---|
 | AI-generated queries produce incorrect or unsafe SQL | Seven-layer validation pipeline; read-only database role; automatic LIMIT enforcement; human-reviewable query logs |
 | Tenant data leakage in a multi-tenant deployment | Database-level row-level security enforced via session variables; no application-layer filtering relied upon for isolation |
-| Stale identity data leading to inaccurate access answers | Materialised views with defined refresh cadences; clear data-freshness indicators in the user interface |
-| Regulatory non-compliance (GDPR, SOC 2) | PII redaction views; configurable retention policies; legal hold; tamper-evident audit logs with hash-chain integrity |
+| Stale identity data leading to inaccurate access answers | `last_synced_at` timestamps on all provider tables; identity reconciliation queue for unresolved matches |
+| Regulatory non-compliance (GDPR, SOC 2) | PII tables tracked in application config; audit logging of all queries; redaction views and retention policies planned |
 | Vendor concentration on a single AI provider | Implemented support for multiple LLM providers (Anthropic Claude, OpenAI GPT, Google Gemini) with runtime provider selection via LLM_PROVIDER environment variable |
 | Infrastructure misconfiguration | All infrastructure defined as Terraform code; environment parity across local, AWS, and GCP deployments |
 

@@ -3,11 +3,18 @@ import { executeWithTenant } from '../db/pool';
 
 function getSession() {
   return {
-    tenantId: 'a0000000-0000-0000-0000-000000000001',
+    tenantId: '11111111-1111-1111-1111-111111111111',
     role: 'analyst' as const,
   };
 }
 
+/**
+ * Lists access data from the schema.
+ *
+ * Since the multi-tenant schema does not include a pre-computed effective
+ * access view, this route queries GitHub repository permissions (the only
+ * access-grant data available) and canonical identity linkages.
+ */
 export async function handleAccessList(req: NextRequest): Promise<NextResponse> {
   const session = getSession();
   if (!session) {
@@ -17,62 +24,49 @@ export async function handleAccessList(req: NextRequest): Promise<NextResponse> 
   const url = new URL(req.url);
   const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
   const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50')));
-  const provider = url.searchParams.get('provider');
-  const accessPath = url.searchParams.get('accessPath');
   const search = url.searchParams.get('search');
 
   const conditions: string[] = [];
   const params: unknown[] = [];
   let paramIdx = 1;
 
-  if (provider && ['aws', 'gcp'].includes(provider)) {
-    conditions.push(`ea.cloud_provider = $${paramIdx++}`);
-    params.push(provider);
-  }
-
-  if (accessPath && ['direct', 'group'].includes(accessPath)) {
-    conditions.push(`ea.access_path = $${paramIdx++}`);
-    params.push(accessPath);
-  }
-
   if (search) {
     conditions.push(`(
-      p.display_name ILIKE $${paramIdx} OR
-      p.primary_email ILIKE $${paramIdx} OR
-      ea.account_or_project_id ILIKE $${paramIdx} OR
-      ea.account_or_project_name ILIKE $${paramIdx} OR
-      ea.role_or_permission_set ILIKE $${paramIdx}
+      u.login ILIKE $${paramIdx} OR
+      u.email ILIKE $${paramIdx} OR
+      r.full_name ILIKE $${paramIdx} OR
+      perm.permission ILIKE $${paramIdx}
     )`);
     params.push(`%${search}%`);
     paramIdx++;
   }
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const whereClause = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
 
-  // Count query
+  // GitHub repo collaborator permissions joined with user and repo info
   const countSql = `
     SELECT COUNT(*) AS total
-    FROM mv_effective_access ea
-    JOIN person p ON p.id = ea.person_id
-    ${whereClause}
+    FROM github_repo_collaborator_permissions perm
+    JOIN github_repositories r ON perm.repo_node_id = r.node_id AND perm.tenant_id = r.tenant_id
+    JOIN github_users u ON perm.user_node_id = u.node_id AND perm.tenant_id = u.tenant_id
+    WHERE perm.deleted_at IS NULL ${whereClause}
   `;
 
-  // Data query
   const offset = (page - 1) * limit;
   const dataSql = `
     SELECT
-      p.display_name,
-      p.primary_email,
-      ea.cloud_provider,
-      ea.account_or_project_id,
-      ea.account_or_project_name,
-      ea.role_or_permission_set,
-      ea.access_path,
-      ea.via_group_name
-    FROM mv_effective_access ea
-    JOIN person p ON p.id = ea.person_id
-    ${whereClause}
-    ORDER BY p.display_name, ea.cloud_provider, ea.account_or_project_id
+      u.login AS user_login,
+      u.email AS user_email,
+      r.full_name AS repo_name,
+      r.private AS repo_private,
+      perm.permission,
+      perm.is_outside_collaborator,
+      CASE WHEN perm.is_outside_collaborator THEN 'external' ELSE 'member' END AS access_type
+    FROM github_repo_collaborator_permissions perm
+    JOIN github_repositories r ON perm.repo_node_id = r.node_id AND perm.tenant_id = r.tenant_id
+    JOIN github_users u ON perm.user_node_id = u.node_id AND perm.tenant_id = u.tenant_id
+    WHERE perm.deleted_at IS NULL ${whereClause}
+    ORDER BY r.full_name, u.login
     LIMIT $${paramIdx++} OFFSET $${paramIdx++}
   `;
 

@@ -9,8 +9,8 @@ function getSession() {
     userId: 'demo-user-001',
     email: 'analyst@demo-example.co.uk',
     name: 'Demo Analyst',
-    tenantId: 'a0000000-0000-0000-0000-000000000001',
-    tenantSlug: 'northwind',
+    tenantId: '11111111-1111-1111-1111-111111111111',
+    tenantSlug: 'demo',
     role: 'analyst' as const,
   };
 }

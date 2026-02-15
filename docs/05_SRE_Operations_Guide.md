@@ -163,10 +163,9 @@ Use CloudWatch Alarms for AWS and Cloud Monitoring alert policies for GCP. Route
 
 The application writes structured logs to stdout/stderr. App Runner forwards these to CloudWatch Logs; Cloud Run forwards them to Cloud Logging. No additional log agent is required.
 
-### 5.2 Database Audit Trail
+### 5.2 Application Audit Trail
 
-- **audit_log table**: Append-only (INSERT only for the ingest role; UPDATE, DELETE, and TRUNCATE are denied). Partitioned quarterly (e.g. `audit_log_2026_q1` through `_q4`). Serves as the authoritative record of all mutations.
-- **entity_history table**: Hash-chained using SHA-256 for tamper evidence. Partitioned monthly (e.g. `entity_history_2026_01` through `_12`). Provides a verifiable event log for every entity state change.
+Audit entries are currently logged to the console via `src/server/middleware/audit.ts`. Each entry records the question, SQL executed, row count, timing, and status. Database-backed audit logging with partitioning and integrity hashing is planned for a future schema iteration.
 
 ### 5.3 pgaudit
 
@@ -198,11 +197,7 @@ If state is corrupted, restore from the previous S3/GCS object version.
 
 ### 6.3 Schema as Code
 
-All 39 SQL migration files reside in the `schema/` directory under version control. The database schema can be rebuilt from scratch by running `migrate-schema.sh` against an empty database.
-
-### 6.4 Entity History as Event Log
-
-Because entity_history is hash-chained and append-only, it functions as an event log. In a disaster recovery scenario, the current state of entities can be reconstructed by replaying entity_history records in order, provided the chain integrity is verified.
+The schema is defined in two SQL files in the `schema/` directory under version control: `01_schema.sql` (DDL) and `02_seed_and_queries.sql` (seed data). The database can be rebuilt from scratch by applying these files in order against an empty database.
 
 ### 6.5 Recovery Time Objectives
 
@@ -220,8 +215,7 @@ These are not formally defined. As a starting point, target RTO of 1 hour and RP
 | Application not starting | Missing secrets, bad image | Check secret access, review container logs. See Runbook 9.2. |
 | Schema migration failure | SQL syntax error, lock contention | Roll back the offending SQL file, fix, re-run. See Runbook 9.3. |
 | LLM API errors | LLM provider service outage or invalid key | Check provider status page, verify LLM_API_KEY secret value. See Runbook 9.4. |
-| Partition not found | Missing future partition | Create partition immediately. See Runbook 9.5. |
-| Stale materialised view | Refresh not triggered after ingest | Run concurrent refresh. See Runbook 9.6. |
+| Stale canonical identity links | Links not updated after provider data ingest | Re-run the identity reconciliation pipeline. |
 
 ### 7.2 Escalation Path
 
@@ -289,7 +283,7 @@ With a 99.5% availability SLO over 28 days, the error budget is approximately 20
 
 **Steps**:
 
-1. Read the error output to identify the failing SQL file. The 39 files in `schema/` are applied in lexicographic order.
+1. Read the error output to identify the failing SQL file. The two files in `schema/` are applied in lexicographic order (`01_schema.sql` then `02_seed_and_queries.sql`).
 2. Connect to the database and check which objects exist to determine how far the migration progressed.
 3. Fix the SQL file, commit, and re-run. The migration script is idempotent where possible (uses `IF NOT EXISTS`), but verify manually for DDL that is not idempotent.
 4. The Terraform `null_resource` triggers on the SHA-256 hash of all SQL files. Changing any file will trigger a re-run.
@@ -306,41 +300,23 @@ With a 99.5% availability SLO over 28 days, the error budget is approximately 20
 4. If the LLM provider is experiencing a prolonged outage, consider switching to an alternative provider by updating LLM_PROVIDER and LLM_API_KEY in the secrets configuration and redeploying.
 5. If the LLM provider is experiencing an outage, the application should degrade gracefully. Non-AI features must remain operational.
 
-### 9.5 Partition Maintenance
+### 9.5 Identity Reconciliation Queue
 
-**Symptoms**: INSERT operations fail with "no partition of relation" errors.
-
-**Steps**:
-
-1. Identify which table and period is missing. `entity_history` uses monthly partitions; `audit_log` uses quarterly partitions.
-2. Create the missing partition:
-
-```sql
--- Monthly partition for entity_history
-CREATE TABLE entity_history_2027_01 PARTITION OF entity_history
-  FOR VALUES FROM ('2027-01-01') TO ('2027-02-01');
-
--- Quarterly partition for audit_log
-CREATE TABLE audit_log_2027_q1 PARTITION OF audit_log
-  FOR VALUES FROM ('2027-01-01') TO ('2027-04-01');
-```
-
-3. Schedule partition creation at least one month before the period begins. Add a calendar reminder or automate via a cron job.
-
-### 9.6 Materialised View Refresh
-
-**Symptoms**: `mv_effective_access` returns stale data after a data ingestion.
+**Symptoms**: Unmatched identities accumulate in the `identity_reconciliation_queue` table after provider data ingestion.
 
 **Steps**:
 
-1. Run a concurrent refresh (does not lock reads):
+1. Query the reconciliation queue for pending items:
 
 ```sql
-REFRESH MATERIALIZED VIEW CONCURRENTLY mv_effective_access;
+SELECT provider_type, provider_user_id, conflict_reason, status
+FROM identity_reconciliation_queue
+WHERE tenant_id = '11111111-1111-1111-1111-111111111111'
+  AND status = 'PENDING';
 ```
 
-2. Verify the refresh completed by checking row counts or querying recent data.
-3. Consider automating this refresh after each ingestion pipeline run.
+2. Review each entry and either create a canonical user link or dismiss the entry.
+3. Consider automating this reconciliation after each ingestion pipeline run.
 
 ### 9.7 Secret Rotation
 
@@ -395,7 +371,7 @@ Verify the new image tag in ECR / Artifact Registry before applying Terraform. C
 4. Log retention periods and SIEM integration are not yet configured. These should be defined per organisational policy.
 5. The CI/CD pipeline is implemented as five GitHub Actions workflows in `.github/workflows/`: CI (lint, type-check, test, build, schema validation), CodeQL (SAST), Checkov (IaC + secrets), Security Audit (npm audit, SQL safety, TruffleHog, license check), and Bundle Analysis.
 6. Secret rotation is a manual process. Automated rotation (e.g. via AWS Secrets Manager rotation lambdas) is not yet configured.
-7. Partition creation is a manual task. Automation should be implemented before the current partitions expire (end of 2026).
+7. The current schema does not use table partitioning, RLS policies, or database roles beyond the default `cloudintel` login role. These features are planned for a future iteration.
 8. The connection pool configuration (min 2, max 10) is shared across all environments. Production may require tuning based on observed load.
 9. RTO and RPO targets are indicative. Formal DR testing has not been conducted.
 10. The Docker image uses `node:22-alpine` as the base. Security patching of the base image is the responsibility of the team maintaining the Dockerfile.

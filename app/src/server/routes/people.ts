@@ -3,7 +3,7 @@ import { executeWithTenant } from '../db/pool';
 
 function getSession() {
   return {
-    tenantId: 'a0000000-0000-0000-0000-000000000001',
+    tenantId: '11111111-1111-1111-1111-111111111111',
     role: 'analyst' as const,
   };
 }
@@ -21,20 +21,20 @@ export async function handlePeopleList(req: NextRequest): Promise<NextResponse> 
   let searchClause = '';
 
   if (search) {
-    searchClause = `AND (p.display_name ILIKE $${paramIdx} OR p.primary_email ILIKE $${paramIdx})`;
+    searchClause = `AND (cu.full_name ILIKE $${paramIdx} OR cu.primary_email ILIKE $${paramIdx})`;
     params.push(`%${search}%`);
     paramIdx++;
   }
 
-  const countSql = `SELECT COUNT(*) AS total FROM person p WHERE p.deleted_at IS NULL ${searchClause}`;
+  const countSql = `SELECT COUNT(*) AS total FROM canonical_users cu WHERE cu.deleted_at IS NULL ${searchClause}`;
   const dataSql = `
-    SELECT p.id, p.display_name, p.primary_email, p.status, p.hr_employee_id,
-           p.created_at, p.updated_at,
-           (SELECT COUNT(*) FROM person_link pl WHERE pl.person_id = p.id) AS identity_count,
-           (SELECT COUNT(*) FROM mv_effective_access ea WHERE ea.person_id = p.id) AS entitlement_count
-    FROM person p
-    WHERE p.deleted_at IS NULL ${searchClause}
-    ORDER BY p.display_name
+    SELECT cu.id, cu.full_name, cu.primary_email,
+           cu.created_at, cu.updated_at,
+           (SELECT COUNT(*) FROM canonical_user_provider_links pl
+            WHERE pl.canonical_user_id = cu.id AND pl.tenant_id = cu.tenant_id) AS identity_count
+    FROM canonical_users cu
+    WHERE cu.deleted_at IS NULL ${searchClause}
+    ORDER BY cu.full_name
     LIMIT $${paramIdx++} OFFSET $${paramIdx++}
   `;
 
@@ -61,28 +61,47 @@ export async function handlePersonDetail(req: NextRequest, id: string): Promise<
   const session = getSession();
 
   try {
-    // Person info
+    // Canonical user info with linked identities
     const personResult = await executeWithTenant(session.tenantId,
-      `SELECT p.*,
+      `SELECT cu.*,
               (SELECT json_agg(json_build_object(
-                'type', pl.identity_type, 'provider', pl.provider_code,
-                'confidence', pl.confidence, 'strategy', pl.linkage_strategy
-              )) FROM person_link pl WHERE pl.person_id = p.id) AS linked_identities,
+                'provider_type', pl.provider_type, 'provider_user_id', pl.provider_user_id,
+                'confidence_score', pl.confidence_score, 'match_method', pl.match_method
+              )) FROM canonical_user_provider_links pl
+              WHERE pl.canonical_user_id = cu.id AND pl.tenant_id = cu.tenant_id) AS linked_identities,
               (SELECT json_agg(json_build_object(
-                'id', iu.id, 'user_name', iu.user_name, 'email', iu.email,
-                'display_name', iu.display_name, 'last_seen_at', iu.last_seen_at,
-                'disabled_at', iu.disabled_at
-              )) FROM aws_idc_user iu WHERE iu.person_id = p.id) AS aws_idc_identities,
+                'email', ce.email, 'is_primary', ce.is_primary, 'verified_at', ce.verified_at
+              )) FROM canonical_emails ce
+              WHERE ce.canonical_user_id = cu.id AND ce.tenant_id = cu.tenant_id) AS emails,
               (SELECT json_agg(json_build_object(
-                'id', wu.id, 'primary_email', wu.primary_email,
-                'display_name', wu.display_name, 'suspended', wu.suspended,
-                'last_seen_at', wu.last_seen_at
-              )) FROM gcp_workspace_user wu WHERE wu.person_id = p.id) AS gcp_ws_identities,
+                'id', gwu.id, 'google_id', gwu.google_id, 'primary_email', gwu.primary_email,
+                'name_full', gwu.name_full, 'is_admin', gwu.is_admin,
+                'suspended', gwu.suspended, 'last_login_time', gwu.last_login_time
+              )) FROM google_workspace_users gwu
+              JOIN canonical_user_provider_links pl2
+                ON pl2.provider_type = 'GOOGLE_WORKSPACE'
+                AND pl2.provider_user_id = gwu.google_id
+                AND pl2.tenant_id = gwu.tenant_id
+              WHERE pl2.canonical_user_id = cu.id AND pl2.tenant_id = cu.tenant_id) AS google_identities,
               (SELECT json_agg(json_build_object(
-                'id', iam.id, 'iam_user_name', iam.iam_user_name, 'arn', iam.arn,
-                'last_seen_at', iam.last_seen_at
-              )) FROM aws_iam_user iam WHERE iam.person_id = p.id) AS aws_iam_identities
-       FROM person p WHERE p.id = $1`,
+                'id', awu.id, 'user_name', awu.user_name,
+                'display_name', awu.display_name, 'active', awu.active
+              )) FROM aws_identity_center_users awu
+              JOIN canonical_user_provider_links pl3
+                ON pl3.provider_type = 'AWS_IDENTITY_CENTER'
+                AND pl3.provider_user_id = awu.user_id
+                AND pl3.tenant_id = awu.tenant_id
+              WHERE pl3.canonical_user_id = cu.id AND pl3.tenant_id = cu.tenant_id) AS aws_idc_identities,
+              (SELECT json_agg(json_build_object(
+                'id', gu.id, 'login', gu.login, 'email', gu.email,
+                'name', gu.name, 'type', gu.type
+              )) FROM github_users gu
+              JOIN canonical_user_provider_links pl4
+                ON pl4.provider_type = 'GITHUB'
+                AND pl4.provider_user_id = gu.node_id
+                AND pl4.tenant_id = gu.tenant_id
+              WHERE pl4.canonical_user_id = cu.id AND pl4.tenant_id = cu.tenant_id) AS github_identities
+       FROM canonical_users cu WHERE cu.id = $1`,
       [id],
     );
 
@@ -90,18 +109,8 @@ export async function handlePersonDetail(req: NextRequest, id: string): Promise<
       return NextResponse.json({ error: 'Person not found' }, { status: 404 });
     }
 
-    // Effective access
-    const accessResult = await executeWithTenant(session.tenantId,
-      `SELECT cloud_provider, account_or_project_id, account_or_project_name,
-              role_or_permission_set, access_path, via_group_name
-       FROM mv_effective_access WHERE person_id = $1
-       ORDER BY cloud_provider, account_or_project_id`,
-      [id],
-    );
-
     return NextResponse.json({
       person: personResult.rows[0],
-      access: accessResult.rows,
     });
   } catch (error) {
     console.error('Person detail error:', error);

@@ -31,10 +31,10 @@ Alxderia enables security teams, compliance officers, and identity administrator
   SQL Validator (7-layer defence-in-depth)
        |
   PostgreSQL (Aurora / Cloud SQL)
-    ├── AWS identities (IAM, IDC, accounts)
-    ├── GCP identities (Workspace, IAM bindings)
-    ├── GitHub identities (orgs, users, teams)
-    └── Cross-provider person graph
+    ├── Google Workspace (users, groups, memberships)
+    ├── AWS Identity Center (users, groups, memberships)
+    ├── GitHub (orgs, users, teams, repos, permissions)
+    └── Canonical identity layer (cross-provider linkage)
 ```
 
 ### Key capabilities
@@ -42,7 +42,7 @@ Alxderia enables security teams, compliance officers, and identity administrator
 - **NL2SQL** -- Ask questions in plain English; get validated, tenant-isolated SQL
 - **Multi-cloud identity** -- AWS IAM/IDC, GCP Workspace/IAM, GitHub Orgs/Users/Teams
 - **Person graph** -- Cross-provider identity linkage via email matching
-- **Defence-in-depth** -- 7-layer SQL validation (libpg-query WASM AST parser), RLS tenant isolation, PII redaction views
+- **Defence-in-depth** -- 7-layer SQL validation (libpg-query WASM AST parser), tenant-scoped queries, composite PK multi-tenancy
 - **LLM-agnostic** -- Swap between Anthropic Claude, OpenAI GPT, or Google Gemini via env var
 - **Dual-cloud deploy** -- AWS (App Runner + Aurora Serverless v2) and GCP (Cloud Run + Cloud SQL)
 
@@ -102,7 +102,7 @@ npm run lint    # ESLint 9 with eslint-config-next
 ```
 alxderia/
   app/              Next.js 15 application (App Router, API routes, NL2SQL agent)
-  schema/           39 SQL migration files across 12 directories (00-extensions .. 11-github, 99-seed)
+  schema/           2 SQL files: DDL (01_schema.sql) and seed data (02_seed_and_queries.sql)
   infra/            Terraform modules for local Docker, AWS, and GCP deployments
   docs/             Architecture and operations documentation
   .github/          5 GitHub Actions CI/CD workflows
@@ -110,39 +110,28 @@ alxderia/
 
 ### Schema overview
 
-| Directory | Contents |
-|-----------|----------|
-| `00-extensions` | `pgcrypto`, `uuid-ossp` |
-| `01-reference` | `cloud_provider`, `tenant` |
-| `02-aws` | `aws_account`, `aws_iam_user`, `aws_iam_user_policy_attachment`, `aws_idc_user`, `aws_idc_group`, `aws_idc_group_membership`, `aws_idc_permission_set`, `aws_idc_account_assignment` |
-| `03-gcp` | `gcp_project`, `gcp_workspace_user`, `gcp_workspace_group`, `gcp_workspace_group_membership`, `gcp_iam_binding` |
-| `04-identity` | `person`, `person_link` (cross-provider graph) |
-| `05-views` | `mv_effective_access` (materialised view), `fn_effective_access_as_of` |
-| `07-indexes` | Performance indexes |
-| `08-security` | Database roles and RLS policies |
-| `09-history` | `entity_history` (hash-chained), `snapshot_registry`, hash verify function |
-| `10-dlp` | Retention policies, legal holds, PII redaction views |
-| `11-github` | `github_organisation`, `github_user`, `github_team`, `github_team_membership`, `github_org_membership` |
-| `99-seed` | Mock data (1,000 persons, ~15,000 rows total) |
+The schema is defined in two flat SQL files:
 
-### Database roles
+| File | Contents |
+|------|----------|
+| `01_schema.sql` | Extensions (`uuid-ossp`), all table DDL, indexes, enums (`provider_type_enum`) |
+| `02_seed_and_queries.sql` | Seed data for demo tenant `11111111-...`, example queries |
 
-| Role | Access |
-|------|--------|
-| `cloudintel` | Application login role (connects to the database) |
-| `cloudintel_admin` | Schema management (DDL) |
-| `cloudintel_ingest` | Data loading (INSERT/UPDATE) |
-| `cloudintel_analyst` | Full read with PII (used by the app via `SET LOCAL ROLE`) |
-| `cloudintel_readonly` | Redacted views only |
-| `cloudintel_audit` | Audit log access |
-| `cloudintel_app` | Application runtime queries |
+| Provider | Tables |
+|----------|--------|
+| **Google Workspace** | `google_workspace_users`, `google_workspace_groups`, `google_workspace_memberships` |
+| **AWS Identity Center** | `aws_identity_center_users`, `aws_identity_center_groups`, `aws_identity_center_memberships` |
+| **GitHub** | `github_organisations`, `github_users`, `github_teams`, `github_org_memberships`, `github_team_memberships`, `github_repositories`, `github_repo_team_permissions`, `github_repo_collaborator_permissions` |
+| **Canonical Identity** | `canonical_users`, `canonical_emails`, `canonical_user_provider_links`, `identity_reconciliation_queue` |
+
+All tables use composite primary keys `(id, tenant_id)` for partition-friendly multi-tenancy.
 
 ## Security
 
 - **SQL Validation** -- 7-layer pipeline: comment stripping, keyword blocklist, AST parsing (libpg-query WASM), SELECT-only enforcement, table allowlisting, function blocklisting, automatic LIMIT injection
-- **Row-Level Security** -- All tenant-scoped tables enforce RLS via `SET LOCAL app.current_tenant_id`
-- **PII Redaction** -- 5 redacted views (`v_person_redacted`, `v_aws_idc_user_redacted`, `v_gcp_workspace_user_redacted`, `v_effective_access_redacted`, `v_github_user_redacted`)
-- **Audit Trail** -- Append-only `audit_log` (quarterly partitioned) and hash-chained `entity_history` (monthly partitioned)
+- **Tenant Isolation** -- All tables use composite PK `(id, tenant_id)`; app sets `SET LOCAL app.current_tenant_id` per transaction (RLS-ready)
+- **Audit Logging** -- All queries logged with metadata (question, SQL, row count, timing, status); database-backed audit planned
+- **Identity Reconciliation** -- Unresolved cross-provider matches queued in `identity_reconciliation_queue` for review
 
 ## CI/CD Pipelines
 
