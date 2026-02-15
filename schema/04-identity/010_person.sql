@@ -25,6 +25,5 @@ ALTER TABLE gcp_workspace_user
     ADD CONSTRAINT fk_gcp_ws_user_person
     FOREIGN KEY (person_id) REFERENCES person(id);
 
-ALTER TABLE github_user
-    ADD CONSTRAINT fk_github_user_person
-    FOREIGN KEY (person_id) REFERENCES person(id);
+-- github_user FK is added in schema/11-github/060_github_post_setup.sql
+-- (github_user table does not exist yet at this point in sort order)

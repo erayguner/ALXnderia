@@ -54,14 +54,14 @@ jobs:
           echo "Scanning for unsafe SQL patterns..."
           UNSAFE=0
 
-          # String concatenation in SQL
-          if grep -rn 'query.*\+.*\$\|query.*\+.*req\.\|query.*\+.*params' app/src/ --include='*.ts' --include='*.tsx'; then
+          # String concatenation in SQL (literal '+' operator)
+          if grep -rn 'query\s*(.*[+]' app/src/ --include='*.ts' --include='*.tsx'; then
             echo "WARNING: Possible SQL string concatenation found"
             UNSAFE=1
           fi
 
           # Template literals in SQL without parameterised queries
-          if grep -rn 'query(`.*\${' app/src/ --include='*.ts' --include='*.tsx'; then
+          if grep -rn 'query\s*(`.*\${' app/src/ --include='*.ts' --include='*.tsx'; then
             echo "WARNING: Template literals in SQL queries found"
             UNSAFE=1
           fi

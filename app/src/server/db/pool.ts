@@ -52,8 +52,8 @@ export async function executeWithTenant<T extends QueryResultRow = Record<string
   try {
     await client.query('BEGIN');
     await client.query('SET LOCAL ROLE cloudintel_analyst');
-    await client.query(`SET LOCAL statement_timeout = '${Number(timeoutMs)}ms'`);
-    await client.query(`SET LOCAL app.current_tenant_id = '${tenantId.replace(/[^a-f0-9-]/g, '')}'`);
+    await client.query('SELECT set_config($1, $2, true)', ['statement_timeout', `${Number(timeoutMs)}ms`]);
+    await client.query('SELECT set_config($1, $2, true)', ['app.current_tenant_id', tenantId]);
 
     const result = await client.query<T>(sql, params);
 

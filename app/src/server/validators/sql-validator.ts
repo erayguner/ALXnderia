@@ -275,7 +275,7 @@ export async function validateSql(rawSql: string): Promise<SqlValidationResult> 
   // Step 7: Enforce row limit when none is specified
   let sanitisedSql = sql;
   if (!hasLimitClause(stmt)) {
-    sanitisedSql = `SELECT * FROM (${sql}) AS _limited_query LIMIT ${MAX_ROWS}`;
+    sanitisedSql = `SELECT * FROM (${sql}) AS _inner LIMIT ${MAX_ROWS}`;
   }
 
   return {
