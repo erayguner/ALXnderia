@@ -235,6 +235,46 @@ export async function processQuestion(
   tenantId: string,
   _userRole: string,
 ): Promise<ChatResponse> {
+  // MOCK MODE: Return static data if enabled
+  if (process.env.MOCK_MODE === 'true') {
+    return {
+      id: 'mock-response-id',
+      queryPlan: {
+        description: 'Mock query for testing UI flow',
+        tablesUsed: ['person', 'mv_effective_access'],
+        estimatedComplexity: 'low',
+      },
+      sql: "SELECT * FROM person WHERE display_name ILIKE '%Mock%'",
+      results: [
+        {
+          id: 'mock-person-1',
+          display_name: 'Mock User 1',
+          email: 'mock1@example.com',
+          role: 'Admin',
+          cloud_provider: 'aws',
+          access_path: 'direct',
+        },
+        {
+          id: 'mock-person-2',
+          display_name: 'Mock User 2',
+          email: 'mock2@example.com',
+          role: 'Viewer',
+          cloud_provider: 'gcp',
+          access_path: 'group',
+        },
+      ],
+      narrative: 'This is a MOCK response. Found 2 mock results. The backend is running in mock mode.',
+      explanation: 'The system bypassed the database and LLM to return this static testing data.',
+      metadata: {
+        tablesUsed: ['person'],
+        rowCount: 2,
+        executionTimeMs: 10,
+        cached: false,
+      },
+      followUpSuggestions: ['Try another mock query', 'Disable mock mode to use real data'],
+    };
+  }
+
   const msgId = randomUUID();
   const systemPrompt = await buildSystemPrompt();
 
