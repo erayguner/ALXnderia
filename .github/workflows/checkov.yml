@@ -32,15 +32,7 @@ jobs:
           output_format: cli,sarif
           output_file_path: console,results.sarif
           soft_fail: true
-          skip_check: >-
-            CKV_DOCKER_2,
-            CKV_DOCKER_3,
-            CKV_SECRET_6,
-            CKV_AWS_130,
-            CKV_AWS_382,
-            CKV_AWS_354,
-            CKV_AWS_327,
-            CKV_AWS_162
+          skip_check: CKV_DOCKER_2,CKV_DOCKER_3,CKV_SECRET_6,CKV_AWS_130,CKV_AWS_382,CKV_AWS_354,CKV_AWS_327,CKV_AWS_162
           # CKV_DOCKER_2: healthcheck — we have one
           # CKV_DOCKER_3: user instruction — dev container
           # CKV_SECRET_6: false positive on password_encryption=scram-sha-256
