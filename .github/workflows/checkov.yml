@@ -22,7 +22,7 @@ jobs:
     name: Checkov — Terraform
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run Checkov on Terraform
         uses: bridgecrewio/checkov-action@v12
@@ -54,7 +54,7 @@ jobs:
     name: Checkov — Secrets
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run Checkov secrets scanner
         uses: bridgecrewio/checkov-action@v12
@@ -79,7 +79,7 @@ jobs:
     name: Checkov — GitHub Actions
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run Checkov on GitHub Actions
         uses: bridgecrewio/checkov-action@v12
