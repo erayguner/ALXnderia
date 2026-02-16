@@ -18,9 +18,9 @@
 The repository is split into three top-level directories with clear boundaries.
 
 ```
-alxderia/
+ALXnderia/
   app/          Next.js 15 application (App Router, API routes, NL2SQL agent)
-  schema/       2 SQL files: DDL (01_schema.sql) and seed data (02_seed_and_queries.sql)
+  schema/       SQL files: DDL (01_schema.sql), seed data (02_seed_and_queries.sql), mock data (99-seed/)
   infra/        Terraform for local Docker PostgreSQL and cloud deploy modules
   docs/         Project documentation
   .github/      GitHub Actions CI/CD pipelines (5 workflows)
@@ -36,12 +36,30 @@ app/src/
     llm/            LLM provider abstraction (Anthropic, OpenAI, Gemini)
     middleware/     Audit logging (fire-and-forget)
     routes/         Handler functions for each API endpoint
+                    (access.ts, audit.ts, chat.ts, groups.ts, people.ts, resources.ts)
     validators/     SQL security validator (libpg-query WASM parser)
   client/
     components/     React client components
+                    (AccessExplorer, AuditLog, ChatInterface, GroupsList, PeopleList,
+                     PersonDetail, ResourcesList, ResultsTable, Sidebar, UserBadge)
   shared/
     types/          TypeScript interfaces shared across client and server
     constants/      Allow-lists, block-lists, limits, synonyms
+```
+
+App Router pages include detail routes for individual resources:
+
+```
+app/app/
+  page.tsx            Home (Chat)
+  people/page.tsx     People list
+  people/[id]/page.tsx  Person detail
+  groups/page.tsx     Groups list
+  groups/[id]/page.tsx  Group detail
+  resources/page.tsx  Resources list
+  access/page.tsx     Access Explorer
+  audit/page.tsx      Audit Log
+  api/                API route handlers (9 endpoints)
 ```
 
 API route files under `app/app/api/` are thin wrappers that delegate to the corresponding handler in `src/server/routes/`. For example, `app/api/chat/route.ts` imports and calls `handleChat` from `@server/routes/chat`.
@@ -60,6 +78,16 @@ API route files under `app/app/api/` are thin wrappers that delegate to the corr
 **`src/server/middleware/audit.ts`** -- Logs audit entries to the console. Records question text, SQL executed, row count, timing, and status. Never stores result data (data minimisation). The current schema does not include an `audit_log` table; database-backed audit logging is planned for a future iteration.
 
 **`src/server/routes/chat.ts`** -- The chat endpoint handler. Validates the request body, enforces question length limits, calls `processQuestion()`, records the audit entry (fire-and-forget), and returns the response. Uses a hardcoded mock session in the current implementation.
+
+**`src/server/routes/access.ts`** -- The access endpoint handler. Builds a multi-provider UNION ALL query across GitHub direct collaborator permissions, GitHub team-derived permissions, Google Workspace group memberships, and AWS Identity Center group memberships. Supports `provider`, `accessPath`, and `search` filters with parameterised queries. Returns a uniform row shape (`display_name`, `primary_email`, `cloud_provider`, `account_or_project_id`, `account_or_project_name`, `role_or_permission_set`, `access_path`, `via_group_name`, `person_id`).
+
+**`src/server/routes/groups.ts`** -- The groups endpoint handler. Supports `handleGroupsList()` (lists groups with member counts across all providers) and `handleGroupDetails()` (returns a single group's metadata and members). Google Workspace membership resolution joins `member_id` to `google_workspace_users.google_id` (not email).
+
+**`src/server/routes/people.ts`** -- The people endpoint handler. Supports `handlePeopleList()` (lists canonical users with identity counts) and `handlePersonDetail()` (returns a full canonical user with linked identities from Google Workspace, AWS Identity Center, and GitHub, plus canonical emails).
+
+**`src/server/routes/resources.ts`** -- The resources endpoint handler. Lists resources from the selected provider (GitHub repos, Google Workspace groups, or AWS IDC groups) with member/permission counts.
+
+**`src/server/routes/audit.ts`** -- The audit endpoint handler. Returns paginated audit log entries with optional action filter.
 
 **`src/shared/constants/index.ts`** -- Security-critical configuration: `ALLOWED_TABLES` (all tables from the schema: `canonical_users`, `canonical_emails`, `canonical_user_provider_links`, `identity_reconciliation_queue`, `google_workspace_*`, `aws_identity_center_*`, `github_*`), `BLOCKED_FUNCTIONS`, `BLOCKED_KEYWORDS`, `BLOCKED_TABLE_PREFIXES`, `PII_TABLES` (tables containing email/name PII), `REDACTED_VIEW_MAP` (empty — no redacted views in current schema), `SCHEMA_SYNONYMS` (comprehensive mappings for all table names), and numeric limits (`MAX_ROWS`, `QUERY_TIMEOUT_MS`, `MAX_QUESTION_LENGTH`, `RATE_LIMIT_PER_MINUTE`).
 
@@ -213,7 +241,7 @@ Route files under `app/api/` are kept deliberately thin. Each exports a single H
 
 ```typescript
 // app/api/chat/route.ts
-import { handleChat } from '../../../src/server/routes/chat';
+import { handleChat } from '@server/routes/chat';
 export async function POST(request: NextRequest) {
   return handleChat(request);
 }
@@ -320,4 +348,4 @@ Never commit `.env` files or hardcode credentials in source. Use the infrastruct
 
 6. **The `source_ip` field in audit entries is hardcoded to `127.0.0.1`.** Production must extract the real client IP from the request headers (respecting proxy configuration).
 
-7. **The schema is defined in two flat SQL files.** `schema/01_schema.sql` contains all DDL (extensions, tables, indexes, enums) and `schema/02_seed_and_queries.sql` contains seed data and example queries. They are applied in sort order. Terraform re-applies the schema when either file changes; there is no incremental migration tracking. The schema does not define database roles, RLS policies, or PII redaction views — these are planned for a future iteration.
+7. **The schema is defined in flat SQL files.** `schema/01_schema.sql` contains all DDL (extensions, tables, indexes, enums), `schema/02_seed_and_queries.sql` contains seed data and example queries, and `schema/99-seed/010_mock_data.sql` contains an extended mock dataset (~700 users, ~10K rows). They are applied in sort order. Terraform re-applies the schema when either file changes; there is no incremental migration tracking. The schema does not define database roles, RLS policies, or PII redaction views — these are planned for a future iteration.

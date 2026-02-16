@@ -105,31 +105,31 @@ export function ResultsTable({ data, pageSize = 20, getRowLink }: ResultsTablePr
   };
 
   if (data.length === 0) {
-    return <p className="text-sm text-gray-500 italic">No results to display.</p>;
+    return <p className="text-sm text-slate-500 italic">No results to display.</p>;
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
       <table className="w-full text-sm border-collapse">
         <thead>
-          <tr className="bg-gray-50 border-b border-gray-200">
+          <tr className="bg-slate-50 border-b border-slate-200">
             {columns.map(col => (
               <th
                 key={col}
                 onClick={() => handleSort(col)}
-                className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition select-none"
+                className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition select-none"
               >
                 <span className="flex items-center gap-1">
                   {formatHeader(col)}
                   {sortKey === col && (
-                    <span className="text-blue-500">{sortAsc ? '\u2191' : '\u2193'}</span>
+                    <span className="text-indigo-500">{sortAsc ? '\u2191' : '\u2193'}</span>
                   )}
                 </span>
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-slate-100">
           {pageData.map((row, rowIdx) => {
             const rowLink = getRowLink ? getRowLink(row) : null;
             return (
@@ -145,16 +145,16 @@ export function ResultsTable({ data, pageSize = 20, getRowLink }: ResultsTablePr
                 }}
                 role={rowLink ? 'link' : undefined}
                 tabIndex={rowLink ? 0 : undefined}
-                className={`transition ${rowLink ? 'cursor-pointer hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500' : 'hover:bg-gray-50'}`}
+                className={`transition-colors ${rowLink ? 'cursor-pointer hover:bg-indigo-50/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500' : 'hover:bg-slate-50'}`}
               >
                 {columns.map(col => {
                   const link = getDrilldownLink(col, row[col], row);
                   return (
-                    <td key={col} className="px-3 py-2 text-gray-700 whitespace-nowrap">
+                    <td key={col} className="px-3 py-2.5 text-slate-700 whitespace-nowrap">
                       {link ? (
                         <a
                           href={link}
-                          className="text-blue-600 hover:underline"
+                          className="text-indigo-600 hover:text-indigo-800 hover:underline"
                           onClick={event => event.stopPropagation()}
                         >
                           {formatValue(row[col])}
@@ -163,7 +163,7 @@ export function ResultsTable({ data, pageSize = 20, getRowLink }: ResultsTablePr
                         <span className={
                           col === 'access_path'
                             ? row[col] === 'direct'
-                              ? 'text-green-600 font-medium'
+                              ? 'text-emerald-600 font-medium'
                               : 'text-amber-600 font-medium'
                             : ''
                         }>
@@ -181,7 +181,7 @@ export function ResultsTable({ data, pageSize = 20, getRowLink }: ResultsTablePr
 
       {/* Pagination */}
       {pageCount > 1 && (
-        <div className="flex items-center justify-between mt-2 px-3 py-2 text-xs text-gray-500">
+        <div className="flex items-center justify-between px-3 py-2.5 text-xs text-slate-500 border-t border-slate-100">
           <span>
             Showing {page * pageSize + 1}\u2013{Math.min((page + 1) * pageSize, sortedData.length)} of {sortedData.length}
           </span>
@@ -189,14 +189,14 @@ export function ResultsTable({ data, pageSize = 20, getRowLink }: ResultsTablePr
             <button
               onClick={() => setPage(p => Math.max(0, p - 1))}
               disabled={page === 0}
-              className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-100 disabled:opacity-50 transition"
+              className="px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition"
             >
               Previous
             </button>
             <button
               onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))}
               disabled={page >= pageCount - 1}
-              className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-100 disabled:opacity-50 transition"
+              className="px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition"
             >
               Next
             </button>

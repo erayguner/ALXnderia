@@ -36,9 +36,19 @@ The application uses Next.js 15 with the App Router convention. All pages reside
 
 **`app/api/chat/route.ts`** -- POST handler. Delegates to `handleChat()` in `src/server/routes/chat.ts`. Responsible only for extracting the request body and returning the response; all logic lives in the route handler.
 
-**`app/api/access/route.ts`** -- GET handler. Delegates to `handleAccessList()`. Parses query parameters (`page`, `limit`, `search`) from the URL before forwarding.
+**`app/api/access/route.ts`** -- GET handler. Delegates to `handleAccessList()`. Parses query parameters (`page`, `limit`, `search`, `provider`, `accessPath`) from the URL before forwarding.
 
 **`app/api/people/route.ts`** -- GET handler. Delegates to `handlePeopleList()`. Same delegation pattern as above.
+
+**`app/api/people/[id]/route.ts`** -- GET handler. Delegates to `handlePersonDetail()`. Returns a full canonical user record with linked identities from all providers and canonical emails.
+
+**`app/api/groups/route.ts`** -- GET handler. Delegates to `handleGroupsList()`. Lists groups across all three providers with member counts.
+
+**`app/api/groups/[id]/route.ts`** -- GET handler. Delegates to `handleGroupDetails()`. Returns group metadata and its members list with resolved names and emails.
+
+**`app/api/resources/route.ts`** -- GET handler. Delegates to `handleResourcesList()`. Lists resources (GitHub repos, Google Workspace groups, AWS IDC groups) with permission/member counts.
+
+**`app/api/audit/route.ts`** -- GET handler. Delegates to `handleAuditList()`. Returns paginated audit log entries.
 
 **`app/api/health/route.ts`** -- GET handler. Performs a lightweight connection check against the database pool and returns `{ status: "ok" }` or `{ status: "error", message }`.
 
@@ -46,11 +56,23 @@ The application uses Next.js 15 with the App Router convention. All pages reside
 
 **`ChatInterface.tsx`** -- Manages local conversation state (message history, loading indicator, error display). On submit, posts the user question to `/api/chat` with an optional `conversationId`. On response, renders the SQL explanation, results table, narrative summary, and follow-up suggestions. Uses streaming UX patterns: a skeleton loader appears immediately and is replaced once the full response arrives.
 
-**`AccessExplorer.tsx`** -- Paginated browser for GitHub repository access data. Maintains filter state for free-text search. Each filter change resets the page cursor to 1 and issues a fresh GET to `/api/access`.
+**`AccessExplorer.tsx`** -- Cross-provider effective access browser. Queries `/api/access` and displays unified access data from GitHub (direct + team-derived), Google Workspace (group memberships), and AWS Identity Center (group memberships). Supports provider filter, access path filter (direct/group), free-text search, CSV export, and server-side pagination. Each filter change resets the page cursor to 1.
 
-**`ResultsTable.tsx`** -- Generic data grid. Accepts column definitions and row data as props. Renders headers dynamically from the column array. No sorting or filtering logic; it is a pure display component.
+**`GroupsList.tsx`** -- Paginated group browser across all three providers. Queries `/api/groups` with provider filter (google, aws, github), free-text search, and server-side pagination. Groups are clickable and link to `/groups/[id]?provider=...` detail page.
 
-**`Sidebar.tsx`** -- Navigation sidebar. Contains links to the chat view and the access explorer. Highlights the active route.
+**`PeopleList.tsx`** -- Paginated canonical user browser. Queries `/api/people` with free-text search and server-side pagination. People are clickable and link to `/people/[id]` detail page.
+
+**`PersonDetail.tsx`** -- Person detail view. Fetches a single canonical user record from `/api/people/[id]` and displays: header (name, email, status), accounts and access table (built from Google, AWS, and GitHub identities), linked identities, and canonical emails. Uses `ResultsTable` for data display.
+
+**`AuditLog.tsx`** -- Paginated audit log viewer. Queries `/api/audit` with action type filter (all events or NL2SQL queries only) and server-side pagination.
+
+**`ResourcesList.tsx`** -- Resource browser (GitHub repos, Google Workspace groups, AWS IDC groups). Queries `/api/resources` with provider filter, free-text search, and server-side pagination.
+
+**`ResultsTable.tsx`** -- Generic data grid with dynamic column inference from row data. Supports client-side column sorting, automatic formatting of column headers (snake_case to Title Case), provider badge colouring, clickable rows via `getRowLink` prop, and automatic hiding of internal ID columns. Hides columns ending in `_id` (except `account_or_project_id`) and hides the `id` column when `getRowLink` is active.
+
+**`Sidebar.tsx`** -- Navigation sidebar with six items: Chat, People, Resources, Groups, Access Explorer, and Audit Log. Active route is highlighted with an indigo accent. Includes a connection status indicator at the bottom.
+
+**`UserBadge.tsx`** -- User avatar and identity badge displayed in the header. Shows a gradient avatar with the user's initials and name/email.
 
 ### 1.3 Server Components
 
@@ -115,7 +137,7 @@ The health endpoint bypasses tenant scoping entirely and runs a bare `SELECT 1` 
 
 ## 3. Database Schema and Key Tables
 
-The schema is defined in two files at `schema/01_schema.sql` (DDL) and `schema/02_seed_and_queries.sql` (seed data and example queries).
+The schema is defined in `schema/01_schema.sql` (DDL), `schema/02_seed_and_queries.sql` (seed data and example queries), and `schema/99-seed/010_mock_data.sql` (extended mock dataset).
 
 ### 3.1 Canonical Identity Layer
 
@@ -203,9 +225,9 @@ All provider tables share these metadata/audit columns:
 
 ### 4.2 GET /api/access
 
-**Query parameters:** `page` (default 1), `limit` (default 50, max 100), `search` (free-text, optional).
+**Query parameters:** `page` (default 1), `limit` (default 50, max 100), `search` (free-text, optional), `provider` (github|google|aws, optional), `accessPath` (direct|group, optional).
 
-**Response:** `PaginatedResponse` with GitHub repo collaborator permissions: `user_login`, `user_email`, `repo_name`, `repo_private`, `permission`, `is_outside_collaborator`, `access_type`.
+**Response:** `PaginatedResponse` with cross-provider effective access data. Each row contains: `display_name`, `primary_email`, `cloud_provider`, `account_or_project_id`, `account_or_project_name`, `role_or_permission_set`, `access_path` (direct or group), `via_group_name`, `person_id`. Data is aggregated via UNION ALL across GitHub direct collaborator permissions, GitHub team-derived permissions, Google Workspace group memberships, and AWS Identity Center group memberships.
 
 ### 4.3 GET /api/people
 
@@ -219,17 +241,29 @@ All provider tables share these metadata/audit columns:
 
 ### 4.5 GET /api/resources
 
-**Query parameters:** `page`, `limit`, `search`.
+**Query parameters:** `page`, `limit`, `search`, `provider` (github|google|aws).
 
-**Response:** `PaginatedResponse` with `github_repositories` data including `collaborator_count` and `team_permission_count`.
+**Response:** `PaginatedResponse` with resources from the selected provider: GitHub repositories (with collaborator and team permission counts), Google Workspace groups (with member counts), or AWS Identity Center groups (with member counts).
 
 ### 4.6 GET /api/groups
 
 **Query parameters:** `page`, `limit`, `search`, `provider` (google|aws|github).
 
-**Response:** `PaginatedResponse` with groups/teams from all three providers, including `member_count`.
+**Response:** `PaginatedResponse` with groups/teams from all three providers, including `member_count`. Groups are identifiable by `id` and `provider` fields.
 
-### 4.7 GET /api/health
+### 4.7 GET /api/groups/[id]
+
+**Query parameters:** `provider` (google|aws|github, optional -- helps resolve ambiguity).
+
+**Response:** `{ group: GroupDetails, members: Member[] }`. Group details include `id`, `name`, `description`, `email`, `provider`, `last_synced_at`. Members include `id`, `name`, `email`, `role`, `status`, `member_type`, `user_id`. For Google Workspace, member names are resolved by joining `google_workspace_memberships.member_id` to `google_workspace_users.google_id`.
+
+### 4.8 GET /api/audit
+
+**Query parameters:** `page`, `limit`, `action` (optional, e.g. `NL2SQL_QUERY`).
+
+**Response:** `PaginatedResponse` with audit log entries: `id`, `event_time`, `actor`, `action`, `target_table`, `question`, `query_status`, `row_count`, `duration_ms`.
+
+### 4.9 GET /api/health
 
 **Response:** `{ "status": "ok" }` or `{ "status": "error", "message": "Connection refused" }`.
 
@@ -290,7 +324,7 @@ Every tenant-scoped query follows this connection lifecycle:
 
 ### 6.1 TypeScript Path Aliases
 
-`tsconfig.json` maps `@/*` to `./src/*`. All imports within the `src/` directory tree use this alias. Imports from `app/` use relative paths.
+`tsconfig.json` maps `@/*` to `./src/*`, `@server/*` to `./src/server/*`, `@client/*` to `./src/client/*`, and `@shared/*` to `./src/shared/*`. All imports within the `src/` directory tree use these aliases. Imports from `app/` use relative paths or the `@server/*` alias for route delegation.
 
 ### 6.2 Environment Variables
 
@@ -323,10 +357,36 @@ app/api/chat/route.ts
 app/api/access/route.ts
   +-> src/server/routes/access.ts
         +-> src/server/db/pool.ts
+        (UNION ALL across github_repo_collaborator_permissions,
+         github_repo_team_permissions, google_workspace_memberships,
+         aws_identity_center_memberships + related JOINs)
 
 app/api/people/route.ts
   +-> src/server/routes/people.ts
         +-> src/server/db/pool.ts
+
+app/api/people/[id]/route.ts
+  +-> src/server/routes/people.ts (handlePersonDetail)
+        +-> src/server/db/pool.ts
+
+app/api/groups/route.ts
+  +-> src/server/routes/groups.ts (handleGroupsList)
+        +-> src/server/db/pool.ts
+
+app/api/groups/[id]/route.ts
+  +-> src/server/routes/groups.ts (handleGroupDetails)
+        +-> src/server/db/pool.ts
+
+app/api/resources/route.ts
+  +-> src/server/routes/resources.ts
+        +-> src/server/db/pool.ts
+
+app/api/audit/route.ts
+  +-> src/server/routes/audit.ts
+        +-> src/server/db/pool.ts
+
+app/api/health/route.ts
+  +-> src/server/db/pool.ts (healthCheck)
 ```
 
 ---
@@ -347,4 +407,4 @@ app/api/people/route.ts
 
 7. **No audit table.** The current schema does not include an `audit_log` table. Audit entries are logged to the console. A dedicated audit table should be added for production.
 
-8. **No materialised views.** The schema does not include pre-computed views like `mv_effective_access`. Access data is queried directly from GitHub repository permission tables.
+8. **No materialised views.** The schema does not include pre-computed views like `mv_effective_access`. Access data is queried via a dynamic UNION ALL across GitHub collaborator/team permissions, Google Workspace group memberships, and AWS Identity Center group memberships.

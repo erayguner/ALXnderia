@@ -157,7 +157,7 @@ export function PersonDetail({ personId }: PersonDetailProps) {
   }, [person]);
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Loading...</p>;
+    return <p className="text-sm text-slate-500">Loading...</p>;
   }
 
   if (error) {
@@ -165,7 +165,7 @@ export function PersonDetail({ personId }: PersonDetailProps) {
   }
 
   if (!person) {
-    return <p className="text-sm text-gray-500">No person found.</p>;
+    return <p className="text-sm text-slate-500">No person found.</p>;
   }
 
   const linkedIdentities = normalizeArray(person.linked_identities);
@@ -174,33 +174,33 @@ export function PersonDetail({ personId }: PersonDetailProps) {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800">
+        <h1 className="text-2xl font-bold text-slate-900">
           {person.full_name || 'Unnamed person'}
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-slate-500 mt-1">
           {person.primary_email || 'No primary email'}
         </p>
-        <div className="text-xs text-gray-400 mt-2">
+        <div className="text-xs text-slate-400 mt-2">
           Status: {person.status || '-'}
         </div>
       </div>
 
       <section>
-        <h2 className="text-lg font-semibold text-gray-800 mb-2">
+        <h2 className="text-lg font-semibold text-slate-900 mb-2">
           Accounts and access
         </h2>
         <ResultsTable data={accountRows as unknown as Record<string, unknown>[]} pageSize={10} />
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold text-gray-800 mb-2">
+        <h2 className="text-lg font-semibold text-slate-900 mb-2">
           Linked identities
         </h2>
         <ResultsTable data={linkedIdentities as unknown as Record<string, unknown>[]} pageSize={10} />
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold text-gray-800 mb-2">Emails</h2>
+        <h2 className="text-lg font-semibold text-slate-900 mb-2">Emails</h2>
         <ResultsTable data={emails as unknown as Record<string, unknown>[]} pageSize={10} />
       </section>
     </div>

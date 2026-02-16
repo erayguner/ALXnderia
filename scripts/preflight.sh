@@ -28,7 +28,7 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo ""
 echo "============================================"
-echo "  Alxderia Pre-flight Check"
+echo "  ALXnderia Pre-flight Check"
 echo "============================================"
 echo ""
 

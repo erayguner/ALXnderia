@@ -161,10 +161,10 @@ export async function handleGroupDetails(req: NextRequest, id: string): Promise<
         group = gwGroupResult.rows[0];
         
         const gwMembersSql = `
-          SELECT m.id, m.member_id AS email, m.role, m.status, m.member_type,
+          SELECT m.id, COALESCE(u.primary_email, m.member_id) AS email, m.role, m.status, m.member_type,
                  u.name_full AS name
           FROM google_workspace_memberships m
-          LEFT JOIN google_workspace_users u ON m.member_id = u.primary_email AND m.tenant_id = u.tenant_id
+          LEFT JOIN google_workspace_users u ON m.member_id = u.google_id AND m.tenant_id = u.tenant_id
           WHERE m.group_id = $1 AND m.tenant_id = $2
         `;
         const membersResult = await executeWithTenant(session.tenantId, gwMembersSql, [group.google_id, session.tenantId]);

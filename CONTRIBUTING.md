@@ -158,7 +158,7 @@ Database schema changes require extra care. Follow this process:
 5. If the table contains PII, add it to `PII_TABLES`, create a redacted view, and add the mapping to `REDACTED_VIEW_MAP`.
 6. Add synonyms to `SCHEMA_SYNONYMS` if the table has common alternative names.
 7. Consider RLS policies, indexes, and role grants. If your table is in a directory that sorts after `08-security/`, include these in a post-setup file (see `11-github/060_github_post_setup.sql` for the pattern).
-8. Add seed data in `99-seed/010_mock_data.sql`.
+8. Add seed data in `schema/02_seed_and_queries.sql` (base seed) or `schema/99-seed/010_mock_data.sql` (mock data).
 9. Re-run `terraform apply` in `infra/` to validate.
 
 ### Modifying existing tables

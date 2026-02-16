@@ -17,7 +17,7 @@
 
 ---
 
-Alxderia enables security teams, compliance officers, and identity administrators to query cloud access data across **AWS**, **GCP**, and **GitHub** using plain English. It translates natural-language questions into validated SQL, executes them against a consolidated identity data store, and returns enriched narrative results.
+ALXnderia enables security teams, compliance officers, and identity administrators to query cloud access data across **AWS Identity Center**, **Google Workspace**, and **GitHub** using plain English. It translates natural-language questions into validated SQL, executes them against a consolidated identity data store, and returns enriched narrative results.
 
 ## Architecture
 
@@ -40,8 +40,9 @@ Alxderia enables security teams, compliance officers, and identity administrator
 ### Key capabilities
 
 - **NL2SQL** -- Ask questions in plain English; get validated, tenant-isolated SQL
-- **Multi-cloud identity** -- AWS IAM/IDC, GCP Workspace/IAM, GitHub Orgs/Users/Teams
+- **Multi-cloud identity** -- AWS Identity Center, Google Workspace, GitHub Orgs/Users/Teams
 - **Person graph** -- Cross-provider identity linkage via email matching
+- **Access Explorer** -- Cross-provider effective access view combining GitHub (direct + team-derived), Google Workspace group memberships, and AWS Identity Center group memberships
 - **Defence-in-depth** -- 7-layer SQL validation (libpg-query WASM AST parser), tenant-scoped queries, composite PK multi-tenancy
 - **LLM-agnostic** -- Swap between Anthropic Claude, OpenAI GPT, or Google Gemini via env var
 - **Dual-cloud deploy** -- AWS (App Runner + Aurora Serverless v2) and GCP (Cloud Run + Cloud SQL)
@@ -100,9 +101,9 @@ npm run lint    # ESLint 9 with eslint-config-next
 ## Project Structure
 
 ```
-alxderia/
+ALXnderia/
   app/              Next.js 15 application (App Router, API routes, NL2SQL agent)
-  schema/           2 SQL files: DDL (01_schema.sql) and seed data (02_seed_and_queries.sql)
+  schema/           SQL files: DDL, seed data, and mock data
   infra/            Terraform modules for local Docker, AWS, and GCP deployments
   docs/             Architecture and operations documentation
   .github/          5 GitHub Actions CI/CD workflows
@@ -110,12 +111,11 @@ alxderia/
 
 ### Schema overview
 
-The schema is defined in two flat SQL files:
-
 | File | Contents |
 |------|----------|
-| `01_schema.sql` | Extensions (`uuid-ossp`), all table DDL, indexes, enums (`provider_type_enum`) |
-| `02_seed_and_queries.sql` | Seed data for demo tenant `11111111-...`, example queries |
+| `schema/01_schema.sql` | Extensions (`uuid-ossp`), all table DDL, indexes, enums (`provider_type_enum`) |
+| `schema/02_seed_and_queries.sql` | Seed data for demo tenant `11111111-...`, example queries |
+| `schema/99-seed/010_mock_data.sql` | Extended mock dataset (~700 users, ~10K rows across all providers) |
 
 | Provider | Tables |
 |----------|--------|
@@ -181,7 +181,7 @@ cd infra/deploy/gcp && terraform apply
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 15, React 19, TypeScript |
+| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS |
 | LLM | Anthropic Claude / OpenAI GPT / Google Gemini (configurable) |
 | SQL Validation | libpg-query (PostgreSQL parser compiled to WASM) |
 | Database | PostgreSQL 16 (Aurora) / 18 (Cloud SQL) |

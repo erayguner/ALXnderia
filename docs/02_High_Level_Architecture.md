@@ -63,10 +63,16 @@ The front-end and API surface are served by a **Next.js 15** application using t
 | Component | Responsibility |
 |-----------|---------------|
 | **ChatInterface** | Presents the NL2SQL conversational interface; sends user questions and renders structured responses. |
-| **AccessExplorer** | Provides a paginated browser for effective access records across AWS and GCP. |
-| **ResultsTable** | Renders dynamic data grids returned by SQL queries. |
-| **Sidebar** | Application-level navigation and context switching. |
-| **API Routes** | Four HTTP endpoints: `/api/chat` (NL2SQL), `/api/access` (paginated access), `/api/people` (people browser), `/api/health` (readiness probe). |
+| **AccessExplorer** | Cross-provider effective access browser with provider and access-path filters across GitHub, Google Workspace, and AWS Identity Center. Includes CSV export. |
+| **GroupsList** | Paginated group browser across all three providers with provider filter and search. Groups link to detail pages. |
+| **PeopleList** | Paginated canonical user browser with search. People link to detail pages showing cross-provider identities. |
+| **PersonDetail** | Person detail view showing accounts/access, linked identities, and canonical emails across all providers. |
+| **AuditLog** | Paginated audit log viewer with action type filter. |
+| **ResourcesList** | Resource browser (GitHub repos, Google Workspace groups, AWS IDC groups) with provider filter and search. |
+| **ResultsTable** | Generic data grid with dynamic column inference, client-side sorting, provider badge colouring, and clickable row support via `getRowLink`. |
+| **Sidebar** | Six-item navigation sidebar: Chat, People, Resources, Groups, Access Explorer, Audit Log. |
+| **UserBadge** | User avatar and identity badge displayed in the header. |
+| **API Routes** | Nine HTTP endpoints: `/api/chat` (NL2SQL), `/api/access` (cross-provider access), `/api/people` (people list), `/api/people/[id]` (person detail), `/api/groups` (groups list), `/api/groups/[id]` (group detail), `/api/resources` (resources list), `/api/audit` (audit log), `/api/health` (readiness probe). |
 
 ### 2.2 AI / NL2SQL Pipeline
 
@@ -85,7 +91,7 @@ The **SQL Validator** enforces a seven-layer defence-in-depth pipeline before an
 | **AWS Identity Center tables** (aws_identity_center_users, aws_identity_center_groups, aws_identity_center_memberships) | AWS SSO identity and group data. |
 | **GitHub tables** (github_organisations, github_users, github_teams, github_org_memberships, github_team_memberships, github_repositories, github_repo_team_permissions, github_repo_collaborator_permissions) | GitHub organisation, user, team, and repository access data. |
 
-The schema is defined in two flat SQL files: `schema/01_schema.sql` (DDL, extensions, indexes, enums) and `schema/02_seed_and_queries.sql` (seed data and example queries). All tables use composite primary keys `(id, tenant_id)` for partition-friendliness. A `provider_type_enum` (GOOGLE_WORKSPACE, AWS_IDENTITY_CENTER, GITHUB) classifies provider links.
+The schema is defined in flat SQL files: `schema/01_schema.sql` (DDL, extensions, indexes, enums), `schema/02_seed_and_queries.sql` (seed data and example queries), and `schema/99-seed/010_mock_data.sql` (extended mock dataset with ~700 users). All tables use composite primary keys `(id, tenant_id)` for partition-friendliness. A `provider_type_enum` (GOOGLE_WORKSPACE, AWS_IDENTITY_CENTER, GITHUB) classifies provider links.
 
 ### 2.4 Infrastructure Layer
 

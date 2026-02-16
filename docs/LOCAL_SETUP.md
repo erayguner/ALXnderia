@@ -145,8 +145,9 @@ Check all API endpoints return data:
 curl -s http://localhost:3000/api/health    # {"status":"ok"}
 curl -s http://localhost:3000/api/people    # canonical users list
 curl -s http://localhost:3000/api/groups    # groups across all 3 providers
-curl -s http://localhost:3000/api/resources # GitHub repositories
-curl -s http://localhost:3000/api/audit     # "Audit logging table not yet provisioned"
+curl -s http://localhost:3000/api/resources # resources (repos, groups) by provider
+curl -s http://localhost:3000/api/access    # cross-provider effective access
+curl -s http://localhost:3000/api/audit     # audit log entries
 ```
 
 ### 4. Run tests
@@ -164,10 +165,12 @@ npm run lint    # ESLint 9 with eslint-config-next
 | ---- | --- | ----------- |
 | Chat | `/` | Natural-language query interface (NL2SQL) |
 | People | `/people` | Browse canonical users with identity counts |
-| Resources | `/resources` | GitHub repositories with permission counts |
-| Groups | `/groups` | Google Workspace, AWS Identity Center, and GitHub groups |
-| Access Explorer | `/access` | GitHub repository collaborator permissions |
-| Audit Log | `/audit` | Query execution audit trail (console-only, table not yet provisioned) |
+| Person Detail | `/people/[id]` | Full person record with cross-provider identities, accounts/access, and emails |
+| Resources | `/resources` | GitHub repos, Google Workspace groups, and AWS IDC groups with member/permission counts |
+| Groups | `/groups` | Google Workspace, AWS Identity Center, and GitHub groups with member counts |
+| Group Detail | `/groups/[id]` | Group metadata and resolved member list with names, emails, roles, and status |
+| Access Explorer | `/access` | Cross-provider effective access: GitHub (direct + team-derived), Google Workspace groups, AWS Identity Center groups. Supports provider, access path, and search filters with CSV export. |
+| Audit Log | `/audit` | Query execution audit trail with action type filter |
 
 ---
 
@@ -207,12 +210,11 @@ The seed file (`schema/02_seed_and_queries.sql`) creates a deterministic dataset
 
 ## Schema Overview
 
-The schema is defined in two flat SQL files:
-
 | File | Contents |
 |------|----------|
 | `schema/01_schema.sql` | Extensions (`uuid-ossp`), all table DDL, indexes, `provider_type_enum` |
 | `schema/02_seed_and_queries.sql` | Seed data for demo tenant, 4 example queries |
+| `schema/99-seed/010_mock_data.sql` | Extended mock dataset (~700 users, ~10K rows across all providers) |
 
 ### Tables by provider
 
@@ -283,19 +285,30 @@ ALXnderia/
 │   │   ├── layout.tsx    # Root layout (sidebar + user badge header)
 │   │   ├── page.tsx      # Chat interface (home)
 │   │   ├── people/       # People list page
+│   │   │   └── [id]/     # Person detail page
 │   │   ├── groups/       # Groups list page
+│   │   │   └── [id]/     # Group detail page
 │   │   ├── resources/    # Resources list page
 │   │   ├── access/       # Access explorer page
 │   │   ├── audit/        # Audit log page
-│   │   └── api/          # API route handlers
+│   │   └── api/          # API route handlers (9 endpoints)
+│   │       ├── chat/     # POST /api/chat (NL2SQL)
+│   │       ├── access/   # GET /api/access (cross-provider effective access)
+│   │       ├── people/   # GET /api/people + /api/people/[id]
+│   │       ├── groups/   # GET /api/groups + /api/groups/[id]
+│   │       ├── resources/# GET /api/resources
+│   │       ├── audit/    # GET /api/audit
+│   │       └── health/   # GET /api/health
 │   ├── src/
-│   │   ├── client/       # React components
+│   │   ├── client/       # React components (10 components)
 │   │   ├── server/       # DB pool, route handlers, NL2SQL agent, SQL validator
 │   │   └── shared/       # TypeScript types and constants
 │   └── tests/            # Vitest tests (32 tests across 2 suites)
-├── schema/               # 2 SQL files: DDL + seed data
+├── schema/               # SQL files: DDL, seed data, and mock data
 │   ├── 01_schema.sql     # All table DDL, indexes, enums, extensions
-│   └── 02_seed_and_queries.sql  # Seed data and example queries
+│   ├── 02_seed_and_queries.sql  # Seed data and example queries
+│   └── 99-seed/
+│       └── 010_mock_data.sql    # Extended mock dataset (~700 users, ~10K rows)
 ├── infra/                # Terraform (local Docker + AWS/GCP cloud deploy)
 ├── scripts/              # Utility scripts (preflight.sh)
 ├── docs/                 # Architecture and operations documentation

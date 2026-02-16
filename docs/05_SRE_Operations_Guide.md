@@ -197,7 +197,7 @@ If state is corrupted, restore from the previous S3/GCS object version.
 
 ### 6.3 Schema as Code
 
-The schema is defined in two SQL files in the `schema/` directory under version control: `01_schema.sql` (DDL) and `02_seed_and_queries.sql` (seed data). The database can be rebuilt from scratch by applying these files in order against an empty database.
+The schema is defined in SQL files in the `schema/` directory under version control: `01_schema.sql` (DDL), `02_seed_and_queries.sql` (seed data), and `99-seed/010_mock_data.sql` (extended mock dataset). The database can be rebuilt from scratch by applying these files in order against an empty database.
 
 ### 6.5 Recovery Time Objectives
 
@@ -283,7 +283,7 @@ With a 99.5% availability SLO over 28 days, the error budget is approximately 20
 
 **Steps**:
 
-1. Read the error output to identify the failing SQL file. The two files in `schema/` are applied in lexicographic order (`01_schema.sql` then `02_seed_and_queries.sql`).
+1. Read the error output to identify the failing SQL file. The files in `schema/` are applied in lexicographic order (`01_schema.sql`, then `02_seed_and_queries.sql`, then `99-seed/010_mock_data.sql`).
 2. Connect to the database and check which objects exist to determine how far the migration progressed.
 3. Fix the SQL file, commit, and re-run. The migration script is idempotent where possible (uses `IF NOT EXISTS`), but verify manually for DDL that is not idempotent.
 4. The Terraform `null_resource` triggers on the SHA-256 hash of all SQL files. Changing any file will trigger a re-run.
