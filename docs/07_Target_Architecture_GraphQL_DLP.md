@@ -30,32 +30,33 @@
 | Frontend | Next.js 15 / React 19 / Tailwind | Working chat UI + access explorer |
 | API | Next.js API routes (REST) | 4 endpoints: `/api/chat`, `/api/access`, `/api/people`, `/api/health` |
 | AI | NL2SQL agent with 7-layer SQL validator | Anthropic / OpenAI / Gemini, provider-agnostic |
-| Database | PostgreSQL (18 Cloud SQL / 16 Aurora) | 28 tables, 4 mat views, 6 roles, RLS, partitioned audit + history |
+| Database | PostgreSQL (18 Cloud SQL / 16 Aurora) | 18 tables across 4 providers + canonical identity layer, composite PK `(id, tenant_id)`, no RLS yet |
 | Auth | **Mock** — hardcoded session in route handlers | No real AuthN/AuthZ |
-| Ingestion | External pipeline assumed; `cloudintel_ingest` role | No application-level connector code |
-| Export/DLP | `entity_history` + `snapshot_registry` + hash chains | Schema exists; no API or job runner |
+| Ingestion | External pipeline assumed | No application-level connector code |
+| Export/DLP | Not implemented | Planned for future iteration |
 | Infra | Terraform (Docker local / AWS Aurora+App Runner / GCP Cloud SQL+Cloud Run) | Dual-cloud IaC defined |
-| Tests | Vitest configured | 0 test files committed |
+| Tests | Vitest | 32 tests (28 SQL validator + 4 chat route) |
 
 ### Key gaps
 
 1. **No real authentication.** `getSession()` returns a hardcoded mock.
 2. **No GraphQL.** API is bespoke REST endpoints with inline SQL.
 3. **No ingestion API or connectors.** Data loading is assumed external.
-4. **No export/backup jobs.** Schema for snapshots exists but no execution layer.
-5. **No CI/CD pipeline.** No `.github/workflows/` files.
-6. **No tests.** Vitest configured but empty.
-7. **GitHub tables newly added** but not yet wired into `mv_effective_access`, RLS, or role grants.
+4. **No export/backup jobs.** No export schema or execution layer.
+5. **No RLS policies.** App sets `SET LOCAL app.current_tenant_id` per transaction (forward-compatible) but no RLS policies defined yet.
+6. **No database-backed audit.** Audit middleware logs to console only; database audit table planned.
+7. **No database roles.** Single `cloudintel` role; role separation planned for production.
 
 ### What works well (keep)
 
-- RLS with `SET LOCAL app.current_tenant_id` — clean tenant isolation.
-- 6-role privilege model — well-separated.
-- Hash-chained `entity_history` with verification function — strong audit trail.
-- Partitioned `audit_log` and `entity_history` — ready for scale.
+- Forward-compatible tenant scoping with `SET LOCAL app.current_tenant_id`.
+- Composite PK `(id, tenant_id)` on all tables — partition-friendly multi-tenancy.
 - SQL validator (7-layer, AST-based) — robust defence-in-depth for NL2SQL path.
-- Person-centric identity model with `person_link` — sound canonical design.
-- Open-ended `person_link.identity_type` CHECK — extensible for future providers.
+- Canonical identity model with `canonical_users` + `canonical_user_provider_links` — sound cross-provider design.
+- `provider_type_enum` (GOOGLE_WORKSPACE, AWS_IDENTITY_CENTER, GITHUB) — typed provider classification.
+- `identity_reconciliation_queue` — explicit handling for unmatched identities.
+- 5 CI/CD pipelines (CI, CodeQL, Checkov, Security Audit, Bundle Analysis).
+- 32 tests (28 SQL validator + 4 chat route).
 
 ---
 
@@ -120,7 +121,7 @@
 | **GraphQL Server** | Identity graph queries, cursor pagination, field-level authZ | GraphQL Yoga + Pothos (code-first schema) |
 | **Auth Middleware** | JWT validation, OIDC federation, tenant extraction, role resolution | `jose` library (JWT verify), OIDC discovery |
 | **Export Worker** | Async snapshot/export jobs, signed URL generation | Node.js worker, triggered by DB queue or Cloud Scheduler |
-| **PostgreSQL** | System of record, RLS, audit, history | PostgreSQL 18, existing schema |
+| **PostgreSQL** | System of record, tenant-scoped queries, identity data | PostgreSQL 18, existing schema |
 | **Secret Manager** | All credentials, rotated, scoped IAM access | AWS Secrets Manager / GCP Secret Manager |
 | **Cloud Storage** | Export artefact storage with lifecycle policies | S3 / GCS with encryption + signed URLs |
 | **Cloud KMS** | Envelope encryption for exports, DB column encryption | AWS KMS / GCP Cloud KMS |
@@ -135,9 +136,9 @@
 | **PostGraphile** | Auto-generates with plugin system | Still exposes full schema surface; security depends on RLS being perfect (no fallback); difficult to add custom business logic; plugin API learning curve | Reject |
 | **Yoga + Pothos** | Full control over schema surface; code-first types mirror domain model; field-level authZ via resolver guards; DataLoader built in; query complexity plugin; integrates with existing `pg` pool | More code to write; must define schema explicitly | **Accept** |
 
-The existing codebase already has a `pg` pool with tenant-scoping, 6 DB roles, and RLS. A code-first GraphQL server gives us:
+The existing codebase already has a `pg` pool with tenant-scoping via `SET LOCAL app.current_tenant_id`. A code-first GraphQL server gives us:
 - Explicit schema surface (no accidental exposure)
-- Resolver-level authZ in addition to RLS (defence-in-depth)
+- Resolver-level authZ with defence-in-depth (adding RLS as a future layer)
 - Built-in query complexity scoring and depth limiting
 - DataLoader integration for N+1 prevention
 - Clean separation from the NL2SQL path
@@ -161,7 +162,7 @@ Browser ──► IdP (Auth0/Entra/Google) ──► ID Token (JWT)
 {
   "sub": "auth0|user-uuid",
   "email": "analyst@northwind.co.uk",
-  "tenant_id": "a0000000-0000-0000-0000-000000000001",
+  "tenant_id": "11111111-1111-1111-1111-111111111111",
   "roles": ["analyst"],
   "iss": "https://auth.alxderia.io/",
   "aud": "alxderia-api",
@@ -177,7 +178,7 @@ Browser ──► IdP (Auth0/Entra/Google) ──► ID Token (JWT)
 |--------|--------|-----------|
 | New `/graphql` endpoint | Additive — no breakage | Deploy alongside existing REST |
 | Auth middleware replacing mock `getSession()` | **Breaking** — all REST endpoints require JWT | Add `Authorization: Bearer <token>` header; update frontend |
-| GitHub tables added to RLS + role grants | Additive — existing queries unaffected | Run schema migration |
+| RLS policies added to all tables | Additive — existing queries unaffected | Run schema migration |
 | Export worker | Additive | Deploy as separate process or Cloud Scheduler job |
 
 ---
@@ -187,80 +188,90 @@ Browser ──► IdP (Auth0/Entra/Google) ──► ID Token (JWT)
 ### C.1 Canonical User Model
 
 ```
-person (canonical identity)
+canonical_users (canonical identity)
   │
-  ├── person_link ──► aws_iam_user      (provider_code='aws', identity_type='aws_iam_user')
-  ├── person_link ──► aws_idc_user      (provider_code='aws', identity_type='aws_idc_user')
-  ├── person_link ──► gcp_workspace_user(provider_code='gcp', identity_type='gcp_workspace_user')
-  └── person_link ──► github_user       (provider_code='github', identity_type='github_user')
+  ├── canonical_user_provider_links ──► google_workspace_users  (provider_type='GOOGLE_WORKSPACE')
+  ├── canonical_user_provider_links ──► aws_identity_center_users (provider_type='AWS_IDENTITY_CENTER')
+  └── canonical_user_provider_links ──► github_users             (provider_type='GITHUB')
 
-Source of truth: person.primary_email (lowercase, unique per tenant)
-Internal identifier: person.id (UUID)
+Source of truth: canonical_users.primary_email (lowercase, unique per tenant)
+Internal identifier: canonical_users.id (UUID)
+Provider link key: provider_user_id (maps to google_id, user_id, or node_id depending on provider)
 ```
 
 ### C.2 Conflict Handling Matrix
 
 | Scenario | Detection | Resolution |
 |----------|-----------|------------|
-| **Duplicate email across providers** | Exact match: `lower(person.primary_email) = lower(provider_user.email)` | Link to existing person; create `person_link` with `confidence=1.00`, `linkage_strategy='email_match'` |
-| **Email mismatch (display name differs)** | Same email, different display_name | Tolerate — log in `person_link.notes`; person.display_name is authoritative |
-| **Missing email** (GitHub noreply, service accounts) | `email LIKE '%@users.noreply.github.com'` or `email IS NULL` | Set `person_id = NULL`; create `person_link` with `confidence=0.00`, `linkage_strategy='pending_review'` |
-| **Email change** (user changes corporate email) | Provider sync detects new email, no person match | Flag for manual review; do NOT auto-create duplicate person |
-| **Merge required** (two person records for same human) | Admin identifies via audit | Admin merges: reparent all `person_link` rows to surviving person, soft-delete duplicate, log in `audit_log` |
-| **Cross-tenant collision** | Same email in different tenants | Expected and valid — RLS prevents cross-tenant visibility |
+| **Duplicate email across providers** | Exact match: `lower(canonical_users.primary_email) = lower(provider_user.email)` | Link to existing canonical user; create `canonical_user_provider_links` with `confidence_score=100`, `match_method='email_exact'` |
+| **Email mismatch (display name differs)** | Same email, different name | Tolerate — canonical_users.full_name is authoritative |
+| **Missing email** (GitHub noreply, service accounts) | `email LIKE '%@users.noreply.github.com'` or `email IS NULL` | No provider link created; insert into `identity_reconciliation_queue` with `status='PENDING'`, `conflict_reason='noreply_email'` |
+| **Email change** (user changes corporate email) | Provider sync detects new email, no canonical user match | Flag for manual review in reconciliation queue; do NOT auto-create duplicate canonical user |
+| **Merge required** (two canonical_users records for same human) | Admin identifies via audit | Admin merges: reparent all `canonical_user_provider_links` rows to surviving user, soft-delete duplicate |
+| **Cross-tenant collision** | Same email in different tenants | Expected and valid — composite PK `(id, tenant_id)` enforces tenant isolation |
 
-### C.3 Required Schema Changes (New)
+### C.3 Required Schema Changes (for GraphQL support)
 
-The following changes are needed to complete GitHub integration and support GraphQL:
+The following changes are needed to support GraphQL:
 
-**1. Add GitHub tables to RLS policies** (`schema/08-security/020_rls_policies.sql`):
+**1. Add RLS policies** (not yet defined in the current schema):
 
 ```sql
--- Add to the unnest array in _create_tenant_rls call:
-SELECT _create_tenant_rls(t) FROM unnest(ARRAY[
-    -- ... existing tables ...
-    'github_organisation', 'github_user', 'github_team',
-    'github_team_membership', 'github_org_membership'
-]) AS t;
+-- Enable RLS on all tables and create policies scoped by tenant_id
+-- The app already sets SET LOCAL app.current_tenant_id per transaction
+ALTER TABLE canonical_users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON canonical_users
+  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+-- Repeat for all 18 tables
 ```
 
-**2. Add GitHub tables to role grants** (`schema/08-security/010_roles.sql`):
+**2. Add database roles** (not yet defined in the current schema):
 
 ```sql
--- Add to the operational tables array:
-'github_organisation', 'github_user', 'github_team',
-'github_team_membership', 'github_org_membership'
+-- Production role separation (currently single cloudintel role)
+CREATE ROLE cloudintel_readonly;
+CREATE ROLE cloudintel_analyst;
+CREATE ROLE cloudintel_admin;
+CREATE ROLE cloudintel_audit;
 ```
 
-**3. Add unique index on person email per tenant** (for conflict detection):
+**3. Add cursor pagination support indexes** (for GraphQL):
 
 ```sql
-CREATE UNIQUE INDEX IF NOT EXISTS idx_person_email_unique
-    ON person (tenant_id, lower(primary_email))
-    WHERE primary_email IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_canonical_users_cursor
+    ON canonical_users (tenant_id, id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_provider_links_cursor
+    ON canonical_user_provider_links (tenant_id, id);
+CREATE INDEX IF NOT EXISTS idx_github_users_cursor
+    ON github_users (tenant_id, id);
 ```
 
-**4. Add cursor pagination support index** (for GraphQL):
+**4. Add audit_log table** (for database-backed audit, currently console-only):
 
 ```sql
-CREATE INDEX IF NOT EXISTS idx_person_cursor
-    ON person (tenant_id, id) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_person_link_cursor
-    ON person_link (tenant_id, id);
-CREATE INDEX IF NOT EXISTS idx_github_user_cursor
-    ON github_user (tenant_id, id);
+CREATE TABLE audit_log (
+    id UUID DEFAULT uuid_generate_v4(),
+    tenant_id UUID NOT NULL,
+    query_text TEXT NOT NULL,
+    question TEXT,
+    row_count INTEGER,
+    duration_ms INTEGER,
+    status TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    PRIMARY KEY (id, tenant_id)
+);
 ```
 
 ### C.4 Indexing Strategy for Graph Queries
 
 | Query Pattern | Index | Notes |
 |---------------|-------|-------|
-| Person by email | `idx_person_email` (existing) | `(tenant_id, primary_email)` |
-| Person identities | `idx_person_link_person` (existing) | `(person_id)` |
-| GitHub user by login | `idx_github_user_login` (existing) | `(tenant_id, login)` |
-| GitHub user by email | `idx_github_user_email` (existing) | `(tenant_id, lower(email))` |
-| Team members | `idx_github_tm_team` + `idx_github_tm_user` (existing) | Composite join path |
-| Effective access | `idx_mv_ea_person` (existing) | `(person_id)` on mat view |
+| Canonical user by email | `idx_canonical_emails_email` (existing) | `(tenant_id, email)` |
+| Provider links by user | `canonical_user_provider_links` FK | `(canonical_user_id, tenant_id)` |
+| Google Workspace by email | `idx_gw_users_email` (existing) | `(tenant_id, primary_email)` |
+| GitHub user by login | `idx_github_users_login` (existing) | `(tenant_id, login)` |
+| AWS IDC user by username | `idx_aws_users_username` (existing) | `(tenant_id, user_name)` |
+| Google Workspace groups by email | `idx_gw_groups_email` (existing) | `(tenant_id, email)` |
 | Cursor pagination (all entities) | New cursor indexes above | `(tenant_id, id)` — supports keyset pagination |
 
 ---
@@ -282,183 +293,233 @@ type PageInfo {
   endCursor: String
 }
 
-# ─── Person (Canonical Identity) ───────────────────────────
-type Person {
+# ─── Canonical User (Canonical Identity) ──────────────────
+type CanonicalUser {
   id: UUID!
-  displayName: String
+  fullName: String
   primaryEmail: String          # Null for readonly role (PII)
-  hrEmployeeId: String
-  status: String!
   createdAt: DateTime!
   updatedAt: DateTime!
 
   # Relations (DataLoader-backed)
-  identityLinks(
+  providerLinks(
     first: Int = 20
     after: String
-    providerCode: String
-  ): PersonLinkConnection!
+    providerType: String
+  ): ProviderLinkConnection!
 
-  awsIdcUsers: [AwsIdcUser!]!
-  awsIamUsers: [AwsIamUser!]!
-  gcpWorkspaceUsers: [GcpWorkspaceUser!]!
+  awsIdentityCenterUsers: [AwsIdentityCenterUser!]!
+  googleWorkspaceUsers: [GoogleWorkspaceUser!]!
   githubUsers: [GitHubUser!]!
-
-  effectiveAccess(
-    first: Int = 50
-    after: String
-    cloudProvider: String
-    accessPath: String
-  ): EffectiveAccessConnection!
 
   groupMemberships: [GroupMembership!]!
 }
 
-type PersonConnection {
-  edges: [PersonEdge!]!
+type CanonicalUserConnection {
+  edges: [CanonicalUserEdge!]!
   pageInfo: PageInfo!
   totalCount: Int!
 }
 
-type PersonEdge {
-  node: Person!
+type CanonicalUserEdge {
+  node: CanonicalUser!
   cursor: String!
 }
 
-# ─── Person Link ───────────────────────────────────────────
-type PersonLink {
+# ─── Provider Link ─────────────────────────────────────────
+type ProviderLink {
   id: UUID!
-  providerCode: String!
-  identityType: String!
-  linkageStrategy: String!
-  confidence: Float!
-  linkedAt: DateTime!
-  notes: String
+  providerType: String!        # GOOGLE_WORKSPACE, AWS_IDENTITY_CENTER, GITHUB
+  providerUserId: String!
+  confidenceScore: Int!
+  matchMethod: String!
+  createdAt: DateTime!
 }
 
-type PersonLinkConnection {
-  edges: [PersonLinkEdge!]!
+type ProviderLinkConnection {
+  edges: [ProviderLinkEdge!]!
   pageInfo: PageInfo!
 }
 
-type PersonLinkEdge {
-  node: PersonLink!
+type ProviderLinkEdge {
+  node: ProviderLink!
   cursor: String!
 }
 
 # ─── Provider Identities ──────────────────────────────────
-type AwsIdcUser {
+type AwsIdentityCenterUser {
   id: UUID!
-  identityStoreUserId: String!
-  userName: String
+  identityStoreId: String!
+  userId: String!
+  userName: String!
   displayName: String
-  email: String              # PII-guarded
-  lastSeenAt: DateTime
-  disabledAt: DateTime
-  person: Person
-  groupMemberships: [AwsIdcGroupMembership!]!
+  active: Boolean!
+  lastSyncedAt: DateTime
+  canonicalUser: CanonicalUser
+  groupMemberships: [AwsIdentityCenterMembership!]!
 }
 
-type AwsIamUser {
+type GoogleWorkspaceUser {
   id: UUID!
-  iamUserName: String!
-  arn: String!
-  lastSeenAt: DateTime
-  person: Person
-  policyAttachments: [AwsIamPolicyAttachment!]!
-}
-
-type AwsIamPolicyAttachment {
-  policyArn: String!
-  policyName: String!
-}
-
-type GcpWorkspaceUser {
-  id: UUID!
+  googleId: String!
   primaryEmail: String       # PII-guarded
-  displayName: String
+  nameFull: String
   suspended: Boolean!
-  lastSeenAt: DateTime
-  person: Person
-  groupMemberships: [GcpWorkspaceGroupMembership!]!
+  archived: Boolean!
+  isAdmin: Boolean!
+  lastLoginTime: DateTime
+  lastSyncedAt: DateTime
+  canonicalUser: CanonicalUser
+  groupMemberships: [GoogleWorkspaceMembership!]!
 }
 
 type GitHubUser {
   id: UUID!
-  githubUserId: Int!
+  githubId: Int!
+  nodeId: String!
   login: String!
-  displayName: String
+  name: String
   email: String              # PII-guarded
-  twoFactorEnabled: Boolean
-  lastSeenAt: DateTime
-  person: Person
+  type: String!
+  siteAdmin: Boolean!
+  lastSyncedAt: DateTime
+  canonicalUser: CanonicalUser
   teamMemberships: [GitHubTeamMembership!]!
   orgMemberships: [GitHubOrgMembership!]!
+  repoPermissions: [GitHubRepoCollaboratorPermission!]!
 }
 
 # ─── Groups / Teams ────────────────────────────────────────
-type AwsIdcGroup {
+type AwsIdentityCenterGroup {
   id: UUID!
+  identityStoreId: String!
+  groupId: String!
   displayName: String!
   description: String
-  members(first: Int = 50, after: String): AwsIdcGroupMembershipConnection!
+  members(first: Int = 50, after: String): AwsIdentityCenterMembershipConnection!
 }
 
-type AwsIdcGroupMembership {
-  group: AwsIdcGroup!
-  user: AwsIdcUser!
+type AwsIdentityCenterMembership {
+  group: AwsIdentityCenterGroup!
+  user: AwsIdentityCenterUser!
 }
 
-type AwsIdcGroupMembershipConnection {
-  edges: [AwsIdcGroupMembershipEdge!]!
+type AwsIdentityCenterMembershipConnection {
+  edges: [AwsIdentityCenterMembershipEdge!]!
   pageInfo: PageInfo!
 }
 
-type AwsIdcGroupMembershipEdge {
-  node: AwsIdcGroupMembership!
+type AwsIdentityCenterMembershipEdge {
+  node: AwsIdentityCenterMembership!
   cursor: String!
 }
 
-type GcpWorkspaceGroup {
+type GoogleWorkspaceGroup {
   id: UUID!
-  displayName: String!
-  groupEmail: String!
-  members(first: Int = 50, after: String): GcpGroupMembershipConnection!
+  googleId: String!
+  email: String!
+  name: String
+  description: String
+  members(first: Int = 50, after: String): GoogleWorkspaceMembershipConnection!
 }
 
-type GcpWorkspaceGroupMembership {
-  group: GcpWorkspaceGroup!
-  user: GcpWorkspaceUser!
+type GoogleWorkspaceMembership {
+  group: GoogleWorkspaceGroup!
+  memberType: String!
   role: String!
+  status: String!
 }
 
-type GcpGroupMembershipConnection {
-  edges: [GcpGroupMembershipEdge!]!
+type GoogleWorkspaceMembershipConnection {
+  edges: [GoogleWorkspaceMembershipEdge!]!
   pageInfo: PageInfo!
 }
 
-type GcpGroupMembershipEdge {
-  node: GcpWorkspaceGroupMembership!
+type GoogleWorkspaceMembershipEdge {
+  node: GoogleWorkspaceMembership!
   cursor: String!
 }
 
 type GitHubOrganisation {
   id: UUID!
+  githubId: Int!
+  nodeId: String!
   login: String!
-  displayName: String
-  plan: String
-  twoFactorRequirementEnabled: Boolean
+  name: String
+  email: String
   teams(first: Int = 50, after: String): GitHubTeamConnection!
   members(first: Int = 50, after: String): GitHubOrgMembershipConnection!
+  repositories(first: Int = 50, after: String): GitHubRepositoryConnection!
 }
 
 type GitHubTeam {
   id: UUID!
+  githubId: Int!
+  nodeId: String!
   slug: String!
-  displayName: String
+  name: String!
+  description: String
   privacy: String
   parentTeam: GitHubTeam
   members(first: Int = 50, after: String): GitHubTeamMembershipConnection!
+  repoPermissions(first: Int = 50, after: String): GitHubRepoTeamPermissionConnection!
+}
+
+type GitHubRepository {
+  id: UUID!
+  githubId: Int!
+  nodeId: String!
+  name: String!
+  fullName: String!
+  private: Boolean!
+  visibility: String
+  archived: Boolean!
+  defaultBranch: String
+  teamPermissions(first: Int = 50, after: String): GitHubRepoTeamPermissionConnection!
+  collaborators(first: Int = 50, after: String): GitHubRepoCollaboratorPermissionConnection!
+}
+
+type GitHubRepositoryConnection {
+  edges: [GitHubRepositoryEdge!]!
+  pageInfo: PageInfo!
+}
+
+type GitHubRepositoryEdge {
+  node: GitHubRepository!
+  cursor: String!
+}
+
+type GitHubRepoTeamPermission {
+  repo: GitHubRepository!
+  team: GitHubTeam!
+  permission: String!
+}
+
+type GitHubRepoTeamPermissionConnection {
+  edges: [GitHubRepoTeamPermissionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type GitHubRepoTeamPermissionEdge {
+  node: GitHubRepoTeamPermission!
+  cursor: String!
+}
+
+type GitHubRepoCollaboratorPermission {
+  repo: GitHubRepository!
+  user: GitHubUser!
+  permission: String!
+  isOutsideCollaborator: Boolean!
+}
+
+type GitHubRepoCollaboratorPermissionConnection {
+  edges: [GitHubRepoCollaboratorPermissionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type GitHubRepoCollaboratorPermissionEdge {
+  node: GitHubRepoCollaboratorPermission!
+  cursor: String!
 }
 
 type GitHubTeamConnection {
@@ -504,113 +565,90 @@ type GitHubOrgMembershipEdge {
   cursor: String!
 }
 
-# ─── Effective Access ──────────────────────────────────────
-type EffectiveAccess {
-  cloudProvider: String!
-  accountOrProjectId: String!
-  accountOrProjectName: String!
-  roleOrPermissionSet: String!
-  accessPath: String!
-  viaGroupName: String
-  lastSeenAt: DateTime
-}
-
-type EffectiveAccessConnection {
-  edges: [EffectiveAccessEdge!]!
-  pageInfo: PageInfo!
-  totalCount: Int!
-}
-
-type EffectiveAccessEdge {
-  node: EffectiveAccess!
-  cursor: String!
-}
-
 # ─── Union type for group memberships ──────────────────────
 union GroupMembership =
-    AwsIdcGroupMembership
-  | GcpWorkspaceGroupMembership
+    AwsIdentityCenterMembership
+  | GoogleWorkspaceMembership
   | GitHubTeamMembership
   | GitHubOrgMembership
 
 # ─── Queries ──────────────────────────────────────────────
 type Query {
-  # Person lookups
-  person(id: UUID!): Person
-  personByEmail(email: String!): Person
-  persons(
+  # Canonical user lookups
+  canonicalUser(id: UUID!): CanonicalUser
+  canonicalUserByEmail(email: String!): CanonicalUser
+  canonicalUsers(
     first: Int = 20
     after: String
     search: String
-    status: String
-  ): PersonConnection!
+    includeDeleted: Boolean = false
+  ): CanonicalUserConnection!
 
-  # Unmapped identities (person_id IS NULL)
-  unmappedIdentities(
-    providerCode: String
+  # Identity reconciliation queue (unmatched identities)
+  reconciliationQueue(
+    providerType: String
+    status: String = "PENDING"
     first: Int = 50
     after: String
-  ): UnmappedIdentityConnection!
+  ): ReconciliationQueueConnection!
 
   # Provider-specific lookups
   githubOrganisation(id: UUID!): GitHubOrganisation
   githubOrganisations(first: Int = 10, after: String): GitHubOrganisationConnection!
   githubUser(login: String!): GitHubUser
-  awsIdcGroup(id: UUID!): AwsIdcGroup
-  gcpWorkspaceGroup(id: UUID!): GcpWorkspaceGroup
+  githubRepository(fullName: String!): GitHubRepository
+  awsIdentityCenterGroup(id: UUID!): AwsIdentityCenterGroup
+  googleWorkspaceGroup(id: UUID!): GoogleWorkspaceGroup
 
   # Cross-provider search
   identitiesByEmail(email: String!): [ProviderIdentity!]!
 
-  # Orphan detection
-  personsWithIncompleteMapping(
+  # Orphan detection (users linked to fewer than minProviders)
+  usersWithIncompleteMapping(
     minProviders: Int = 3
     first: Int = 50
     after: String
-  ): PersonConnection!
+  ): CanonicalUserConnection!
 
-  # Access queries
-  whoCanAccess(
-    accountOrProjectId: String!
-    cloudProvider: String
+  # External collaborator queries
+  externalCollaborators(
     first: Int = 50
     after: String
-  ): PersonConnection!
+  ): GitHubRepoCollaboratorPermissionConnection!
 
-  # Audit
-  entityHistory(
-    entityType: String!
-    entityId: UUID!
-    first: Int = 50
-    after: String
-  ): EntityHistoryConnection!
-
-  # Export jobs
+  # Export jobs (future)
   exportJobs(status: String, first: Int = 20, after: String): ExportJobConnection!
 }
 
-# ─── Unmapped Identity ─────────────────────────────────────
-union UnmappedIdentity = AwsIdcUser | AwsIamUser | GcpWorkspaceUser | GitHubUser
+# ─── Reconciliation Queue ─────────────────────────────────
+type ReconciliationQueueEntry {
+  id: UUID!
+  providerType: String!
+  providerUserId: String!
+  conflictReason: String
+  status: String!
+  createdAt: DateTime!
+}
 
-type UnmappedIdentityConnection {
-  edges: [UnmappedIdentityEdge!]!
+type ReconciliationQueueConnection {
+  edges: [ReconciliationQueueEdge!]!
   pageInfo: PageInfo!
   totalCount: Int!
 }
 
-type UnmappedIdentityEdge {
-  node: UnmappedIdentity!
+type ReconciliationQueueEdge {
+  node: ReconciliationQueueEntry!
   cursor: String!
 }
 
 # ─── Provider Identity (for cross-provider search) ─────────
 type ProviderIdentity {
-  providerCode: String!
-  identityType: String!
+  providerType: String!       # GOOGLE_WORKSPACE, AWS_IDENTITY_CENTER, GITHUB
+  providerUserId: String!
   displayName: String
   email: String
-  lastSeenAt: DateTime
-  personId: UUID
+  lastSyncedAt: DateTime
+  canonicalUserId: UUID
 }
 
 # ─── GitHub Organisation Connection ────────────────────────
@@ -673,23 +711,30 @@ type ExportJobEdge {
 type Mutation {
   # Manual identity linkage (admin only)
   linkIdentity(
-    personId: UUID!
-    providerIdentityId: UUID!
-    identityType: String!
-    providerCode: String!
-    notes: String
-  ): PersonLink!
+    canonicalUserId: UUID!
+    providerType: String!        # GOOGLE_WORKSPACE, AWS_IDENTITY_CENTER, GITHUB
+    providerUserId: String!
+    matchMethod: String!
+    confidenceScore: Int = 100
+  ): ProviderLink!
 
-  # Merge duplicate persons (admin only)
-  mergePersons(
-    survivingPersonId: UUID!
-    duplicatePersonId: UUID!
+  # Resolve reconciliation queue entry (admin only)
+  resolveReconciliation(
+    reconciliationId: UUID!
+    canonicalUserId: UUID         # null = reject match
+    resolution: String!           # 'linked', 'rejected', 'new_user'
+  ): ReconciliationQueueEntry!
+
+  # Merge duplicate canonical users (admin only)
+  mergeCanonicalUsers(
+    survivingUserId: UUID!
+    duplicateUserId: UUID!
     reason: String!
-  ): Person!
+  ): CanonicalUser!
 
   # Trigger export job (admin/analyst)
   createExportJob(
-    scope: String!          # 'full', 'persons', 'access', 'github', 'audit'
+    scope: String!          # 'full', 'canonical_users', 'github', 'google_workspace', 'aws_identity_center'
     format: String!         # 'json', 'csv', 'parquet'
     incremental: Boolean    # default false
     sinceTimestamp: DateTime # for incremental
@@ -703,43 +748,41 @@ type Mutation {
 
 ```graphql
 query IdentitiesByEmail {
-  personByEmail(email: "oliver.smith42@demo-example.co.uk") {
+  canonicalUserByEmail(email: "oliver.smith42@demo-example.co.uk") {
     id
-    displayName
+    fullName
     primaryEmail
-    status
-    identityLinks(first: 10) {
+    providerLinks(first: 10) {
       edges {
         node {
-          providerCode
-          identityType
-          confidence
-          linkageStrategy
+          providerType
+          providerUserId
+          confidenceScore
+          matchMethod
         }
       }
     }
-    awsIdcUsers { id userName email lastSeenAt }
-    awsIamUsers { id iamUserName arn lastSeenAt }
-    gcpWorkspaceUsers { id primaryEmail suspended }
-    githubUsers { id login email twoFactorEnabled }
+    awsIdentityCenterUsers { id userName displayName active }
+    googleWorkspaceUsers { id primaryEmail suspended isAdmin }
+    githubUsers { id login email type }
   }
 }
 ```
 
-**2. Unmapped users (no person link):**
+**2. Identity reconciliation queue (unmatched users):**
 
 ```graphql
-query UnmappedGitHubUsers {
-  unmappedIdentities(providerCode: "github", first: 20) {
+query UnmatchedGitHubUsers {
+  reconciliationQueue(providerType: "GITHUB", status: "PENDING", first: 20) {
     totalCount
     edges {
       node {
-        ... on GitHubUser {
-          login
-          email
-          githubUserId
-          lastSeenAt
-        }
+        id
+        providerType
+        providerUserId
+        conflictReason
+        status
+        createdAt
       }
     }
     pageInfo { hasNextPage endCursor }
@@ -747,26 +790,20 @@ query UnmappedGitHubUsers {
 }
 ```
 
-**3. Access paths for a person:**
+**3. External collaborators across all repositories:**
 
 ```graphql
-query PersonAccess($personId: UUID!) {
-  person(id: $personId) {
-    displayName
-    effectiveAccess(first: 100, cloudProvider: "aws") {
-      totalCount
-      edges {
-        node {
-          cloudProvider
-          accountOrProjectId
-          accountOrProjectName
-          roleOrPermissionSet
-          accessPath
-          viaGroupName
-        }
+query ExternalCollaborators {
+  externalCollaborators(first: 50) {
+    edges {
+      node {
+        permission
+        isOutsideCollaborator
+        user { login email name }
+        repo { fullName visibility }
       }
-      pageInfo { hasNextPage endCursor }
     }
+    pageInfo { hasNextPage endCursor }
   }
 }
 ```
@@ -779,19 +816,19 @@ query GitHubTeamMembers {
     edges {
       node {
         login
-        displayName
+        name
         teams(first: 30) {
           edges {
             node {
               slug
-              displayName
+              name
               members(first: 50) {
                 edges {
                   node {
                     role
                     user {
                       login
-                      person { displayName primaryEmail }
+                      canonicalUser { fullName primaryEmail }
                     }
                   }
                 }
@@ -812,23 +849,30 @@ query GitHubTeamMembers {
 Every relationship field uses a DataLoader that batches lookups within a single tick:
 
 ```typescript
-// Example: Person.awsIdcUsers resolver uses DataLoader
-const awsIdcUsersByPersonIdLoader = new DataLoader<string, AwsIdcUser[]>(
-  async (personIds) => {
+// Example: CanonicalUser.awsIdentityCenterUsers resolver uses DataLoader
+// Joins through canonical_user_provider_links to find AWS IDC users
+const awsIdcUsersByCanonicalUserIdLoader = new DataLoader<string, AwsIdentityCenterUser[]>(
+  async (canonicalUserIds) => {
     const { rows } = await executeWithTenant(
       ctx.tenantId,
-      `SELECT * FROM aws_idc_user
-       WHERE person_id = ANY($1) AND disabled_at IS NULL`,
-      [personIds],
+      `SELECT aicu.*, cupl.canonical_user_id
+       FROM canonical_user_provider_links cupl
+       JOIN aws_identity_center_users aicu
+         ON aicu.user_id = cupl.provider_user_id
+         AND aicu.tenant_id = cupl.tenant_id
+       WHERE cupl.canonical_user_id = ANY($1)
+         AND cupl.provider_type = 'AWS_IDENTITY_CENTER'
+         AND cupl.tenant_id = $2`,
+      [canonicalUserIds, ctx.tenantId],
     );
-    // Group by person_id and return in order
-    const map = new Map<string, AwsIdcUser[]>();
+    // Group by canonical_user_id and return in order
+    const map = new Map<string, AwsIdentityCenterUser[]>();
     for (const row of rows) {
-      const list = map.get(row.person_id) || [];
+      const list = map.get(row.canonical_user_id) || [];
       list.push(row);
-      map.set(row.person_id, list);
+      map.set(row.canonical_user_id, list);
     }
-    return personIds.map((id) => map.get(id) || []);
+    return canonicalUserIds.map((id) => map.get(id) || []);
   },
 );
 ```
@@ -838,7 +882,7 @@ const awsIdcUsersByPersonIdLoader = new DataLoader<string, AwsIdcUser[]>(
 Cursors encode `(id)` as base64. Keyset pagination avoids `OFFSET` performance degradation:
 
 ```sql
-SELECT * FROM person
+SELECT * FROM canonical_users
 WHERE tenant_id = $1
   AND deleted_at IS NULL
   AND id > $2       -- decoded cursor
@@ -887,12 +931,13 @@ t.string({
 });
 ```
 
-**Layer 3 — RLS (database):**
-- Every query runs through `executeWithTenant()` which sets the RLS context
-- Even if a resolver bug leaks a cross-tenant ID, the DB rejects it
+**Layer 3 — Tenant-scoped queries (database):**
+- Every query runs through `executeWithTenant()` which sets the tenant context via `SET LOCAL app.current_tenant_id`
+- RLS policies (planned) will provide an additional layer of isolation at the database level
 
 **Layer 4 — Audit logging:**
-- Every GraphQL operation is logged to `audit_log` with query hash, variables, user, and tenant
+- Every GraphQL operation logged to console (current) with query hash, variables, user, and tenant
+- Database-backed audit table planned for production
 
 ---
 
@@ -903,7 +948,7 @@ t.string({
 ```sql
 CREATE TABLE IF NOT EXISTS export_job (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id       UUID NOT NULL REFERENCES tenant(id),
+    tenant_id       UUID NOT NULL,
     scope           TEXT NOT NULL,   -- 'full', 'persons', 'access', 'github', 'audit'
     format          TEXT NOT NULL,   -- 'json', 'csv', 'parquet'
     incremental     BOOLEAN NOT NULL DEFAULT FALSE,
@@ -949,8 +994,8 @@ CREATE INDEX IF NOT EXISTS idx_export_job_status
 7. Generates signed download URL (valid 24h)
 
 **Incremental export (daily or on-demand):**
-1. Uses `entity_history` as the change feed
-2. Queries: `SELECT * FROM entity_history WHERE tenant_id = $1 AND event_time > $2`
+1. Uses `updated_at` timestamps as the change indicator (all tables have `updated_at`)
+2. Queries each table with: `WHERE tenant_id = $1 AND updated_at > $2`
 3. Produces a delta file containing only changed entities
 4. Same checksum and signing flow as full export
 
@@ -976,9 +1021,9 @@ Export file ──► Envelope encryption:
 |------|--------|-----------|
 | 1 | Verify checksum: `sha256sum export_file == export_job.checksum_sha256` | Every export |
 | 2 | Load into staging database: `psql -f export_file staging_db` | Weekly (automated) |
-| 3 | Run row count assertions: `SELECT COUNT(*) FROM person` matches `export_job.entity_count` | Weekly |
-| 4 | Run hash chain verification: `SELECT * FROM verify_entity_integrity_chain(...)` on 10 random entities | Weekly |
-| 5 | Run sample query: join person → person_link → provider tables; verify referential integrity | Weekly |
+| 3 | Run row count assertions: `SELECT COUNT(*) FROM canonical_users` matches `export_job.entity_count` | Weekly |
+| 4 | Run sample query: join canonical_users → canonical_user_provider_links → provider tables; verify referential integrity | Weekly |
+| 5 | Verify provider link counts match expected ratios | Weekly |
 | 6 | Full restore drill: provision fresh PG instance, load full export, run integration test suite | Monthly |
 
 **Measurable acceptance criteria:**
@@ -997,10 +1042,10 @@ Export file ──► Envelope encryption:
 | **Unit (schema)** | DDL applies cleanly; constraints reject invalid data; CHECK constraints work | 100% of tables | `npm test -- --filter schema` must pass |
 | **Unit (resolver)** | Each resolver returns correct shape; PII masking for readonly role; error cases | Every resolver + authZ variant | `npm test -- --filter resolver` must pass |
 | **Unit (mapping)** | Email matching logic: exact match, noreply rejection, case insensitivity, conflict detection | All 6 conflict scenarios in C.2 | `npm test -- --filter mapping` must pass |
-| **Integration (DB+API)** | GraphQL queries return correct data from seeded DB; pagination cursors work; RLS enforces tenant isolation | Full query suite against test DB | `npm run test:integration` must pass |
-| **Integration (connectors)** | Provider connectors (mocked) produce correct person_link records | AWS, GCP, GitHub connectors | Mock-based integration tests |
+| **Integration (DB+API)** | GraphQL queries return correct data from seeded DB; pagination cursors work; tenant isolation enforced | Full query suite against test DB | `npm run test:integration` must pass |
+| **Integration (connectors)** | Provider connectors (mocked) produce correct `canonical_user_provider_links` records | Google Workspace, AWS IDC, GitHub connectors | Mock-based integration tests |
 | **Security (authZ)** | JWT validation; role-based field masking; cross-tenant rejection | 5+ authZ scenarios | `npm test -- --filter security` must pass |
-| **Security (RLS)** | Tenant A cannot see Tenant B data via GraphQL | Cross-tenant isolation test | Must pass with 0 leaked rows |
+| **Security (tenant isolation)** | Tenant A cannot see Tenant B data via GraphQL | Cross-tenant isolation test | Must pass with 0 leaked rows |
 | **Security (scanning)** | No leaked secrets; dependency vulnerabilities below threshold | SAST + dependency scan | `npm audit --audit-level=high` exits 0 |
 | **Performance (query)** | P95 latency < 200ms for common queries; complexity scorer rejects overweight queries | Load test with k6 | P95 < 200ms, 0 complexity violations |
 | **Performance (DB)** | Query plans use indexes (no seq scans on large tables); cursor pagination stable at depth | `EXPLAIN ANALYZE` assertions | All plans use index scans |
@@ -1092,79 +1137,91 @@ interface GraphQLContext {
   executeQuery: <T>(sql: string, params?: unknown[]) => Promise<T[]>;
 }
 
-// ─── Person Type ────────────────────────────────────────────
-const PersonRef = builder.node('Person', {
-  id: { resolve: (person) => person.id },
+// ─── Canonical User Type ────────────────────────────────────
+const CanonicalUserRef = builder.node('CanonicalUser', {
+  id: { resolve: (user) => user.id },
   fields: (t) => ({
-    displayName: t.string({
+    fullName: t.string({
       nullable: true,
-      resolve: (person) => person.display_name,
+      resolve: (user) => user.full_name,
     }),
     primaryEmail: t.string({
       nullable: true,
-      resolve: (person, _args, ctx) => {
+      resolve: (user, _args, ctx) => {
         // PII guard: readonly users cannot see email
         if (ctx.role === 'readonly') return null;
-        return person.primary_email;
+        return user.primary_email;
       },
     }),
-    status: t.exposeString('status'),
     createdAt: t.field({
       type: 'DateTime',
-      resolve: (person) => person.created_at,
+      resolve: (user) => user.created_at,
     }),
-    // DataLoader-backed relation
-    awsIdcUsers: t.loadableList({
-      type: AwsIdcUserRef,
+    // DataLoader-backed relation via provider links
+    awsIdentityCenterUsers: t.loadableList({
+      type: AwsIdentityCenterUserRef,
       load: async (ids: string[], ctx) => {
         const rows = await ctx.executeQuery(
-          `SELECT * FROM aws_idc_user WHERE person_id = ANY($1) AND disabled_at IS NULL`,
-          [ids],
+          `SELECT aicu.*, cupl.canonical_user_id
+           FROM canonical_user_provider_links cupl
+           JOIN aws_identity_center_users aicu
+             ON aicu.user_id = cupl.provider_user_id AND aicu.tenant_id = cupl.tenant_id
+           WHERE cupl.canonical_user_id = ANY($1)
+             AND cupl.provider_type = 'AWS_IDENTITY_CENTER'
+             AND cupl.tenant_id = $2`,
+          [ids, ctx.tenantId],
         );
-        return ids.map((id) => rows.filter((r: any) => r.person_id === id));
+        return ids.map((id) => rows.filter((r: any) => r.canonical_user_id === id));
       },
-      resolve: (person) => person.id,
+      resolve: (user) => user.id,
     }),
     githubUsers: t.loadableList({
       type: GitHubUserRef,
       load: async (ids: string[], ctx) => {
         const rows = await ctx.executeQuery(
-          `SELECT * FROM github_user WHERE person_id = ANY($1)`,
-          [ids],
+          `SELECT gu.*, cupl.canonical_user_id
+           FROM canonical_user_provider_links cupl
+           JOIN github_users gu
+             ON gu.node_id = cupl.provider_user_id AND gu.tenant_id = cupl.tenant_id
+           WHERE cupl.canonical_user_id = ANY($1)
+             AND cupl.provider_type = 'GITHUB'
+             AND cupl.tenant_id = $2`,
+          [ids, ctx.tenantId],
         );
-        return ids.map((id) => rows.filter((r: any) => r.person_id === id));
+        return ids.map((id) => rows.filter((r: any) => r.canonical_user_id === id));
       },
-      resolve: (person) => person.id,
+      resolve: (user) => user.id,
     }),
   }),
 });
 
-// ─── Query: personByEmail ───────────────────────────────────
-builder.queryField('personByEmail', (t) =>
+// ─── Query: canonicalUserByEmail ─────────────────────────────
+builder.queryField('canonicalUserByEmail', (t) =>
   t.field({
-    type: PersonRef,
+    type: CanonicalUserRef,
     nullable: true,
     args: { email: t.arg.string({ required: true }) },
     resolve: async (_parent, args, ctx) => {
       const rows = await ctx.executeQuery(
-        `SELECT * FROM person
+        `SELECT * FROM canonical_users
          WHERE lower(primary_email) = lower($1)
+           AND tenant_id = $2
            AND deleted_at IS NULL
          LIMIT 1`,
-        [args.email],
+        [args.email, ctx.tenantId],
       );
       return rows[0] || null;
     },
   }),
 );
 
-// ─── Query: persons (cursor-paginated) ──────────────────────
-builder.queryField('persons', (t) =>
+// ─── Query: canonicalUsers (cursor-paginated) ────────────────
+builder.queryField('canonicalUsers', (t) =>
   t.connection({
-    type: PersonRef,
+    type: CanonicalUserRef,
     args: {
       search: t.arg.string(),
-      status: t.arg.string(),
+      includeDeleted: t.arg.boolean({ defaultValue: false }),
     },
     resolve: async (_parent, args, ctx) => {
       const first = Math.min(args.first ?? 20, 100);
@@ -1172,9 +1229,13 @@ builder.queryField('persons', (t) =>
         ? Buffer.from(args.after, 'base64').toString()
         : null;
 
-      const conditions = ['deleted_at IS NULL'];
-      const params: unknown[] = [];
-      let paramIdx = 1;
+      const conditions = ['tenant_id = $1'];
+      const params: unknown[] = [ctx.tenantId];
+      let paramIdx = 2;
+
+      if (!args.includeDeleted) {
+        conditions.push('deleted_at IS NULL');
+      }
 
       if (afterId) {
         conditions.push(`id > $${paramIdx++}`);
@@ -1182,20 +1243,16 @@ builder.queryField('persons', (t) =>
       }
       if (args.search) {
         conditions.push(
-          `(display_name ILIKE $${paramIdx} OR primary_email ILIKE $${paramIdx})`,
+          `(full_name ILIKE $${paramIdx} OR primary_email ILIKE $${paramIdx})`,
         );
         params.push(`%${args.search}%`);
         paramIdx++;
-      }
-      if (args.status) {
-        conditions.push(`status = $${paramIdx++}`);
-        params.push(args.status);
       }
 
       params.push(first + 1); // fetch one extra to detect hasNextPage
 
       const rows = await ctx.executeQuery<any>(
-        `SELECT * FROM person
+        `SELECT * FROM canonical_users
          WHERE ${conditions.join(' AND ')}
          ORDER BY id
          LIMIT $${paramIdx}`,
@@ -1333,28 +1390,50 @@ interface ExportJobRow {
 
 const SCOPE_QUERIES: Record<string, string[]> = {
   full: [
-    'SELECT * FROM person',
-    'SELECT * FROM person_link',
-    'SELECT * FROM aws_idc_user',
-    'SELECT * FROM aws_iam_user',
-    'SELECT * FROM gcp_workspace_user',
-    'SELECT * FROM github_user',
-    'SELECT * FROM github_organisation',
-    'SELECT * FROM github_team',
-    'SELECT * FROM github_team_membership',
-    'SELECT * FROM github_org_membership',
+    'SELECT * FROM canonical_users',
+    'SELECT * FROM canonical_emails',
+    'SELECT * FROM canonical_user_provider_links',
+    'SELECT * FROM google_workspace_users',
+    'SELECT * FROM google_workspace_groups',
+    'SELECT * FROM google_workspace_memberships',
+    'SELECT * FROM aws_identity_center_users',
+    'SELECT * FROM aws_identity_center_groups',
+    'SELECT * FROM aws_identity_center_memberships',
+    'SELECT * FROM github_organisations',
+    'SELECT * FROM github_users',
+    'SELECT * FROM github_teams',
+    'SELECT * FROM github_org_memberships',
+    'SELECT * FROM github_team_memberships',
+    'SELECT * FROM github_repositories',
+    'SELECT * FROM github_repo_team_permissions',
+    'SELECT * FROM github_repo_collaborator_permissions',
+    'SELECT * FROM identity_reconciliation_queue',
   ],
-  persons: ['SELECT * FROM person', 'SELECT * FROM person_link'],
-  access: ['SELECT * FROM mv_effective_access'],
+  canonical_users: [
+    'SELECT * FROM canonical_users',
+    'SELECT * FROM canonical_emails',
+    'SELECT * FROM canonical_user_provider_links',
+  ],
   github: [
-    'SELECT * FROM github_organisation',
-    'SELECT * FROM github_user',
-    'SELECT * FROM github_team',
-    'SELECT * FROM github_team_membership',
-    'SELECT * FROM github_org_membership',
+    'SELECT * FROM github_organisations',
+    'SELECT * FROM github_users',
+    'SELECT * FROM github_teams',
+    'SELECT * FROM github_org_memberships',
+    'SELECT * FROM github_team_memberships',
+    'SELECT * FROM github_repositories',
+    'SELECT * FROM github_repo_team_permissions',
+    'SELECT * FROM github_repo_collaborator_permissions',
   ],
-  audit: ['SELECT * FROM audit_log'],
-  history: ['SELECT * FROM entity_history'],
+  google_workspace: [
+    'SELECT * FROM google_workspace_users',
+    'SELECT * FROM google_workspace_groups',
+    'SELECT * FROM google_workspace_memberships',
+  ],
+  aws_identity_center: [
+    'SELECT * FROM aws_identity_center_users',
+    'SELECT * FROM aws_identity_center_groups',
+    'SELECT * FROM aws_identity_center_memberships',
+  ],
 };
 
 export async function processExportJob(job: ExportJobRow): Promise<void> {
@@ -1462,34 +1541,30 @@ afterAll(async () => {
   await pool.end();
 });
 
-describe('person_link constraints', () => {
-  it('accepts valid identity_type matching ^[a-z][a-z0-9_]+$', async () => {
-    // This should succeed (open-ended CHECK allows any future provider)
+describe('provider_type_enum constraints', () => {
+  it('accepts valid provider_type_enum values', async () => {
     const result = await pool.query(`
-      SELECT 'azure_ad_user' ~ '^[a-z][a-z0-9_]+$' AS valid
+      SELECT enum_range(NULL::provider_type_enum) AS valid_types
     `);
-    expect(result.rows[0].valid).toBe(true);
+    expect(result.rows[0].valid_types).toContain('GOOGLE_WORKSPACE');
+    expect(result.rows[0].valid_types).toContain('AWS_IDENTITY_CENTER');
+    expect(result.rows[0].valid_types).toContain('GITHUB');
   });
 
-  it('rejects identity_type with uppercase characters', async () => {
-    const result = await pool.query(`
-      SELECT 'AwsIamUser' ~ '^[a-z][a-z0-9_]+$' AS valid
-    `);
-    expect(result.rows[0].valid).toBe(false);
+  it('rejects invalid provider_type values', async () => {
+    await expect(pool.query(`
+      INSERT INTO canonical_user_provider_links
+        (tenant_id, canonical_user_id, provider_type, provider_user_id, match_method)
+      VALUES ('11111111-1111-1111-1111-111111111111', uuid_generate_v4(), 'INVALID', 'test', 'test')
+    `)).rejects.toThrow();
   });
 
-  it('rejects identity_type starting with number', async () => {
+  it('enforces composite PK (id, tenant_id) uniqueness', async () => {
     const result = await pool.query(`
-      SELECT '1invalid' ~ '^[a-z][a-z0-9_]+$' AS valid
+      SELECT conname FROM pg_constraint
+      WHERE conrelid = 'canonical_users'::regclass AND contype = 'p'
     `);
-    expect(result.rows[0].valid).toBe(false);
-  });
-
-  it('rejects empty identity_type', async () => {
-    const result = await pool.query(`
-      SELECT '' ~ '^[a-z][a-z0-9_]+$' AS valid
-    `);
-    expect(result.rows[0].valid).toBe(false);
+    expect(result.rows[0].conname).toBe('canonical_users_pkey');
   });
 });
 ```
@@ -1533,13 +1608,13 @@ describe('PII masking', () => {
 import { describe, it, expect } from 'vitest';
 import { executeWithTenant } from '../../src/server/db/pool';
 
-const TENANT_A = 'a0000000-0000-0000-0000-000000000001'; // northwind
-const TENANT_B = 'b0000000-0000-0000-0000-000000000001'; // southbank
+const TENANT_A = '11111111-1111-1111-1111-111111111111';
+const TENANT_B = '22222222-2222-2222-2222-222222222222';
 
-describe('RLS tenant isolation', () => {
-  it('tenant A cannot see tenant B persons', async () => {
+describe('Tenant isolation', () => {
+  it('tenant A cannot see tenant B canonical users', async () => {
     const { rows } = await executeWithTenant(TENANT_A,
-      `SELECT COUNT(*) AS cnt FROM person
+      `SELECT COUNT(*) AS cnt FROM canonical_users
        WHERE tenant_id = $1`, [TENANT_B],
     );
     expect(Number(rows[0].cnt)).toBe(0);
@@ -1547,14 +1622,14 @@ describe('RLS tenant isolation', () => {
 
   it('tenant A sees only own github_users', async () => {
     const { rows } = await executeWithTenant(TENANT_A,
-      `SELECT DISTINCT tenant_id FROM github_user`,
+      `SELECT DISTINCT tenant_id FROM github_users`,
     );
     expect(rows.every((r: any) => r.tenant_id === TENANT_A)).toBe(true);
   });
 
-  it('cross-tenant person_link lookup returns empty', async () => {
+  it('cross-tenant provider_link lookup returns empty', async () => {
     const { rows } = await executeWithTenant(TENANT_A,
-      `SELECT * FROM person_link
+      `SELECT * FROM canonical_user_provider_links
        WHERE tenant_id = $1 LIMIT 1`, [TENANT_B],
     );
     expect(rows).toHaveLength(0);
@@ -1622,54 +1697,57 @@ describe('GraphQL query guardrails', () => {
 import { describe, it, expect } from 'vitest';
 import { executeWithTenant } from '../../src/server/db/pool';
 
-const TENANT = 'a0000000-0000-0000-0000-000000000001';
+const TENANT = '11111111-1111-1111-1111-111111111111';
 
 describe('Email matching logic', () => {
-  it('matches person by case-insensitive email', async () => {
+  it('matches canonical user by case-insensitive email', async () => {
     const { rows } = await executeWithTenant(TENANT,
-      `SELECT p.id FROM person p
-       WHERE lower(p.primary_email) = lower($1)
-         AND p.deleted_at IS NULL`,
-      ['OLIVER.SMITH1@DEMO-EXAMPLE.CO.UK'],
+      `SELECT cu.id FROM canonical_users cu
+       WHERE lower(cu.primary_email) = lower($1)
+         AND cu.deleted_at IS NULL`,
+      ['ALICE.JOHNSON@DEMO-EXAMPLE.CO.UK'],
     );
     expect(rows.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('rejects noreply GitHub emails for matching', async () => {
+  it('noreply GitHub users are in reconciliation queue', async () => {
     const { rows } = await executeWithTenant(TENANT,
-      `SELECT gu.id, gu.login, gu.person_id
-       FROM github_user gu
-       WHERE gu.email LIKE '%@users.noreply.github.com'`,
+      `SELECT irq.id, irq.provider_user_id, irq.status
+       FROM identity_reconciliation_queue irq
+       WHERE irq.provider_type = 'GITHUB'
+         AND irq.conflict_reason LIKE '%noreply%'`,
     );
-    // All noreply users should have person_id = NULL
+    // All noreply users should be in the reconciliation queue as PENDING
     for (const row of rows) {
-      expect(row.person_id).toBeNull();
+      expect(row.status).toBe('PENDING');
     }
   });
 
-  it('linked GitHub users have person_link entries', async () => {
+  it('linked GitHub users have canonical_user_provider_links entries', async () => {
     const { rows } = await executeWithTenant(TENANT,
       `SELECT gu.id
-       FROM github_user gu
-       LEFT JOIN person_link pl ON pl.provider_identity_id = gu.id
-         AND pl.identity_type = 'github_user'
-       WHERE gu.person_id IS NOT NULL
-         AND pl.id IS NULL`,
+       FROM github_users gu
+       LEFT JOIN canonical_user_provider_links cupl
+         ON cupl.provider_user_id = gu.node_id
+         AND cupl.provider_type = 'GITHUB'
+         AND cupl.tenant_id = gu.tenant_id
+       WHERE gu.email NOT LIKE '%@users.noreply.github.com'
+         AND cupl.id IS NULL`,
     );
-    // No linked users should be missing a person_link
+    // No linked users should be missing a provider link
     expect(rows).toHaveLength(0);
   });
 
-  it('confidence is 1.00 for email-matched identities', async () => {
+  it('confidence_score is 100 for email-matched identities', async () => {
     const { rows } = await executeWithTenant(TENANT,
-      `SELECT confidence, linkage_strategy
-       FROM person_link
-       WHERE identity_type = 'github_user'
-         AND linkage_strategy = 'email_match'
+      `SELECT confidence_score, match_method
+       FROM canonical_user_provider_links
+       WHERE provider_type = 'GITHUB'
+         AND match_method = 'email_exact'
        LIMIT 10`,
     );
     for (const row of rows) {
-      expect(Number(row.confidence)).toBe(1.0);
+      expect(Number(row.confidence_score)).toBe(100);
     }
   });
 });
@@ -1742,9 +1820,8 @@ jobs:
           PGPASSWORD: test-password
           PGDATABASE: cloud_identity_intel_test
         run: |
-          for sqlfile in $(find schema -name '*.sql' | sort); do
-            psql --set ON_ERROR_STOP=1 -f "$sqlfile"
-          done
+          psql --set ON_ERROR_STOP=1 -f schema/01_schema.sql
+          psql --set ON_ERROR_STOP=1 -f schema/02_seed_and_queries.sql
 
       - name: Run unit tests
         env:
@@ -1838,10 +1915,8 @@ jobs:
           PGPASSWORD: test-password
           PGDATABASE: cloud_identity_intel_test
         run: |
-          for sqlfile in $(find schema -name '*.sql' | sort); do
-            echo "Applying $sqlfile"
-            psql --set ON_ERROR_STOP=1 -f "$sqlfile"
-          done
+          psql --set ON_ERROR_STOP=1 -f schema/01_schema.sql
+          psql --set ON_ERROR_STOP=1 -f schema/02_seed_and_queries.sql
 
       - name: Verify table counts
         env:
@@ -1851,28 +1926,15 @@ jobs:
           PGPASSWORD: test-password
           PGDATABASE: cloud_identity_intel_test
         run: |
-          PERSON_COUNT=$(psql -t -c "SELECT COUNT(*) FROM person")
-          GITHUB_COUNT=$(psql -t -c "SELECT COUNT(*) FROM github_user")
-          LINK_COUNT=$(psql -t -c "SELECT COUNT(*) FROM person_link WHERE identity_type = 'github_user'")
+          CU_COUNT=$(psql -t -c "SELECT COUNT(*) FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'")
+          GH_COUNT=$(psql -t -c "SELECT COUNT(*) FROM github_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'")
+          LINK_COUNT=$(psql -t -c "SELECT COUNT(*) FROM canonical_user_provider_links WHERE tenant_id = '11111111-1111-1111-1111-111111111111' AND provider_type = 'GITHUB'")
 
-          echo "Persons: $PERSON_COUNT, GitHub users: $GITHUB_COUNT, GitHub links: $LINK_COUNT"
+          echo "Canonical users: $CU_COUNT, GitHub users: $GH_COUNT, GitHub links: $LINK_COUNT"
 
-          # Assertions
-          [ "$PERSON_COUNT" -ge 1000 ] || (echo "Expected >= 1000 persons" && exit 1)
-          [ "$GITHUB_COUNT" -ge 350 ] || (echo "Expected >= 350 github_users" && exit 1)
-          [ "$LINK_COUNT" -ge 300 ] || (echo "Expected >= 300 github person_links" && exit 1)
-
-      - name: Idempotency check (re-apply must succeed)
-        env:
-          PGHOST: localhost
-          PGPORT: 5432
-          PGUSER: cloudintel
-          PGPASSWORD: test-password
-          PGDATABASE: cloud_identity_intel_test
-        run: |
-          for sqlfile in $(find schema -name '*.sql' -not -path '*/99-seed/*' | sort); do
-            psql --set ON_ERROR_STOP=1 -f "$sqlfile"
-          done
+          # Assertions (demo seed has 3 canonical users, 2 GitHub users)
+          [ "$(echo $CU_COUNT | tr -d ' ')" -ge 3 ] || (echo "Expected >= 3 canonical_users" && exit 1)
+          [ "$(echo $GH_COUNT | tr -d ' ')" -ge 2 ] || (echo "Expected >= 2 github_users" && exit 1)
 ```
 
 ---
@@ -1884,5 +1946,5 @@ jobs:
 3. **Single-region.** GraphQL server and database are co-located. Cross-region read replicas are out of scope.
 4. **No real-time subscriptions.** GraphQL subscriptions are not included; polling or webhook-based refresh is preferred to avoid WebSocket infrastructure.
 5. **Export bucket exists.** Cloud Storage bucket with lifecycle policies is provisioned by Terraform (not defined in this document).
-6. **Ingestion pipeline is external.** Connector code (GitHub API client, AWS SDK calls) is not in scope for this document. The schema and person_link contract are defined here; connectors implement them.
-7. **`mv_effective_access` does not yet include GitHub.** GitHub has no direct access grant model (teams grant repo access, not cloud resource access). The mat view remains AWS+GCP scoped. GitHub data is queryable via the identity graph but does not appear in "effective access".
+6. **Ingestion pipeline is external.** Connector code (GitHub API client, AWS SDK calls) is not in scope for this document. The schema and `canonical_user_provider_links` contract are defined here; connectors implement them.
+7. **GitHub access is via repository permissions.** GitHub teams grant repo access (`github_repo_team_permissions`), not cloud resource access. GitHub data is queryable via the identity graph and `github_repo_collaborator_permissions` table.

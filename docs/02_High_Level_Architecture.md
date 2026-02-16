@@ -63,10 +63,16 @@ The front-end and API surface are served by a **Next.js 15** application using t
 | Component | Responsibility |
 |-----------|---------------|
 | **ChatInterface** | Presents the NL2SQL conversational interface; sends user questions and renders structured responses. |
-| **AccessExplorer** | Provides a paginated browser for effective access records across AWS and GCP. |
-| **ResultsTable** | Renders dynamic data grids returned by SQL queries. |
-| **Sidebar** | Application-level navigation and context switching. |
-| **API Routes** | Four HTTP endpoints: `/api/chat` (NL2SQL), `/api/access` (paginated access), `/api/people` (people browser), `/api/health` (readiness probe). |
+| **AccessExplorer** | Cross-provider effective access browser with provider and access-path filters across GitHub, Google Workspace, and AWS Identity Center. Includes CSV export. |
+| **GroupsList** | Paginated group browser across all three providers with provider filter and search. Groups link to detail pages. |
+| **PeopleList** | Paginated canonical user browser with search. People link to detail pages showing cross-provider identities. |
+| **PersonDetail** | Person detail view showing accounts/access, linked identities, and canonical emails across all providers. |
+| **AuditLog** | Paginated audit log viewer with action type filter. |
+| **ResourcesList** | Resource browser (GitHub repos, Google Workspace groups, AWS IDC groups) with provider filter and search. |
+| **ResultsTable** | Generic data grid with dynamic column inference, client-side sorting, provider badge colouring, and clickable row support via `getRowLink`. |
+| **Sidebar** | Six-item navigation sidebar: Chat, People, Resources, Groups, Access Explorer, Audit Log. |
+| **UserBadge** | User avatar and identity badge displayed in the header. |
+| **API Routes** | Nine HTTP endpoints: `/api/chat` (NL2SQL), `/api/access` (cross-provider access), `/api/people` (people list), `/api/people/[id]` (person detail), `/api/groups` (groups list), `/api/groups/[id]` (group detail), `/api/resources` (resources list), `/api/audit` (audit log), `/api/health` (readiness probe). |
 
 ### 2.2 AI / NL2SQL Pipeline
 
@@ -80,14 +86,12 @@ The **SQL Validator** enforces a seven-layer defence-in-depth pipeline before an
 
 | Element | Responsibility |
 |---------|---------------|
-| **Core tables** (tenant, person, person_link, aws_*, gcp_*, github_*) | Normalised storage of multi-cloud identity and access records. |
-| **mv_effective_access** | Materialised view that unions direct and group-derived access across AWS and GCP into a single queryable surface. |
-| **entity_history** | Append-only, hash-chained, monthly-partitioned table recording all entity state changes. |
-| **audit_log** | Quarterly-partitioned, integrity-hashed compliance log. |
-| **PII redaction views** | Filtered views (v_person_redacted, v_aws_idc_user_redacted, v_gcp_workspace_user_redacted, v_effective_access_redacted, v_github_user_redacted) that mask personally identifiable information. |
-| **DLP subsystem** | Retention policies, legal hold support, and PII redaction functions. |
+| **Canonical identity layer** (canonical_users, canonical_emails, canonical_user_provider_links, identity_reconciliation_queue) | Unified person-centric hub linking identities across providers. |
+| **Google Workspace tables** (google_workspace_users, google_workspace_groups, google_workspace_memberships) | Google Workspace identity and group data. |
+| **AWS Identity Center tables** (aws_identity_center_users, aws_identity_center_groups, aws_identity_center_memberships) | AWS SSO identity and group data. |
+| **GitHub tables** (github_organisations, github_users, github_teams, github_org_memberships, github_team_memberships, github_repositories, github_repo_team_permissions, github_repo_collaborator_permissions) | GitHub organisation, user, team, and repository access data. |
 
-The schema is organised into 39 SQL migration files across 12 numbered directories (`00-extensions` through `11-github`, plus `99-seed`), with six database roles (admin, ingest, analyst, readonly, audit, app) providing principle-of-least-privilege access.
+The schema is defined in flat SQL files: `schema/01_schema.sql` (DDL, extensions, indexes, enums), `schema/02_seed_and_queries.sql` (seed data and example queries), and `schema/99-seed/010_mock_data.sql` (extended mock dataset with ~700 users). All tables use composite primary keys `(id, tenant_id)` for partition-friendliness. A `provider_type_enum` (GOOGLE_WORKSPACE, AWS_IDENTITY_CENTER, GITHUB) classifies provider links.
 
 ### 2.4 Infrastructure Layer
 
@@ -110,11 +114,11 @@ Infrastructure is defined in **Terraform** with a modular structure under `infra
 
 ### 3.2 Ingestion Flow
 
-External identity data (AWS IAM users, AWS IDC users/groups/permission sets, GCP IAM bindings, GCP Workspace users/groups, GitHub organisations/users/teams/memberships) is loaded into core tables via the `ingest` database role. After ingestion, the `mv_effective_access` materialised view is refreshed to reflect current state. Each mutation is captured in `entity_history`.
+External identity data (Google Workspace users/groups, AWS Identity Center users/groups, GitHub organisations/users/teams/repositories/permissions) is loaded into the provider-specific tables. After ingestion, canonical identity links are updated or created in the `canonical_user_provider_links` table. Unresolved matches are queued in `identity_reconciliation_queue` for manual review.
 
 ### 3.3 Schema Migration Flow
 
-The `migrate-schema.sh` script applies SQL files from the numbered directories in order. Migrations run under the `admin` role. State backends track which migrations have been applied to each environment.
+The `migrate-schema.sh` script applies the two SQL files from `schema/` in order (`01_schema.sql` then `02_seed_and_queries.sql`). The schema uses `CREATE TABLE` and `CREATE INDEX` statements without `IF NOT EXISTS`, so the target database must be empty or the schema must be dropped first.
 
 ---
 
@@ -198,21 +202,13 @@ Generated SQL passes through seven sequential validation layers before execution
 6. **Function blocklisting** -- prevents invocation of dangerous or administrative functions.
 7. **Automatic LIMIT injection** -- caps result set size to prevent resource exhaustion.
 
-### 7.3 Row-Level Security
+### 7.3 Tenant Isolation
 
-All tenant-scoped tables enforce row-level security (RLS) policies keyed on the `app.current_tenant_id` session variable. Every query executes within a transaction that sets this variable via `SET LOCAL`, ensuring strict tenant isolation at the database layer.
+All tables include a `tenant_id` column with composite primary keys `(id, tenant_id)`. The application sets `SET LOCAL app.current_tenant_id` in every transaction for forward-compatible tenant scoping. RLS policies are not yet defined in the schema but can be added without application changes. The NL2SQL agent's generated queries are constrained by the SQL Validator's table allowlist, providing an additional isolation layer.
 
-### 7.4 Database Role Separation
+### 7.4 Audit Logging
 
-Six roles enforce principle-of-least-privilege access: `admin` (schema management), `ingest` (data loading), `analyst` (read with full PII), `readonly` (restricted read), `audit` (compliance log access), and `app` (application runtime queries).
-
-### 7.5 PII Redaction and DLP
-
-Redacted views (`v_person_redacted`, `v_aws_idc_user_redacted`, `v_gcp_workspace_user_redacted`, `v_effective_access_redacted`, `v_github_user_redacted`) mask personally identifiable fields for roles that do not require full access. The DLP subsystem provides retention policies, legal hold capabilities, and PII redaction functions.
-
-### 7.6 Audit and Integrity
-
-The `audit_log` table is quarterly-partitioned and integrity-hashed, providing a tamper-evident compliance trail. The `entity_history` table is append-only with hash chaining and monthly partitioning, recording all state changes with cryptographic linkage.
+Audit entries (question, SQL executed, row count, timing, status) are logged to the console in a fire-and-forget pattern. Database-backed audit logging with partitioning and integrity hashing is planned for a future iteration. Result data is never stored — only metadata.
 
 ---
 
@@ -222,7 +218,6 @@ The `audit_log` table is quarterly-partitioned and integrity-hashed, providing a
 2. **Trusted ingestion sources.** Data loaded via the `ingest` role is assumed to originate from authenticated and authorised cloud identity providers.
 3. **LLM API availability.** The NL2SQL pipeline depends on the configured LLM provider API (Anthropic Claude, OpenAI GPT, or Google Gemini). Degraded availability of the selected external service will directly affect query capabilities.
 4. **Schema stability.** The SQL Validator's table allowlist and the NL2SQL Agent's schema metadata are assumed to be kept in sync with the deployed database schema.
-5. **Tenant isolation via session variable.** The security model assumes that the application layer correctly sets `app.current_tenant_id` for every database transaction. No bypass path should exist outside the `executeWithTenant()` function.
-6. **Materialised view freshness.** `mv_effective_access` is refreshed after ingestion. Between refresh cycles, query results may reflect stale access state.
+5. **Tenant isolation via session variable.** The security model assumes that the application layer correctly sets `app.current_tenant_id` for every database transaction. No bypass path should exist outside the `executeWithTenant()` function. RLS policies are not yet defined but the session variable is set for forward compatibility.
 7. **Container image immutability.** Deployed images in ECR and Artifact Registry are treated as immutable artefacts. Rollback is achieved by redeploying a prior image tag.
 8. **Secret rotation.** Credentials stored in AWS Secrets Manager and GCP Secret Manager are assumed to be rotated according to organisational policy; the application retrieves secrets at startup or on rotation events.

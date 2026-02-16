@@ -18,9 +18,9 @@
 The repository is split into three top-level directories with clear boundaries.
 
 ```
-alxderia/
+ALXnderia/
   app/          Next.js 15 application (App Router, API routes, NL2SQL agent)
-  schema/       39 SQL migration files, numbered 00 through 99
+  schema/       SQL files: DDL (01_schema.sql), seed data (02_seed_and_queries.sql), mock data (99-seed/)
   infra/        Terraform for local Docker PostgreSQL and cloud deploy modules
   docs/         Project documentation
   .github/      GitHub Actions CI/CD pipelines (5 workflows)
@@ -32,16 +32,34 @@ Inside `app/`, source code follows a strict server/client/shared separation:
 app/src/
   server/
     agents/         NL2SQL agent (LLM-agnostic, schema cache)
-    db/             Connection pool with RLS-aware tenant execution
+    db/             Connection pool with tenant-scoped execution
     llm/            LLM provider abstraction (Anthropic, OpenAI, Gemini)
     middleware/     Audit logging (fire-and-forget)
     routes/         Handler functions for each API endpoint
+                    (access.ts, audit.ts, chat.ts, groups.ts, people.ts, resources.ts)
     validators/     SQL security validator (libpg-query WASM parser)
   client/
     components/     React client components
+                    (AccessExplorer, AuditLog, ChatInterface, GroupsList, PeopleList,
+                     PersonDetail, ResourcesList, ResultsTable, Sidebar, UserBadge)
   shared/
     types/          TypeScript interfaces shared across client and server
     constants/      Allow-lists, block-lists, limits, synonyms
+```
+
+App Router pages include detail routes for individual resources:
+
+```
+app/app/
+  page.tsx            Home (Chat)
+  people/page.tsx     People list
+  people/[id]/page.tsx  Person detail
+  groups/page.tsx     Groups list
+  groups/[id]/page.tsx  Group detail
+  resources/page.tsx  Resources list
+  access/page.tsx     Access Explorer
+  audit/page.tsx      Audit Log
+  api/                API route handlers (9 endpoints)
 ```
 
 API route files under `app/app/api/` are thin wrappers that delegate to the corresponding handler in `src/server/routes/`. For example, `app/api/chat/route.ts` imports and calls `handleChat` from `@server/routes/chat`.
@@ -49,7 +67,7 @@ API route files under `app/app/api/` are thin wrappers that delegate to the corr
 
 ## 2. Key Modules and Responsibilities
 
-**`src/server/db/pool.ts`** -- Database connection pool. Exports `executeWithTenant()` which wraps every query in a transaction with `SET LOCAL app.current_tenant_id`, enforcing RLS. Also exports `executeReadOnly()` for system-level queries (e.g. schema introspection, audit writes), `getSchemaMetadata()` for live catalogue introspection, and `healthCheck()` for readiness probes.
+**`src/server/db/pool.ts`** -- Database connection pool. Exports `executeWithTenant()` which wraps every query in a transaction with `SET LOCAL app.current_tenant_id` for forward-compatible tenant scoping. Also exports `executeReadOnly()` for system-level queries (e.g. schema introspection), `getSchemaMetadata()` for live catalogue introspection, and `healthCheck()` for readiness probes. Note: the current schema does not define RLS policies, but the application sets the tenant session variable in preparation for future RLS enablement.
 
 **`src/server/llm/`** -- LLM provider abstraction layer. Defines an `LLMProvider` interface with a `complete()` method, and implements it for three backends: Anthropic Claude (`anthropic.ts`), OpenAI GPT (`openai.ts`), and Google Gemini (`gemini.ts`). The factory in `index.ts` reads the `LLM_PROVIDER` environment variable and returns a cached provider singleton. Only the selected provider's SDK is loaded at runtime via dynamic imports.
 
@@ -57,11 +75,21 @@ API route files under `app/app/api/` are thin wrappers that delegate to the corr
 
 **`src/server/validators/sql-validator.ts`** -- The critical security layer between LLM output and the database. Uses `libpg-query` (PostgreSQL's actual parser compiled to WASM) to parse SQL into an AST. Enforces: SELECT-only statements, table allow-list, blocked function list, blocked system-table prefixes, blocked keywords, and automatic `LIMIT` injection when absent. Defence-in-depth: comments are stripped before parsing, and a pre-parse keyword scan runs before the AST walk.
 
-**`src/server/middleware/audit.ts`** -- Writes audit entries to the `audit_log` table. Records question text, SQL executed, row count, timing, and status. Never stores result data (data minimisation). Failures are caught and logged, never propagated to the caller.
+**`src/server/middleware/audit.ts`** -- Logs audit entries to the console. Records question text, SQL executed, row count, timing, and status. Never stores result data (data minimisation). The current schema does not include an `audit_log` table; database-backed audit logging is planned for a future iteration.
 
 **`src/server/routes/chat.ts`** -- The chat endpoint handler. Validates the request body, enforces question length limits, calls `processQuestion()`, records the audit entry (fire-and-forget), and returns the response. Uses a hardcoded mock session in the current implementation.
 
-**`src/shared/constants/index.ts`** -- Security-critical configuration: `ALLOWED_TABLES` (includes all GitHub tables and `v_github_user_redacted`), `BLOCKED_FUNCTIONS`, `BLOCKED_KEYWORDS`, `BLOCKED_TABLE_PREFIXES`, `PII_TABLES` (includes `github_user`), `REDACTED_VIEW_MAP` (maps `github_user` to `v_github_user_redacted`), `SCHEMA_SYNONYMS` (includes GitHub synonyms), and numeric limits (`MAX_ROWS`, `QUERY_TIMEOUT_MS`, `MAX_QUESTION_LENGTH`, `RATE_LIMIT_PER_MINUTE`).
+**`src/server/routes/access.ts`** -- The access endpoint handler. Builds a multi-provider UNION ALL query across GitHub direct collaborator permissions, GitHub team-derived permissions, Google Workspace group memberships, and AWS Identity Center group memberships. Supports `provider`, `accessPath`, and `search` filters with parameterised queries. Returns a uniform row shape (`display_name`, `primary_email`, `cloud_provider`, `account_or_project_id`, `account_or_project_name`, `role_or_permission_set`, `access_path`, `via_group_name`, `person_id`).
+
+**`src/server/routes/groups.ts`** -- The groups endpoint handler. Supports `handleGroupsList()` (lists groups with member counts across all providers) and `handleGroupDetails()` (returns a single group's metadata and members). Google Workspace membership resolution joins `member_id` to `google_workspace_users.google_id` (not email).
+
+**`src/server/routes/people.ts`** -- The people endpoint handler. Supports `handlePeopleList()` (lists canonical users with identity counts) and `handlePersonDetail()` (returns a full canonical user with linked identities from Google Workspace, AWS Identity Center, and GitHub, plus canonical emails).
+
+**`src/server/routes/resources.ts`** -- The resources endpoint handler. Lists resources from the selected provider (GitHub repos, Google Workspace groups, or AWS IDC groups) with member/permission counts.
+
+**`src/server/routes/audit.ts`** -- The audit endpoint handler. Returns paginated audit log entries with optional action filter.
+
+**`src/shared/constants/index.ts`** -- Security-critical configuration: `ALLOWED_TABLES` (all tables from the schema: `canonical_users`, `canonical_emails`, `canonical_user_provider_links`, `identity_reconciliation_queue`, `google_workspace_*`, `aws_identity_center_*`, `github_*`), `BLOCKED_FUNCTIONS`, `BLOCKED_KEYWORDS`, `BLOCKED_TABLE_PREFIXES`, `PII_TABLES` (tables containing email/name PII), `REDACTED_VIEW_MAP` (empty — no redacted views in current schema), `SCHEMA_SYNONYMS` (comprehensive mappings for all table names), and numeric limits (`MAX_ROWS`, `QUERY_TIMEOUT_MS`, `MAX_QUESTION_LENGTH`, `RATE_LIMIT_PER_MINUTE`).
 
 **`src/shared/types/index.ts`** -- All TypeScript interfaces: `ChatRequest`, `ChatResponse`, `QueryPlan`, `UserSession`, `SqlValidationResult`, `AuditEntry`, pagination types, and schema metadata types. Shared across client and server; free of runtime dependencies.
 
@@ -84,7 +112,7 @@ terraform init
 terraform apply -var="pg_superuser_password=localdev-change-me"
 ```
 
-This starts a PostgreSQL 16 container (`cloud-intel-postgres`) on port 5432 with a persistent Docker volume. Terraform applies all SQL files from `schema/` in sorted order automatically. When any `.sql` file changes, re-running `terraform apply` will re-apply the full schema.
+This starts a PostgreSQL 16 container (`cloud-intel-postgres`) on port 5432 with a persistent Docker volume. Terraform applies the two SQL files from `schema/` (`01_schema.sql` then `02_seed_and_queries.sql`) automatically. When either file changes, re-running `terraform apply` will re-apply the full schema.
 
 ### 3.3 Configure environment variables
 
@@ -164,7 +192,7 @@ Five GitHub Actions workflows are defined in `.github/workflows/`:
 | **Security Audit** | `security-audit.yml` | push/PR/weekly | npm audit, SQL injection pattern scanner, TruffleHog secret detection, license compliance |
 | **Bundle Analysis** | `nextjs-bundle.yml` | app changes | Build with analysis, bundle size limits (200 MB), dependency size report |
 
-The Schema Validation job in CI spins up a PostgreSQL 16 service container, applies all 39 SQL files in sorted order, and verifies: all expected tables exist, seed data counts are correct, RLS is enabled on all tenant-scoped tables, and redaction views are present.
+The Schema Validation job in CI spins up a PostgreSQL 16 service container, applies both SQL files in order, and verifies: all expected tables exist and seed data counts are correct.
 
 
 ## 5. Code Conventions and Patterns
@@ -190,7 +218,7 @@ Always use these aliases in imports rather than relative paths.
 
 All database access, API logic, and security validation lives under `src/server/`. Client components live under `src/client/`. Shared types and constants (no runtime dependencies) live under `src/shared/`. Never import from `@server/*` in client code.
 
-### 5.4 RLS tenant isolation pattern
+### 5.4 Tenant isolation pattern
 
 Every user-facing database query must go through `executeWithTenant(tenantId, sql, params)`. This function:
 
@@ -201,11 +229,11 @@ Every user-facing database query must go through `executeWithTenant(tenantId, sq
 5. Commits (or rolls back on error).
 6. Releases the client.
 
-The `SET LOCAL` ensures the tenant context is scoped to the transaction and automatically cleared on commit or rollback. PostgreSQL RLS policies on all entity tables filter rows by `tenant_id = current_setting('app.current_tenant_id')::uuid`.
+The `SET LOCAL` ensures the tenant context is scoped to the transaction and automatically cleared on commit or rollback. The current schema does not define RLS policies, but the application sets `app.current_tenant_id` for forward compatibility. All tables include a `tenant_id` column with composite primary keys `(id, tenant_id)` to support future partition-based or RLS-based isolation.
 
 ### 5.5 Audit pattern
 
-Audit logging is fire-and-forget: `recordAuditEntry(...).catch(() => {})`. This ensures a failure in the audit pipeline never degrades the primary query flow. Both successful and failed queries are audited. Result data is never stored in the audit log, only metadata (question, SQL, row count, timing, status).
+Audit logging is fire-and-forget: `recordAuditEntry(...).catch(() => {})`. This ensures a failure in the audit pipeline never degrades the primary query flow. Both successful and failed queries are audited. Result data is never stored, only metadata (question, SQL, row count, timing, status). Currently, audit entries are logged to the console. Database-backed audit logging will be added when an `audit_log` table is provisioned in the schema.
 
 ### 5.6 API route delegation
 
@@ -213,7 +241,7 @@ Route files under `app/api/` are kept deliberately thin. Each exports a single H
 
 ```typescript
 // app/api/chat/route.ts
-import { handleChat } from '../../../src/server/routes/chat';
+import { handleChat } from '@server/routes/chat';
 export async function POST(request: NextRequest) {
   return handleChat(request);
 }
@@ -233,12 +261,13 @@ Business logic, validation, and error handling live in the route handler, not in
 
 ### 6.2 Adding a new table to the schema
 
-1. Create a new `.sql` file in the appropriate numbered directory under `schema/` (e.g. `schema/02-aws/09-aws-new-entity.sql`). The file sort order determines execution order.
-2. If the table should be queryable by the NL2SQL agent, add its name to `ALLOWED_TABLES` in `src/shared/constants/index.ts`.
-3. If the table contains PII, add it to `PII_TABLES` and create a redacted view, adding the mapping to `REDACTED_VIEW_MAP`.
-4. If the table is commonly referred to by alternative names, add entries to `SCHEMA_SYNONYMS`.
-5. Re-run `terraform apply` in `infra/` to apply the schema change.
-6. Call `clearSchemaCache()` or restart the application so the NL2SQL agent picks up the new table metadata.
+1. Add the `CREATE TABLE` statement to `schema/01_schema.sql`. Follow the existing conventions: composite primary key `(id, tenant_id)`, `raw_response JSONB`, timestamp columns, and appropriate unique constraints.
+2. If the table needs seed data, add `INSERT` statements to `schema/02_seed_and_queries.sql` using the demo tenant ID `11111111-1111-1111-1111-111111111111`.
+3. If the table should be queryable by the NL2SQL agent, add its name to `ALLOWED_TABLES` in `src/shared/constants/index.ts`.
+4. If the table contains PII, add it to `PII_TABLES`.
+5. If the table is commonly referred to by alternative names, add entries to `SCHEMA_SYNONYMS`.
+6. Re-run `terraform apply` in `infra/` to apply the schema change.
+7. Call `clearSchemaCache()` or restart the application so the NL2SQL agent picks up the new table metadata.
 
 ### 6.3 Updating the NL2SQL agent's knowledge
 
@@ -307,11 +336,11 @@ Never commit `.env` files or hardcode credentials in source. Use the infrastruct
 
 ## 8. Assumptions
 
-1. **Authentication is mocked.** The `getSession()` function in `src/server/routes/chat.ts` returns a hardcoded demo user with tenant ID `a0000000-0000-0000-0000-000000000001`. Production requires replacing this with Auth.js or an equivalent session provider. All downstream code already accepts tenantId and role as parameters.
+1. **Authentication is mocked.** The `getSession()` function in `src/server/routes/chat.ts` returns a hardcoded demo user with tenant ID `11111111-1111-1111-1111-111111111111`. Production requires replacing this with Auth.js or an equivalent session provider. All downstream code already accepts tenantId and role as parameters.
 
 2. **Schema cache is in-memory and per-process.** The NL2SQL agent caches schema metadata after the first query. In a multi-instance deployment, each instance maintains its own cache. After schema migrations, either restart all instances or expose an endpoint that calls `clearSchemaCache()`.
 
-3. **Audit logging is best-effort.** Audit writes use `executeReadOnly()` (not tenant-scoped) and failures are swallowed. The audit pipeline does not guarantee delivery. For strict compliance requirements, consider a write-ahead log or message queue.
+3. **Audit logging is console-only.** The current schema does not include an `audit_log` table. Audit entries are logged to the console and failures are swallowed. For strict compliance requirements, provision an audit table and consider a write-ahead log or message queue.
 
 4. **The SQL validator is the sole security boundary.** The application trusts that if the validator passes a query, it is safe to execute. The validator enforces SELECT-only, table allow-listing, function block-listing, and automatic LIMIT injection. Any new table must be explicitly added to `ALLOWED_TABLES` before the agent can query it.
 
@@ -319,4 +348,4 @@ Never commit `.env` files or hardcode credentials in source. Use the infrastruct
 
 6. **The `source_ip` field in audit entries is hardcoded to `127.0.0.1`.** Production must extract the real client IP from the request headers (respecting proxy configuration).
 
-7. **All SQL migration files are applied in lexicographic sort order.** The naming convention `XX-category/NN-name.sql` ensures correct ordering. Terraform re-applies the entire schema when any file changes; there is no incremental migration tracking. Note: because `11-github/` sorts after `07-indexes/`, `08-security/`, and `10-dlp/`, GitHub-specific indexes, RLS policies, and redaction views are applied in `11-github/060_github_post_setup.sql` rather than in the earlier files.
+7. **The schema is defined in flat SQL files.** `schema/01_schema.sql` contains all DDL (extensions, tables, indexes, enums), `schema/02_seed_and_queries.sql` contains seed data and example queries, and `schema/99-seed/010_mock_data.sql` contains an extended mock dataset (~700 users, ~10K rows). They are applied in sort order. Terraform re-applies the schema when either file changes; there is no incremental migration tracking. The schema does not define database roles, RLS policies, or PII redaction views — these are planned for a future iteration.

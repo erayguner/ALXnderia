@@ -50,8 +50,8 @@ export function PeopleList() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">People</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-slate-900">People</h1>
+        <p className="text-sm text-slate-500 mt-1">
           Unified identity directory across all cloud providers
         </p>
       </div>
@@ -62,34 +62,38 @@ export function PeopleList() {
           placeholder="Search by name or email..."
           value={search}
           onChange={e => { setSearch(e.target.value); setPage(1); }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm w-72 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-72 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         />
-        <span className="self-center text-xs text-gray-500">
+        <span className="self-center text-xs text-slate-500">
           {total.toLocaleString()} {total === 1 ? 'person' : 'people'}
         </span>
       </div>
 
-      {loading && <p className="text-sm text-gray-500">Loading...</p>}
+      {loading && <p className="text-sm text-slate-500">Loading...</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {!loading && !error && (
         <>
-          <ResultsTable data={data as unknown as Record<string, unknown>[]} pageSize={limit} />
+          <ResultsTable
+            data={data as unknown as Record<string, unknown>[]}
+            pageSize={limit}
+            getRowLink={row => (row.id ? `/people/${row.id}` : null)}
+          />
 
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 mt-4">
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 transition"
+                className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-40 transition"
               >
                 Previous
               </button>
-              <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
+              <span className="text-sm text-slate-600">Page {page} of {totalPages}</span>
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 transition"
+                className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-40 transition"
               >
                 Next
               </button>

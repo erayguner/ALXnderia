@@ -11,36 +11,28 @@
 
 /** Tables that the NL2SQL agent is permitted to query. */
 export const ALLOWED_TABLES = new Set([
-  'tenant',
-  'person',
-  'person_link',
-  'aws_account',
-  'aws_iam_user',
-  'aws_iam_user_policy_attachment',
-  'aws_idc_user',
-  'aws_idc_group',
-  'aws_idc_group_membership',
-  'aws_idc_permission_set',
-  'aws_idc_account_assignment',
-  'gcp_project',
-  'gcp_workspace_user',
-  'gcp_workspace_group',
-  'gcp_workspace_group_membership',
-  'gcp_iam_binding',
-  'github_organisation',
-  'github_user',
-  'github_team',
-  'github_team_membership',
-  'github_org_membership',
-  'mv_effective_access',
-  'entity_history',
-  'snapshot_registry',
-  // PII-redacted views
-  'v_person_redacted',
-  'v_aws_idc_user_redacted',
-  'v_gcp_workspace_user_redacted',
-  'v_github_user_redacted',
-  'v_effective_access_redacted',
+  // Canonical identity
+  'canonical_users',
+  'canonical_emails',
+  'canonical_user_provider_links',
+  'identity_reconciliation_queue',
+  // Google Workspace
+  'google_workspace_users',
+  'google_workspace_groups',
+  'google_workspace_memberships',
+  // AWS Identity Center
+  'aws_identity_center_users',
+  'aws_identity_center_groups',
+  'aws_identity_center_memberships',
+  // GitHub
+  'github_organisations',
+  'github_users',
+  'github_teams',
+  'github_org_memberships',
+  'github_team_memberships',
+  'github_repositories',
+  'github_repo_team_permissions',
+  'github_repo_collaborator_permissions',
 ]);
 
 // ---------------------------------------------------------------------------
@@ -49,20 +41,16 @@ export const ALLOWED_TABLES = new Set([
 
 /** Tables containing personally-identifiable information that require redaction for readonly users. */
 export const PII_TABLES = new Set([
-  'person',
-  'aws_idc_user',
-  'gcp_workspace_user',
-  'aws_iam_user',
-  'github_user',
+  'canonical_users',
+  'canonical_emails',
+  'google_workspace_users',
+  'aws_identity_center_users',
+  'github_users',
 ]);
 
 /** Mapping from PII tables to their redacted view equivalents. */
 export const REDACTED_VIEW_MAP: Record<string, string> = {
-  'person': 'v_person_redacted',
-  'aws_idc_user': 'v_aws_idc_user_redacted',
-  'gcp_workspace_user': 'v_gcp_workspace_user_redacted',
-  'github_user': 'v_github_user_redacted',
-  'mv_effective_access': 'v_effective_access_redacted',
+  // No redacted views in the current schema; placeholder for future use
 };
 
 // ---------------------------------------------------------------------------
@@ -121,20 +109,22 @@ export const RATE_LIMIT_PER_MINUTE = 30;
  * in user questions.
  */
 export const SCHEMA_SYNONYMS: Record<string, string[]> = {
-  'aws_account': ['account', 'aws account', 'aws accounts'],
-  'gcp_project': ['project', 'gcp project', 'google project', 'gcp projects'],
-  'person': ['user', 'person', 'people', 'employee', 'staff', 'member'],
-  'aws_idc_group': ['idc group', 'identity center group', 'aws group', 'sso group'],
-  'gcp_workspace_group': ['workspace group', 'google group', 'gws group'],
-  'aws_idc_permission_set': ['permission set', 'permission', 'access level'],
-  'aws_idc_account_assignment': ['assignment', 'account assignment', 'aws assignment'],
-  'gcp_iam_binding': ['binding', 'iam binding', 'gcp binding', 'role binding'],
-  'mv_effective_access': ['access', 'effective access', 'entitlement', 'entitlements'],
-  'person_link': ['identity link', 'linkage', 'person link'],
-  'entity_history': ['history', 'audit trail', 'change log', 'changelog'],
-  'github_organisation': ['github org', 'github organisation', 'github organization', 'gh org'],
-  'github_user': ['github user', 'github member', 'gh user', 'github account'],
-  'github_team': ['github team', 'gh team'],
-  'github_team_membership': ['github team member', 'team membership'],
-  'github_org_membership': ['github org member', 'org membership'],
+  'canonical_users': ['user', 'person', 'people', 'employee', 'staff', 'member', 'identity'],
+  'canonical_emails': ['email', 'emails', 'email address'],
+  'canonical_user_provider_links': ['identity link', 'linkage', 'provider link', 'linked identity'],
+  'identity_reconciliation_queue': ['reconciliation', 'unmatched', 'pending review', 'unmapped'],
+  'google_workspace_users': ['google user', 'workspace user', 'gws user', 'google account'],
+  'google_workspace_groups': ['google group', 'workspace group', 'gws group'],
+  'google_workspace_memberships': ['google membership', 'workspace membership'],
+  'aws_identity_center_users': ['aws user', 'idc user', 'identity center user', 'sso user'],
+  'aws_identity_center_groups': ['aws group', 'idc group', 'identity center group', 'sso group'],
+  'aws_identity_center_memberships': ['aws membership', 'idc membership'],
+  'github_organisations': ['github org', 'github organisation', 'github organization', 'gh org'],
+  'github_users': ['github user', 'github member', 'gh user', 'github account'],
+  'github_teams': ['github team', 'gh team', 'team'],
+  'github_org_memberships': ['github org member', 'org membership', 'org admin'],
+  'github_team_memberships': ['github team member', 'team membership'],
+  'github_repositories': ['repo', 'repository', 'repos', 'github repo'],
+  'github_repo_team_permissions': ['repo team permission', 'team access'],
+  'github_repo_collaborator_permissions': ['repo collaborator', 'collaborator', 'outside collaborator', 'repo access'],
 };

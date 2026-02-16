@@ -44,12 +44,12 @@ describe('Chat Route Handler', () => {
   it('should return 200 with valid question', async () => {
     const mockResponse = {
       id: 'test-id',
-      queryPlan: { description: 'test', tablesUsed: ['person'], estimatedComplexity: 'low' },
-      sql: 'SELECT * FROM person LIMIT 10',
-      results: [{ display_name: 'Test User' }],
+      queryPlan: { description: 'test', tablesUsed: ['canonical_users'], estimatedComplexity: 'low' },
+      sql: 'SELECT * FROM canonical_users LIMIT 10',
+      results: [{ full_name: 'Test User' }],
       narrative: 'Found 1 result.',
-      explanation: 'Queried person table.',
-      metadata: { tablesUsed: ['person'], rowCount: 1, executionTimeMs: 5, cached: false },
+      explanation: 'Queried canonical_users table.',
+      metadata: { tablesUsed: ['canonical_users'], rowCount: 1, executionTimeMs: 5, cached: false },
       followUpSuggestions: [],
     };
 

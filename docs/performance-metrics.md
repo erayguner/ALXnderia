@@ -1,9 +1,11 @@
 # Performance Metrics Report
 
+> **Note:** This report was generated against a previous schema (person/person_link model with materialised views, RLS policies, entity_history partitions, and PII redaction views). The current schema uses a flat design with `canonical_users`/`canonical_user_provider_links` and no materialised views, RLS, or entity_history tables. Access data is now queried via dynamic UNION ALL across GitHub, Google Workspace, and AWS Identity Center tables rather than a materialised `mv_effective_access` view. These benchmarks serve as a historical reference; new benchmarks should be generated against the current schema.
+
 **Database**: PostgreSQL 16.12 (Alpine, aarch64)
-**Date**: 2026-02-14
+**Date**: 2026-02-14 (pre-schema-refactor)
 **Dataset**: 1,000 persons, ~1,630 provider identities (580 AWS + 520 GCP + ~400 GitHub + person_links), 23,316 effective access rows
-**Total DB size**: ~32 MB (includes GitHub tables)
+**Total DB size**: ~32 MB
 
 ---
 

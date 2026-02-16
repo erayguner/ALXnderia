@@ -115,28 +115,40 @@ function getSynonymContext(): string {
 
 const FEW_SHOT_EXAMPLES = `
 Example 1:
-Question: "What can Oliver Smith access?"
-Query Plan: Look up effective access for a person named Oliver Smith by joining mv_effective_access with person.
-SQL: SELECT ea.cloud_provider, ea.account_or_project_id, ea.account_or_project_name, ea.role_or_permission_set, ea.access_path, ea.via_group_name FROM mv_effective_access ea JOIN person p ON p.id = ea.person_id WHERE p.display_name ILIKE '%Oliver Smith%' ORDER BY ea.cloud_provider, ea.account_or_project_id
-Explanation: Access is derived from AWS IDC account assignments and GCP IAM bindings, both direct and via group memberships.
+Question: "Show Alice's full identity map"
+Query Plan: Look up a canonical user and all linked provider identities.
+SQL: SELECT cu.full_name, cu.primary_email, jsonb_object_agg(link.provider_type, link.provider_user_id) as linked_identities FROM canonical_users cu JOIN canonical_user_provider_links link ON cu.id = link.canonical_user_id AND cu.tenant_id = link.tenant_id WHERE cu.primary_email ILIKE '%alice%' GROUP BY cu.id, cu.full_name, cu.primary_email
+Explanation: The canonical_user_provider_links table links a canonical user to their Google, AWS, and GitHub identities via provider_type and provider_user_id.
 
 Example 2:
-Question: "Who has admin access to the nw-prod-01 AWS account?"
-Query Plan: Find all persons with AdministratorAccess permission set on the nw-prod-01 account.
-SQL: SELECT p.display_name, p.primary_email, ea.role_or_permission_set, ea.access_path, ea.via_group_name FROM mv_effective_access ea JOIN person p ON p.id = ea.person_id WHERE ea.cloud_provider = 'aws' AND ea.account_or_project_id IN (SELECT account_id FROM aws_account WHERE account_name = 'nw-prod-01') AND ea.role_or_permission_set IN ('AdministratorAccess', 'PowerUserAccess') ORDER BY ea.role_or_permission_set, p.display_name
-Explanation: Results show direct and group-derived admin access to this account.
+Question: "Who are the unmapped GitHub users?"
+Query Plan: Find GitHub users that have no canonical identity linkage.
+SQL: SELECT 'GITHUB' as provider, gu.login as identifier, gu.email FROM github_users gu WHERE gu.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM canonical_user_provider_links link WHERE link.provider_type = 'GITHUB' AND link.provider_user_id = gu.node_id AND link.tenant_id = gu.tenant_id) ORDER BY gu.login
+Explanation: These are GitHub users present in the system but not yet linked to a canonical identity. They may be external collaborators or users with hidden emails.
 
 Example 3:
-Question: "Show users who haven't been seen in 90 days but have admin access"
-Query Plan: Join effective access with provider identity tables to find stale users with high-privilege roles.
-SQL: SELECT DISTINCT p.display_name, p.primary_email, ea.cloud_provider, ea.role_or_permission_set, GREATEST((SELECT MAX(last_seen_at) FROM aws_idc_user WHERE person_id = p.id), (SELECT MAX(last_seen_at) FROM aws_iam_user WHERE person_id = p.id), (SELECT MAX(last_seen_at) FROM gcp_workspace_user WHERE person_id = p.id)) AS latest_seen_at FROM mv_effective_access ea JOIN person p ON p.id = ea.person_id WHERE ea.role_or_permission_set IN ('AdministratorAccess', 'PowerUserAccess', 'roles/owner', 'roles/editor') AND GREATEST((SELECT MAX(last_seen_at) FROM aws_idc_user WHERE person_id = p.id), (SELECT MAX(last_seen_at) FROM aws_iam_user WHERE person_id = p.id), (SELECT MAX(last_seen_at) FROM gcp_workspace_user WHERE person_id = p.id)) < NOW() - INTERVAL '90 days' ORDER BY latest_seen_at ASC LIMIT 50
-Explanation: These users have elevated privileges but haven't been active recently, posing a security risk.
+Question: "Show all external collaborators with repo access"
+Query Plan: List GitHub users who have repo access as outside collaborators.
+SQL: SELECT r.full_name as repo_name, u.login as user_login, perm.permission FROM github_repo_collaborator_permissions perm JOIN github_repositories r ON perm.repo_node_id = r.node_id AND perm.tenant_id = r.tenant_id JOIN github_users u ON perm.user_node_id = u.node_id AND perm.tenant_id = u.tenant_id WHERE perm.is_outside_collaborator = TRUE ORDER BY r.full_name, u.login
+Explanation: Outside collaborators have access to specific repositories but are not organisation members.
 
 Example 4:
-Question: "Who is in the Security-Admins group?"
-Query Plan: List members of an AWS IDC group matching 'Security-Admins'.
-SQL: SELECT p.display_name, p.primary_email, g.display_name AS group_name FROM aws_idc_group g JOIN aws_idc_group_membership gm ON gm.group_id = g.id JOIN aws_idc_user iu ON iu.id = gm.user_id JOIN person p ON p.id = iu.person_id WHERE g.display_name ILIKE '%Security-Admins%' AND gm.deleted_at IS NULL ORDER BY p.display_name
-Explanation: Members are linked through IDC group membership, then to person records via the identity linkage.
+Question: "Who is in the AWS Security-Admins group?"
+Query Plan: List members of an AWS Identity Center group.
+SQL: SELECT aicu.user_name, aicu.display_name, g.display_name AS group_name FROM aws_identity_center_groups g JOIN aws_identity_center_memberships gm ON gm.group_id = g.group_id AND gm.identity_store_id = g.identity_store_id AND gm.tenant_id = g.tenant_id JOIN aws_identity_center_users aicu ON aicu.user_id = gm.member_user_id AND aicu.identity_store_id = gm.identity_store_id AND aicu.tenant_id = gm.tenant_id WHERE g.display_name ILIKE '%Security-Admins%' AND gm.deleted_at IS NULL ORDER BY aicu.display_name
+Explanation: AWS Identity Center groups link to users via memberships using identity_store_id and group_id/user_id as join keys.
+
+Example 5:
+Question: "Show all GitHub org admins"
+Query Plan: List users with admin role in GitHub organisations.
+SQL: SELECT gu.login, gu.email, go.login AS org_login FROM github_org_memberships gom JOIN github_users gu ON gom.user_node_id = gu.node_id AND gom.tenant_id = gu.tenant_id JOIN github_organisations go ON gom.org_node_id = go.node_id AND gom.tenant_id = go.tenant_id WHERE gom.role = 'admin' ORDER BY go.login, gu.login
+Explanation: GitHub org admins are identified by the role column in github_org_memberships. Joins use node_id as the linking column.
+
+Example 6:
+Question: "Show pending identity reconciliation items"
+Query Plan: List items in the reconciliation queue that need manual review.
+SQL: SELECT irq.provider_type, irq.provider_user_id, irq.conflict_reason, irq.status, irq.created_at FROM identity_reconciliation_queue irq WHERE irq.status = 'PENDING' ORDER BY irq.created_at
+Explanation: The identity_reconciliation_queue tracks provider identities that could not be automatically matched to canonical users and need manual review.
 `;
 
 // ---------------------------------------------------------------------------
@@ -156,14 +168,12 @@ Your role is to convert natural language questions into safe PostgreSQL queries.
 RULES (MANDATORY):
 1. Generate ONLY SELECT statements. Never INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, GRANT, or TRUNCATE.
 2. Always include appropriate JOINs to provide human-readable results (names, emails, not just UUIDs).
-3. Use mv_effective_access for access/entitlement queries (it pre-joins all providers).
-4. Use ILIKE for name/email searches (case-insensitive).
-5. Always add ORDER BY for deterministic results.
-6. Add LIMIT ${MAX_ROWS} unless the user specifies a different limit.
-7. Never access pg_catalog, information_schema, or system tables.
-8. If the question is ambiguous, set needsClarification to true and provide options.
-9. For temporal queries, use fn_effective_access_as_of(tenant_uuid, timestamp) or query entity_history directly.
-10. For PII-sensitive contexts, prefer the v_*_redacted views.
+3. Use ILIKE for name/email searches (case-insensitive).
+4. Always add ORDER BY for deterministic results.
+5. Add LIMIT ${MAX_ROWS} unless the user specifies a different limit.
+6. Never access pg_catalog, information_schema, or system tables.
+7. If the question is ambiguous, set needsClarification to true and provide options.
+8. All data is multi-tenant; queries are scoped to a single tenant via RLS.
 
 DATABASE SCHEMA:
 ${schema}
@@ -171,19 +181,30 @@ ${schema}
 ${synonyms}
 
 IMPORTANT TABLE RELATIONSHIPS:
-- person is the central entity linking all identities
-- aws_idc_user.person_id -> person.id (AWS Identity Center identity)
-- gcp_workspace_user.person_id -> person.id (Google Workspace identity)
-- aws_iam_user.person_id -> person.id (AWS IAM identity)
-- mv_effective_access.person_id -> person.id (pre-computed effective access)
-- person_link provides the audit trail of identity linkage with confidence scores
+- canonical_users is the central identity entity
+- canonical_user_provider_links maps canonical users to provider identities:
+  - provider_type = 'GOOGLE_WORKSPACE', provider_user_id = google_workspace_users.google_id
+  - provider_type = 'AWS_IDENTITY_CENTER', provider_user_id = aws_identity_center_users.user_id
+  - provider_type = 'GITHUB', provider_user_id = github_users.node_id
+- canonical_emails stores all email addresses for a canonical user
+- identity_reconciliation_queue tracks unmatched identities needing review
+- Google Workspace: google_workspace_memberships links groups (by google_id) to members (by member_id)
+- AWS Identity Center: aws_identity_center_memberships links groups (by group_id) to users (by member_user_id), scoped by identity_store_id
+- GitHub: github_org_memberships uses org_node_id and user_node_id to link users to orgs
+- GitHub: github_team_memberships uses team_node_id and user_node_id to link users to teams
+- GitHub: github_repo_collaborator_permissions links repos (by repo_node_id) to users (by user_node_id) with permission level
+- GitHub: github_repo_team_permissions links repos to teams with permission level
 
 KEY PATTERNS:
-- "Who can access X?" -> query mv_effective_access filtered by account/project
-- "What can person X access?" -> query mv_effective_access filtered by person
-- "Group members" -> join aws_idc_group_membership or gcp_workspace_group_membership
-- "Dormant/stale users" -> check last_seen_at columns on provider identity tables
-- "Access changes" -> query entity_history with event_action filter
+- "Who is person X?" -> query canonical_users with canonical_user_provider_links
+- "Show identities for X" -> join canonical_users to provider tables via canonical_user_provider_links
+- "Group members" -> join google_workspace_memberships or aws_identity_center_memberships
+- "Team members" -> join github_team_memberships with github_users and github_teams
+- "Org admins" -> query github_org_memberships WHERE role = 'admin'
+- "Repo access" -> query github_repo_collaborator_permissions joined with github_users and github_repositories
+- "Unmapped users" -> find provider users not in canonical_user_provider_links
+- "Pending review" -> query identity_reconciliation_queue WHERE status = 'PENDING'
+- "External collaborators" -> query github_repo_collaborator_permissions WHERE is_outside_collaborator = TRUE
 
 ${FEW_SHOT_EXAMPLES}
 
@@ -235,6 +256,46 @@ export async function processQuestion(
   tenantId: string,
   _userRole: string,
 ): Promise<ChatResponse> {
+  // MOCK MODE: Return static data if enabled
+  if (process.env.MOCK_MODE === 'true') {
+    return {
+      id: 'mock-response-id',
+      queryPlan: {
+        description: 'Mock query for testing UI flow',
+        tablesUsed: ['canonical_users', 'canonical_user_provider_links'],
+        estimatedComplexity: 'low',
+      },
+      sql: "SELECT * FROM canonical_users WHERE full_name ILIKE '%Mock%'",
+      results: [
+        {
+          id: 'mock-person-1',
+          display_name: 'Mock User 1',
+          email: 'mock1@example.com',
+          role: 'Admin',
+          cloud_provider: 'aws',
+          access_path: 'direct',
+        },
+        {
+          id: 'mock-person-2',
+          display_name: 'Mock User 2',
+          email: 'mock2@example.com',
+          role: 'Viewer',
+          cloud_provider: 'gcp',
+          access_path: 'group',
+        },
+      ],
+      narrative: 'This is a MOCK response. Found 2 mock results. The backend is running in mock mode.',
+      explanation: 'The system bypassed the database and LLM to return this static testing data.',
+      metadata: {
+        tablesUsed: ['canonical_users'],
+        rowCount: 2,
+        executionTimeMs: 10,
+        cached: false,
+      },
+      followUpSuggestions: ['Try another mock query', 'Disable mock mode to use real data'],
+    };
+  }
+
   const msgId = randomUUID();
   const systemPrompt = await buildSystemPrompt();
 
@@ -365,24 +426,31 @@ function generateNarrative(
   if (rows.length > 0) {
     const firstRow = rows[0];
 
-    if ('cloud_provider' in firstRow) {
-      const providers = new Set(rows.map((r) => r.cloud_provider as string));
+    if ('provider_type' in firstRow) {
+      const providers = new Set(rows.map((r) => r.provider_type as string));
       parts.push(
-        `Across ${providers.size} cloud provider${providers.size === 1 ? '' : 's'}: ${Array.from(providers).join(', ')}.`,
+        `Across ${providers.size} provider${providers.size === 1 ? '' : 's'}: ${Array.from(providers).join(', ')}.`,
       );
     }
 
-    if ('access_path' in firstRow) {
-      const directCount = rows.filter(
-        (r) => r.access_path === 'direct',
+    if ('provider' in firstRow) {
+      const providers = new Set(rows.map((r) => r.provider as string));
+      parts.push(
+        `Across ${providers.size} provider${providers.size === 1 ? '' : 's'}: ${Array.from(providers).join(', ')}.`,
+      );
+    }
+
+    if ('is_outside_collaborator' in firstRow) {
+      const externalCount = rows.filter(
+        (r) => r.is_outside_collaborator === true,
       ).length;
-      const groupCount = rows.filter(
-        (r) => r.access_path === 'group',
+      const memberCount = rows.filter(
+        (r) => r.is_outside_collaborator === false,
       ).length;
-      if (directCount > 0 || groupCount > 0) {
+      if (externalCount > 0 || memberCount > 0) {
         parts.push(
-          `${directCount} direct entitlement${directCount === 1 ? '' : 's'} ` +
-            `and ${groupCount} group-derived entitlement${groupCount === 1 ? '' : 's'}.`,
+          `${memberCount} member${memberCount === 1 ? '' : 's'} ` +
+            `and ${externalCount} external collaborator${externalCount === 1 ? '' : 's'}.`,
         );
       }
     }
