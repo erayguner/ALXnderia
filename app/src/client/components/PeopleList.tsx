@@ -74,7 +74,11 @@ export function PeopleList() {
 
       {!loading && !error && (
         <>
-          <ResultsTable data={data as unknown as Record<string, unknown>[]} pageSize={limit} />
+          <ResultsTable
+            data={data as unknown as Record<string, unknown>[]}
+            pageSize={limit}
+            getRowLink={row => (row.id ? `/people/${row.id}` : null)}
+          />
 
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 mt-4">

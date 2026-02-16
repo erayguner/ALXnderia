@@ -135,3 +135,94 @@ export async function handleGroupsList(req: NextRequest): Promise<NextResponse> 
     return NextResponse.json({ error: 'Failed to load groups' }, { status: 500 });
   }
 }
+
+export async function handleGroupDetails(req: NextRequest, id: string): Promise<NextResponse> {
+  const session = getSession();
+  const url = new URL(req.url);
+  const provider = url.searchParams.get('provider');
+
+  try {
+    let group: Record<string, unknown> | null = null;
+    let members: Record<string, unknown>[] = [];
+
+    // NOTE: In a real implementation with known provider, we could skip other checks.
+    // If provider is not passed, we might have to check all tables or rely on ID format if distinct.
+    // For now, let's assume provider is passed or we verify against each.
+
+    // Google Workspace
+    if (!provider || provider === 'google') {
+      const gwGroupSql = `
+        SELECT id, name, description, email, google_id, last_synced_at, 'google' AS provider
+        FROM google_workspace_groups
+        WHERE id = $1 AND tenant_id = $2
+      `;
+      const gwGroupResult = await executeWithTenant(session.tenantId, gwGroupSql, [id, session.tenantId]);
+      if (gwGroupResult.rows.length > 0) {
+        group = gwGroupResult.rows[0];
+        
+        const gwMembersSql = `
+          SELECT m.id, m.member_id AS email, m.role, m.status, m.member_type,
+                 u.name_full AS name
+          FROM google_workspace_memberships m
+          LEFT JOIN google_workspace_users u ON m.member_id = u.primary_email AND m.tenant_id = u.tenant_id
+          WHERE m.group_id = $1 AND m.tenant_id = $2
+        `;
+        const membersResult = await executeWithTenant(session.tenantId, gwMembersSql, [group.google_id, session.tenantId]);
+        members = membersResult.rows;
+      }
+    }
+
+    // AWS Identity Center
+    if (!group && (!provider || provider === 'aws')) {
+      const awsGroupSql = `
+        SELECT id, display_name AS name, description, identity_store_id, group_id, last_synced_at, 'aws' AS provider
+        FROM aws_identity_center_groups
+        WHERE id = $1 AND tenant_id = $2
+      `;
+      const awsGroupResult = await executeWithTenant(session.tenantId, awsGroupSql, [id, session.tenantId]);
+      if (awsGroupResult.rows.length > 0) {
+        group = awsGroupResult.rows[0];
+
+        const awsMembersSql = `
+          SELECT m.id, m.member_user_id AS user_id, u.user_name AS email, u.display_name AS name, 'MEMBER' as role
+          FROM aws_identity_center_memberships m
+          LEFT JOIN aws_identity_center_users u ON m.member_user_id = u.user_id AND m.identity_store_id = u.identity_store_id AND m.tenant_id = u.tenant_id
+          WHERE m.group_id = $1 AND m.identity_store_id = $2 AND m.tenant_id = $3
+        `;
+        const membersResult = await executeWithTenant(session.tenantId, awsMembersSql, [group.group_id, group.identity_store_id, session.tenantId]);
+        members = membersResult.rows;
+      }
+    }
+
+    // GitHub
+    if (!group && (!provider || provider === 'github')) {
+      const ghGroupSql = `
+        SELECT id, name, description, slug, node_id, last_synced_at, 'github' AS provider
+        FROM github_teams
+        WHERE id = $1 AND tenant_id = $2
+      `;
+      const ghGroupResult = await executeWithTenant(session.tenantId, ghGroupSql, [id, session.tenantId]);
+      if (ghGroupResult.rows.length > 0) {
+        group = ghGroupResult.rows[0];
+
+        const ghMembersSql = `
+          SELECT m.id, u.login AS email, u.name, m.role
+          FROM github_team_memberships m
+          LEFT JOIN github_users u ON m.user_node_id = u.node_id AND m.tenant_id = u.tenant_id
+          WHERE m.team_node_id = $1 AND m.tenant_id = $2
+        `;
+        const membersResult = await executeWithTenant(session.tenantId, ghMembersSql, [group.node_id, session.tenantId]);
+        members = membersResult.rows;
+      }
+    }
+
+    if (!group) {
+      return NextResponse.json({ error: 'Group not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ group, members });
+  } catch (error) {
+    console.error('Group details error:', error);
+    return NextResponse.json({ error: 'Failed to load group details' }, { status: 500 });
+  }
+}

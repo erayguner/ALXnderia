@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface ResultsTableProps {
   data: Record<string, unknown>[];
   pageSize?: number;
+  getRowLink?: (row: Record<string, unknown>) => string | null;
 }
 
 function formatValue(value: unknown): string {
@@ -25,37 +27,61 @@ function formatHeader(key: string): string {
  * Returns the target URL or null if no drilldown applies.
  */
 function getDrilldownLink(key: string, value: unknown, row: Record<string, unknown>): string | null {
-  if (!value || typeof value !== 'string') return null;
+  const stringValue = value === null || value === undefined ? '' : String(value);
+  if (!stringValue) return null;
 
   // Person name -> person detail page
   if (key === 'display_name' && row.person_id) {
     return `/people/${row.person_id}`;
   }
+
+  // Person name -> person detail page (people list rows)
+  if (key === 'full_name' && row.id) {
+    return `/people/${row.id}`;
+  }
+
+  // Identity count -> person detail page
+  if (key === 'identity_count' && row.id) {
+    return `/people/${row.id}`;
+  }
+
   // Account ID -> resource page (AWS)
   if (key === 'account_or_project_id' && row.cloud_provider === 'aws') {
-    return `/resources/aws-accounts?search=${value}`;
+    return `/resources/aws-accounts?search=${stringValue}`;
   }
   // Account ID -> resource page (GCP)
   if (key === 'account_or_project_id' && row.cloud_provider === 'gcp') {
-    return `/resources/gcp-projects?search=${value}`;
+    return `/resources/gcp-projects?search=${stringValue}`;
   }
   // Group name -> group page
-  if (key === 'via_group_name' && value) {
-    return `/groups?search=${value}`;
+  if (key === 'via_group_name' && stringValue) {
+    return `/groups?search=${stringValue}`;
   }
+
+  // Member count -> group details page
+  if (key === 'member_count' && row.id) {
+    const provider = row.provider ? `?provider=${row.provider}` : '';
+    return `/groups/${row.id}${provider}`;
+  }
+
   return null;
 }
 
-export function ResultsTable({ data, pageSize = 20 }: ResultsTableProps) {
+export function ResultsTable({ data, pageSize = 20, getRowLink }: ResultsTableProps) {
   const [page, setPage] = useState(0);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
+  const router = useRouter();
 
   const columns = useMemo(() => {
     if (data.length === 0) return [];
-    // Exclude internal ID columns from display, keeping account_or_project_id
-    return Object.keys(data[0]).filter(k => !k.endsWith('_id') || k === 'account_or_project_id');
-  }, [data]);
+    // Exclude internal ID columns from display, keeping account_or_project_id.
+    // Also hide raw 'id' when row linking is active (id is used for navigation, not display).
+    return Object.keys(data[0]).filter(k => {
+      if (k === 'id' && getRowLink) return false;
+      return !k.endsWith('_id') || k === 'account_or_project_id';
+    });
+  }, [data, getRowLink]);
 
   const sortedData = useMemo(() => {
     if (!sortKey) return data;
@@ -104,32 +130,52 @@ export function ResultsTable({ data, pageSize = 20 }: ResultsTableProps) {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {pageData.map((row, rowIdx) => (
-            <tr key={rowIdx} className="hover:bg-gray-50 transition">
-              {columns.map(col => {
-                const link = getDrilldownLink(col, row[col], row);
-                return (
-                  <td key={col} className="px-3 py-2 text-gray-700 whitespace-nowrap">
-                    {link ? (
-                      <a href={link} className="text-blue-600 hover:underline">
-                        {formatValue(row[col])}
-                      </a>
-                    ) : (
-                      <span className={
-                        col === 'access_path'
-                          ? row[col] === 'direct'
-                            ? 'text-green-600 font-medium'
-                            : 'text-amber-600 font-medium'
-                          : ''
-                      }>
-                        {formatValue(row[col])}
-                      </span>
-                    )}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+          {pageData.map((row, rowIdx) => {
+            const rowLink = getRowLink ? getRowLink(row) : null;
+            return (
+              <tr
+                key={rowIdx}
+                onClick={() => rowLink && router.push(rowLink)}
+                onKeyDown={event => {
+                  if (!rowLink) return;
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    router.push(rowLink);
+                  }
+                }}
+                role={rowLink ? 'link' : undefined}
+                tabIndex={rowLink ? 0 : undefined}
+                className={`transition ${rowLink ? 'cursor-pointer hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500' : 'hover:bg-gray-50'}`}
+              >
+                {columns.map(col => {
+                  const link = getDrilldownLink(col, row[col], row);
+                  return (
+                    <td key={col} className="px-3 py-2 text-gray-700 whitespace-nowrap">
+                      {link ? (
+                        <a
+                          href={link}
+                          className="text-blue-600 hover:underline"
+                          onClick={event => event.stopPropagation()}
+                        >
+                          {formatValue(row[col])}
+                        </a>
+                      ) : (
+                        <span className={
+                          col === 'access_path'
+                            ? row[col] === 'direct'
+                              ? 'text-green-600 font-medium'
+                              : 'text-amber-600 font-medium'
+                            : ''
+                        }>
+                          {formatValue(row[col])}
+                        </span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 

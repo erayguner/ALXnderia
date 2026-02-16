@@ -5,18 +5,18 @@ import { ResultsTable } from './ResultsTable';
 
 interface GroupRow {
   id: string;
-  display_name: string;
+  name: string;
   description: string | null;
   provider: string;
   member_count: number;
-  last_seen_at: string;
+  last_synced_at: string | null;
 }
 
 export function GroupsList() {
   const [data, setData] = useState<GroupRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [provider, setProvider] = useState<'all' | 'aws' | 'gcp'>('all');
+  const [provider, setProvider] = useState<'all' | 'aws' | 'google' | 'github'>('all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -53,7 +53,7 @@ export function GroupsList() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Groups</h1>
         <p className="text-sm text-gray-500 mt-1">
-          AWS IDC and GCP Workspace groups with membership counts
+          Identity groups across all cloud providers with membership counts
         </p>
       </div>
 
@@ -71,8 +71,9 @@ export function GroupsList() {
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">All Providers</option>
-          <option value="aws">AWS IDC</option>
-          <option value="gcp">GCP Workspace</option>
+          <option value="google">Google Workspace</option>
+          <option value="aws">AWS Identity Center</option>
+          <option value="github">GitHub</option>
         </select>
         <span className="self-center text-xs text-gray-500">
           {total.toLocaleString()} {total === 1 ? 'group' : 'groups'}
@@ -84,7 +85,15 @@ export function GroupsList() {
 
       {!loading && !error && (
         <>
-          <ResultsTable data={data as unknown as Record<string, unknown>[]} pageSize={limit} />
+          <ResultsTable
+            data={data as unknown as Record<string, unknown>[]}
+            pageSize={limit}
+            getRowLink={row => {
+              if (!row.id) return null;
+              const p = row.provider ? `?provider=${row.provider}` : '';
+              return `/groups/${row.id}${p}`;
+            }}
+          />
 
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 mt-4">
