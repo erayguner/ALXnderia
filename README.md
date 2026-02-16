@@ -17,7 +17,7 @@
 
 ---
 
-Alxderia enables security teams, compliance officers, and identity administrators to query cloud access data across **AWS**, **GCP**, and **GitHub** using plain English. It translates natural-language questions into validated SQL, executes them against a consolidated identity data store, and returns enriched narrative results.
+ALXnderia enables security teams, compliance officers, and identity administrators to query cloud access data across **AWS Identity Center**, **Google Workspace**, and **GitHub** using plain English. It translates natural-language questions into validated SQL, executes them against a consolidated identity data store, and returns enriched narrative results.
 
 ## Architecture
 
@@ -31,18 +31,19 @@ Alxderia enables security teams, compliance officers, and identity administrator
   SQL Validator (7-layer defence-in-depth)
        |
   PostgreSQL (Aurora / Cloud SQL)
-    ├── AWS identities (IAM, IDC, accounts)
-    ├── GCP identities (Workspace, IAM bindings)
-    ├── GitHub identities (orgs, users, teams)
-    └── Cross-provider person graph
+    ├── Google Workspace (users, groups, memberships)
+    ├── AWS Identity Center (users, groups, memberships)
+    ├── GitHub (orgs, users, teams, repos, permissions)
+    └── Canonical identity layer (cross-provider linkage)
 ```
 
 ### Key capabilities
 
 - **NL2SQL** -- Ask questions in plain English; get validated, tenant-isolated SQL
-- **Multi-cloud identity** -- AWS IAM/IDC, GCP Workspace/IAM, GitHub Orgs/Users/Teams
+- **Multi-cloud identity** -- AWS Identity Center, Google Workspace, GitHub Orgs/Users/Teams
 - **Person graph** -- Cross-provider identity linkage via email matching
-- **Defence-in-depth** -- 7-layer SQL validation (libpg-query WASM AST parser), RLS tenant isolation, PII redaction views
+- **Access Explorer** -- Cross-provider effective access view combining GitHub (direct + team-derived), Google Workspace group memberships, and AWS Identity Center group memberships
+- **Defence-in-depth** -- 7-layer SQL validation (libpg-query WASM AST parser), tenant-scoped queries, composite PK multi-tenancy
 - **LLM-agnostic** -- Swap between Anthropic Claude, OpenAI GPT, or Google Gemini via env var
 - **Dual-cloud deploy** -- AWS (App Runner + Aurora Serverless v2) and GCP (Cloud Run + Cloud SQL)
 
@@ -50,50 +51,46 @@ Alxderia enables security teams, compliance officers, and identity administrator
 
 ### Prerequisites
 
-| Tool          | Version |
-|---------------|---------|
-| Node.js       | 22+     |
-| Docker        | 24+     |
-| Terraform     | 1.14+   |
+| Tool          | Version | Required for |
+|---------------|---------|-------------|
+| Node.js       | 22+     | Always |
+| npm           | 10+     | Always |
+| PostgreSQL    | 14+     | Native setup (Option A) |
+| Docker        | 24+     | Docker setup (Option B) |
+| Terraform     | 1.14+   | Docker setup (Option B) |
 
-### 1. Start the database
+You also need **one** LLM API key: Anthropic (`ANTHROPIC_API_KEY`), OpenAI (`OPENAI_API_KEY`), or Google Gemini (`GOOGLE_API_KEY`).
+
+### Option A: Native PostgreSQL (macOS / Linux)
+
+```bash
+# 1. Create roles and database
+psql -U $(whoami) -d postgres -c "CREATE ROLE cloudintel WITH LOGIN PASSWORD 'localdev-change-me' CREATEDB;"
+psql -U $(whoami) -d postgres -c "CREATE DATABASE cloud_identity_intel OWNER cloudintel;"
+
+# 2. Apply schema and seed data (see docs/LOCAL_SETUP.md for full commands)
+
+# 3. Configure and run the app
+cd app
+cp .env.example .env.local   # then set your LLM_API_KEY
+npm install && npm run dev
+```
+
+### Option B: Docker + Terraform
 
 ```bash
 cd infra
-terraform init
-terraform apply -auto-approve
-```
-
-This provisions a PostgreSQL 16 container, applies all 39 SQL migration files, and seeds mock data for AWS, GCP, and GitHub providers.
-
-### 2. Configure environment
-
-```bash
-cp app/.env.example app/.env.local
-# Edit app/.env.local with your LLM API key
-```
-
-```env
-PG_HOST=localhost
-PG_PORT=5432
-PG_USER=cloudintel
-PG_PASSWORD=localdev-change-me
-PG_DATABASE=cloud_identity_intel
-LLM_PROVIDER=anthropic          # or openai, gemini
-LLM_API_KEY=sk-ant-your-key
-```
-
-### 3. Run the application
-
-```bash
-cd app
-npm install
-npm run dev
+terraform init && terraform apply -auto-approve
+cd ../app
+cp .env.example .env.local   # then set your LLM_API_KEY
+npm install && npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) and try a question like *"Show all GitHub org admins"* or *"Who has access to the production AWS account?"*.
 
-### 4. Run tests
+> **Detailed setup guide**: See [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md) for step-by-step instructions, schema application order, troubleshooting, and database reset procedures.
+
+### Run tests
 
 ```bash
 cd app
@@ -104,9 +101,9 @@ npm run lint    # ESLint 9 with eslint-config-next
 ## Project Structure
 
 ```
-alxderia/
+ALXnderia/
   app/              Next.js 15 application (App Router, API routes, NL2SQL agent)
-  schema/           39 SQL migration files across 12 directories (00-extensions .. 11-github, 99-seed)
+  schema/           SQL files: DDL, seed data, and mock data
   infra/            Terraform modules for local Docker, AWS, and GCP deployments
   docs/             Architecture and operations documentation
   .github/          5 GitHub Actions CI/CD workflows
@@ -114,35 +111,27 @@ alxderia/
 
 ### Schema overview
 
-| Directory | Tables |
-|-----------|--------|
-| `01-reference` | `cloud_provider`, `tenant` |
-| `02-aws` | `aws_account`, `aws_iam_user`, `aws_idc_user`, `aws_idc_group`, `aws_idc_group_membership`, `aws_idc_permission_set`, `aws_idc_account_assignment` |
-| `03-gcp` | `gcp_project`, `gcp_workspace_user`, `gcp_workspace_group`, `gcp_workspace_group_membership`, `gcp_iam_binding` |
-| `04-identity` | `person`, `person_link` |
-| `05-access` | `mv_effective_access` (materialised view) |
-| `06-history` | `entity_history` (hash-chained, monthly partitioned) |
-| `09-audit` | `audit_log` (quarterly partitioned) |
-| `10-dlp` | PII redaction views, retention policies |
-| `11-github` | `github_organisation`, `github_user`, `github_team`, `github_team_membership`, `github_org_membership` |
+| File | Contents |
+|------|----------|
+| `schema/01_schema.sql` | Extensions (`uuid-ossp`), all table DDL, indexes, enums (`provider_type_enum`) |
+| `schema/02_seed_and_queries.sql` | Seed data for demo tenant `11111111-...`, example queries |
+| `schema/99-seed/010_mock_data.sql` | Extended mock dataset (~700 users, ~10K rows across all providers) |
 
-### Database roles
+| Provider | Tables |
+|----------|--------|
+| **Google Workspace** | `google_workspace_users`, `google_workspace_groups`, `google_workspace_memberships` |
+| **AWS Identity Center** | `aws_identity_center_users`, `aws_identity_center_groups`, `aws_identity_center_memberships` |
+| **GitHub** | `github_organisations`, `github_users`, `github_teams`, `github_org_memberships`, `github_team_memberships`, `github_repositories`, `github_repo_team_permissions`, `github_repo_collaborator_permissions` |
+| **Canonical Identity** | `canonical_users`, `canonical_emails`, `canonical_user_provider_links`, `identity_reconciliation_queue` |
 
-| Role | Access |
-|------|--------|
-| `admin` | Schema management (DDL) |
-| `ingest` | Data loading (INSERT/UPDATE) |
-| `analyst` | Full read with PII |
-| `readonly` | Redacted views only |
-| `audit` | Audit log access |
-| `app` | Application runtime queries |
+All tables use composite primary keys `(id, tenant_id)` for partition-friendly multi-tenancy.
 
 ## Security
 
 - **SQL Validation** -- 7-layer pipeline: comment stripping, keyword blocklist, AST parsing (libpg-query WASM), SELECT-only enforcement, table allowlisting, function blocklisting, automatic LIMIT injection
-- **Row-Level Security** -- All tenant-scoped tables enforce RLS via `SET LOCAL app.current_tenant_id`
-- **PII Redaction** -- 5 redacted views (`v_person_redacted`, `v_aws_idc_user_redacted`, `v_gcp_workspace_user_redacted`, `v_effective_access_redacted`, `v_github_user_redacted`)
-- **Audit Trail** -- Append-only `audit_log` (quarterly partitioned) and hash-chained `entity_history` (monthly partitioned)
+- **Tenant Isolation** -- All tables use composite PK `(id, tenant_id)`; app sets `SET LOCAL app.current_tenant_id` per transaction (RLS-ready)
+- **Audit Logging** -- All queries logged with metadata (question, SQL, row count, timing, status); database-backed audit planned
+- **Identity Reconciliation** -- Unresolved cross-provider matches queued in `identity_reconciliation_queue` for review
 
 ## CI/CD Pipelines
 
@@ -185,14 +174,14 @@ cd infra/deploy/gcp && terraform apply
 | [SRE Operations Guide](docs/05_SRE_Operations_Guide.md) | Deployment, monitoring, runbooks |
 | [GitHub Identity Integration](docs/06_GitHub_Identity_Integration.md) | GitHub provider design and mapping |
 | [Target Architecture](docs/07_Target_Architecture_GraphQL_DLP.md) | GraphQL API and Export/DLP roadmap |
-| [Local Setup](docs/LOCAL_SETUP.md) | Quick-start guide |
+| [Local Setup](docs/LOCAL_SETUP.md) | Complete local setup guide (native PG + Docker options, troubleshooting, reset procedures) |
 | [Performance Metrics](docs/performance-metrics.md) | Query benchmarks and index analysis |
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 15, React 19, TypeScript |
+| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS |
 | LLM | Anthropic Claude / OpenAI GPT / Google Gemini (configurable) |
 | SQL Validation | libpg-query (PostgreSQL parser compiled to WASM) |
 | Database | PostgreSQL 16 (Aurora) / 18 (Cloud SQL) |

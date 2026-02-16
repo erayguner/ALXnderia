@@ -51,8 +51,8 @@ export async function executeWithTenant<T extends QueryResultRow = Record<string
 
   try {
     await client.query('BEGIN');
-    await client.query('SET LOCAL statement_timeout = $1', [`${timeoutMs}ms`]);
-    await client.query('SET LOCAL app.current_tenant_id = $1', [tenantId]);
+    await client.query(`SET LOCAL statement_timeout = '${Number(timeoutMs)}ms'`);
+    await client.query(`SET LOCAL app.current_tenant_id = '${tenantId.replace(/[^a-f0-9-]/g, '')}'`);
 
     const result = await client.query<T>(sql, params);
 

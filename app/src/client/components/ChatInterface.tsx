@@ -138,10 +138,10 @@ export function ChatInterface() {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <div className="text-center py-16">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-2">
+            <h2 className="text-2xl font-semibold text-slate-900 mb-2">
               Cloud Identity Intelligence
             </h2>
-            <p className="text-gray-500 mb-8">
+            <p className="text-slate-500 mb-8">
               Ask questions about cloud access, identities, and entitlements in plain English.
             </p>
             <div className="flex flex-wrap justify-center gap-2">
@@ -149,7 +149,7 @@ export function ChatInterface() {
                 <button
                   key={i}
                   onClick={() => handleSubmit(undefined, prompt)}
-                  className="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition text-left max-w-xs"
+                  className="px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50/40 transition text-left max-w-xs text-slate-700"
                 >
                   {prompt}
                 </button>
@@ -164,10 +164,10 @@ export function ChatInterface() {
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-3xl rounded-lg px-4 py-3 ${
+              className={`max-w-3xl rounded-xl px-4 py-3 ${
                 msg.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white border border-gray-200 text-gray-800'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white border border-slate-200 text-slate-800 shadow-sm'
               }`}
             >
               {/* User message */}
@@ -175,11 +175,11 @@ export function ChatInterface() {
 
               {/* Loading state */}
               {msg.loading && (
-                <div className="flex items-center gap-2 text-gray-500">
+                <div className="flex items-center gap-2 text-slate-500">
                   <div className="flex gap-1">
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
                   <span className="text-sm">Analysing your question...</span>
                 </div>
@@ -187,7 +187,7 @@ export function ChatInterface() {
 
               {/* Error state */}
               {msg.error && (
-                <div className="text-red-600 bg-red-50 rounded p-3">
+                <div className="text-red-700 bg-red-50 rounded-lg p-3 border border-red-100">
                   <p className="font-medium">Something went wrong</p>
                   <p className="text-sm mt-1">{msg.error}</p>
                 </div>
@@ -202,7 +202,7 @@ export function ChatInterface() {
                       <button
                         key={i}
                         onClick={() => handleSubmit(undefined, opt)}
-                        className="px-3 py-1.5 text-sm bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition"
+                        className="px-3 py-1.5 text-sm bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 transition"
                       >
                         {opt}
                       </button>
@@ -216,11 +216,11 @@ export function ChatInterface() {
                 <div>
                   {/* Query plan badge */}
                   {msg.queryPlan && (
-                    <div className="text-xs text-gray-500 mb-2 flex items-center gap-2">
+                    <div className="text-xs text-slate-500 mb-2 flex items-center gap-2">
                       <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                        msg.queryPlan.estimatedComplexity === 'low' ? 'bg-green-100 text-green-700' :
-                        msg.queryPlan.estimatedComplexity === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-red-100 text-red-700'
+                        msg.queryPlan.estimatedComplexity === 'low' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                        msg.queryPlan.estimatedComplexity === 'medium' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                        'bg-red-50 text-red-700 border border-red-100'
                       }`}>
                         {msg.queryPlan.estimatedComplexity}
                       </span>
@@ -232,7 +232,7 @@ export function ChatInterface() {
 
                   {/* Explanation */}
                   {msg.explanation && (
-                    <div className="text-sm text-gray-600 bg-gray-50 rounded p-3 mb-3">
+                    <div className="text-sm text-slate-600 bg-slate-50 rounded-lg p-3 mb-3 border border-slate-100">
                       <span className="font-medium">Why: </span>
                       {msg.explanation}
                     </div>
@@ -247,19 +247,19 @@ export function ChatInterface() {
 
                   {/* Metadata + toggles */}
                   {msg.metadata && (
-                    <div className="flex items-center gap-3 text-xs text-gray-400 mb-2">
+                    <div className="flex items-center gap-3 text-xs text-slate-400 mb-2">
                       <span>{msg.metadata.rowCount} row{msg.metadata.rowCount === 1 ? '' : 's'}</span>
                       <span>{msg.metadata.executionTimeMs}ms</span>
-                      {msg.metadata.cached && <span className="text-blue-500">cached</span>}
+                      {msg.metadata.cached && <span className="text-indigo-500">cached</span>}
                       <button
                         onClick={() => toggleSql(msg.id)}
-                        className="text-blue-500 hover:text-blue-700 transition"
+                        className="text-indigo-500 hover:text-indigo-700 transition"
                       >
                         {showSql[msg.id] ? 'Hide SQL' : 'Show SQL'}
                       </button>
                       <button
                         onClick={() => toggleLineage(msg.id)}
-                        className="text-blue-500 hover:text-blue-700 transition"
+                        className="text-indigo-500 hover:text-indigo-700 transition"
                       >
                         {showLineage[msg.id] ? 'Hide Lineage' : 'Data Lineage'}
                       </button>
@@ -268,18 +268,18 @@ export function ChatInterface() {
 
                   {/* SQL code block */}
                   {showSql[msg.id] && msg.sql && (
-                    <pre className="bg-gray-900 text-green-300 text-xs p-3 rounded overflow-x-auto mb-2">
+                    <pre className="bg-slate-900 text-emerald-300 text-xs p-3 rounded-lg overflow-x-auto mb-2">
                       <code>{msg.sql}</code>
                     </pre>
                   )}
 
                   {/* Data lineage */}
                   {showLineage[msg.id] && msg.metadata?.tablesUsed && (
-                    <div className="text-xs bg-gray-50 p-3 rounded mb-2">
+                    <div className="text-xs bg-slate-50 p-3 rounded-lg mb-2 border border-slate-100">
                       <span className="font-medium">Tables queried: </span>
                       {msg.metadata.tablesUsed.map((t, i) => (
                         <span key={t}>
-                          <code className="bg-gray-200 px-1 py-0.5 rounded">{t}</code>
+                          <code className="bg-slate-200 px-1.5 py-0.5 rounded text-slate-700">{t}</code>
                           {i < msg.metadata!.tablesUsed.length - 1 ? ' \u2192 ' : ''}
                         </span>
                       ))}
@@ -293,7 +293,7 @@ export function ChatInterface() {
                         <button
                           key={i}
                           onClick={() => handleSubmit(undefined, suggestion)}
-                          className="px-2.5 py-1 text-xs bg-blue-50 border border-blue-200 rounded-full hover:bg-blue-100 transition"
+                          className="px-2.5 py-1 text-xs bg-indigo-50 border border-indigo-200 rounded-full hover:bg-indigo-100 transition text-indigo-700"
                         >
                           {suggestion}
                         </button>
@@ -309,7 +309,7 @@ export function ChatInterface() {
       </div>
 
       {/* Input area */}
-      <div className="border-t border-gray-200 bg-white p-4">
+      <div className="border-t border-slate-200 bg-white/80 backdrop-blur-sm p-4">
         <form onSubmit={handleSubmit} className="flex gap-2 max-w-3xl mx-auto">
           <textarea
             ref={inputRef}
@@ -317,14 +317,14 @@ export function ChatInterface() {
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask about cloud access, identities, or entitlements..."
-            className="flex-1 resize-none rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1 resize-none rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             rows={1}
             disabled={isLoading}
           />
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             {isLoading ? 'Thinking...' : 'Ask'}
           </button>

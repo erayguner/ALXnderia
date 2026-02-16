@@ -71,8 +71,11 @@ resource "aws_rds_cluster" "main" {
   db_subnet_group_name   = var.db_subnet_group_name
   vpc_security_group_ids = [aws_security_group.aurora.id]
 
-  storage_encrypted   = true
-  skip_final_snapshot = var.skip_final_snapshot
+  storage_encrypted        = true
+  deletion_protection      = var.environment == "production" ? true : false
+  copy_tags_to_snapshot    = true
+  skip_final_snapshot      = var.skip_final_snapshot
+  enabled_cloudwatch_logs_exports = ["postgresql"]
 
   serverlessv2_scaling_configuration {
     min_capacity = 0.5
@@ -94,6 +97,7 @@ resource "aws_rds_cluster_instance" "main" {
   monitoring_role_arn          = aws_iam_role.rds_monitoring.arn
   monitoring_interval          = 60
   performance_insights_enabled = true
+  auto_minor_version_upgrade   = true
 
   tags = merge(local.common_tags, {
     Name = "${var.project_name}-${var.environment}-aurora-instance-1"
