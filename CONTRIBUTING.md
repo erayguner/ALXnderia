@@ -42,7 +42,7 @@ Thank you for your interest in contributing. This guide covers the conventions, 
 cd app
 npm run lint          # ESLint 9
 npx tsc --noEmit     # Type check
-npm test             # Vitest (32+ tests)
+npm test             # Vitest (142 tests)
 npm run build        # Next.js production build
 ```
 
@@ -185,7 +185,7 @@ Files are applied via `find | sort` in lexicographic order. The directory prefix
 
 ### Test conventions
 
-- Use Vitest 3.0 (`npm test`)
+- Use Vitest 4.x (`npm test`)
 - Test files go in `app/tests/server/` (mirror the source structure)
 - Mock external dependencies (LLM providers, database connections)
 - Name test files `<module>.test.ts`

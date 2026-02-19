@@ -94,7 +94,7 @@ Open [http://localhost:3000](http://localhost:3000) and try a question like *"Sh
 
 ```bash
 cd app
-npm test        # 32 tests (28 SQL validator + 4 chat route)
+npm test        # 142 tests across 13 suites
 npm run lint    # ESLint 9 with eslint-config-next
 ```
 
@@ -188,7 +188,7 @@ cd infra/deploy/gcp && terraform apply
 | Infrastructure | Terraform, Docker |
 | Compute | AWS App Runner / GCP Cloud Run v2 |
 | CI/CD | GitHub Actions (5 workflows) |
-| Testing | Vitest 3.0 (32 tests) |
+| Testing | Vitest 4.x (142 tests across 13 suites) |
 | Linting | ESLint 9 with eslint-config-next |
 
 ## License
