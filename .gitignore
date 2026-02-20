@@ -30,6 +30,9 @@ node_modules/
 .next/
 out/
 
+# TypeScript build cache
+*.tsbuildinfo
+
 # Terraform (also covered by infra/.gitignore)
 .terraform/
 *.tfstate

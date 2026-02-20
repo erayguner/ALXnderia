@@ -1,0 +1,1146 @@
+{
+  "api_version": "2020-06-15",
+  "endpoint_prefix": "identitystore",
+  "entity_schema_binding": {
+    "external_collaborators": null,
+    "groups": "DescribeGroupResponse",
+    "memberships": "DescribeGroupMembershipResponse",
+    "repositories": null,
+    "teams": null,
+    "users": "DescribeUserResponse"
+  },
+  "operation_schema_binding": {
+    "DescribeGroup": "DescribeGroupResponse",
+    "DescribeGroupMembership": "DescribeGroupMembershipResponse",
+    "DescribeUser": "DescribeUserResponse",
+    "ListGroupMemberships": "ListGroupMembershipsResponse",
+    "ListGroupMembershipsForMember": "ListGroupMembershipsForMemberResponse",
+    "ListGroups": "ListGroupsResponse",
+    "ListUsers": "ListUsersResponse"
+  },
+  "protocol": "json",
+  "provider": "aws_iam_identity_center_identitystore",
+  "schemas": {
+    "DescribeGroupMembershipResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "CreatedAt": {
+          "oneOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "x-aws-shape": "DateType"
+        },
+        "CreatedBy": {
+          "type": "string",
+          "x-aws-shape": "StringType"
+        },
+        "GroupId": {
+          "type": "string",
+          "x-aws-shape": "ResourceId"
+        },
+        "IdentityStoreId": {
+          "type": "string",
+          "x-aws-shape": "IdentityStoreId"
+        },
+        "MemberId": {
+          "additionalProperties": false,
+          "description": "<p>An object containing the identifier of a group member.</p>",
+          "properties": {
+            "UserId": {
+              "type": "string",
+              "x-aws-shape": "ResourceId"
+            }
+          },
+          "type": "object",
+          "x-aws-shape": "MemberId"
+        },
+        "MembershipId": {
+          "type": "string",
+          "x-aws-shape": "ResourceId"
+        },
+        "UpdatedAt": {
+          "oneOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "x-aws-shape": "DateType"
+        },
+        "UpdatedBy": {
+          "type": "string",
+          "x-aws-shape": "StringType"
+        }
+      },
+      "required": [
+        "IdentityStoreId",
+        "MembershipId",
+        "GroupId",
+        "MemberId"
+      ],
+      "type": "object",
+      "x-aws-shape": "DescribeGroupMembershipResponse"
+    },
+    "DescribeGroupResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "CreatedAt": {
+          "oneOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "x-aws-shape": "DateType"
+        },
+        "CreatedBy": {
+          "type": "string",
+          "x-aws-shape": "StringType"
+        },
+        "Description": {
+          "type": "string",
+          "x-aws-shape": "SensitiveStringType"
+        },
+        "DisplayName": {
+          "type": "string",
+          "x-aws-shape": "GroupDisplayName"
+        },
+        "ExternalIds": {
+          "items": {
+            "additionalProperties": false,
+            "description": "<p>The identifier issued to this resource by an external identity provider.</p>",
+            "properties": {
+              "Id": {
+                "type": "string",
+                "x-aws-shape": "ExternalIdIdentifier"
+              },
+              "Issuer": {
+                "type": "string",
+                "x-aws-shape": "ExternalIdIssuer"
+              }
+            },
+            "required": [
+              "Issuer",
+              "Id"
+            ],
+            "type": "object",
+            "x-aws-shape": "ExternalId"
+          },
+          "type": "array",
+          "x-aws-shape": "ExternalIds"
+        },
+        "GroupId": {
+          "type": "string",
+          "x-aws-shape": "ResourceId"
+        },
+        "IdentityStoreId": {
+          "type": "string",
+          "x-aws-shape": "IdentityStoreId"
+        },
+        "UpdatedAt": {
+          "oneOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "x-aws-shape": "DateType"
+        },
+        "UpdatedBy": {
+          "type": "string",
+          "x-aws-shape": "StringType"
+        }
+      },
+      "required": [
+        "GroupId",
+        "IdentityStoreId"
+      ],
+      "type": "object",
+      "x-aws-shape": "DescribeGroupResponse"
+    },
+    "DescribeUserResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "Addresses": {
+          "items": {
+            "additionalProperties": false,
+            "description": "<p>The address associated with the specified user.</p>",
+            "properties": {
+              "Country": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "Formatted": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "Locality": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "PostalCode": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "Primary": {
+                "type": "boolean",
+                "x-aws-shape": "BooleanType"
+              },
+              "Region": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "StreetAddress": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "Type": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              }
+            },
+            "type": "object",
+            "x-aws-shape": "Address"
+          },
+          "type": "array",
+          "x-aws-shape": "Addresses"
+        },
+        "Birthdate": {
+          "type": "string",
+          "x-aws-shape": "SensitiveStringType"
+        },
+        "CreatedAt": {
+          "oneOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "x-aws-shape": "DateType"
+        },
+        "CreatedBy": {
+          "type": "string",
+          "x-aws-shape": "StringType"
+        },
+        "DisplayName": {
+          "type": "string",
+          "x-aws-shape": "SensitiveStringType"
+        },
+        "Emails": {
+          "items": {
+            "additionalProperties": false,
+            "description": "<p>The email address associated with the user.</p>",
+            "properties": {
+              "Primary": {
+                "type": "boolean",
+                "x-aws-shape": "BooleanType"
+              },
+              "Type": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "Value": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              }
+            },
+            "type": "object",
+            "x-aws-shape": "Email"
+          },
+          "type": "array",
+          "x-aws-shape": "Emails"
+        },
+        "Extensions": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "description": "<p>The value of the attribute. This is a <code>Document</code> type. This type is not supported by Java V1, Go V1, and older versions of the CLI.</p>",
+            "properties": {},
+            "type": "object",
+            "x-aws-shape": "AttributeValue"
+          },
+          "type": "object",
+          "x-aws-shape": "Extensions"
+        },
+        "ExternalIds": {
+          "items": {
+            "additionalProperties": false,
+            "description": "<p>The identifier issued to this resource by an external identity provider.</p>",
+            "properties": {
+              "Id": {
+                "type": "string",
+                "x-aws-shape": "ExternalIdIdentifier"
+              },
+              "Issuer": {
+                "type": "string",
+                "x-aws-shape": "ExternalIdIssuer"
+              }
+            },
+            "required": [
+              "Issuer",
+              "Id"
+            ],
+            "type": "object",
+            "x-aws-shape": "ExternalId"
+          },
+          "type": "array",
+          "x-aws-shape": "ExternalIds"
+        },
+        "IdentityStoreId": {
+          "type": "string",
+          "x-aws-shape": "IdentityStoreId"
+        },
+        "Locale": {
+          "type": "string",
+          "x-aws-shape": "SensitiveStringType"
+        },
+        "Name": {
+          "additionalProperties": false,
+          "description": "<p>The full name of the user.</p>",
+          "properties": {
+            "FamilyName": {
+              "type": "string",
+              "x-aws-shape": "SensitiveStringType"
+            },
+            "Formatted": {
+              "type": "string",
+              "x-aws-shape": "SensitiveStringType"
+            },
+            "GivenName": {
+              "type": "string",
+              "x-aws-shape": "SensitiveStringType"
+            },
+            "HonorificPrefix": {
+              "type": "string",
+              "x-aws-shape": "SensitiveStringType"
+            },
+            "HonorificSuffix": {
+              "type": "string",
+              "x-aws-shape": "SensitiveStringType"
+            },
+            "MiddleName": {
+              "type": "string",
+              "x-aws-shape": "SensitiveStringType"
+            }
+          },
+          "type": "object",
+          "x-aws-shape": "Name"
+        },
+        "NickName": {
+          "type": "string",
+          "x-aws-shape": "SensitiveStringType"
+        },
+        "PhoneNumbers": {
+          "items": {
+            "additionalProperties": false,
+            "description": "<p>The phone number associated with the user.</p>",
+            "properties": {
+              "Primary": {
+                "type": "boolean",
+                "x-aws-shape": "BooleanType"
+              },
+              "Type": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "Value": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              }
+            },
+            "type": "object",
+            "x-aws-shape": "PhoneNumber"
+          },
+          "type": "array",
+          "x-aws-shape": "PhoneNumbers"
+        },
+        "Photos": {
+          "items": {
+            "additionalProperties": false,
+            "description": "<p>Contains information about a user's photo. Users can have up to 3 photos, with one designated as primary. Supports common image formats, including jpg, jpeg, png, and gif.</p>",
+            "properties": {
+              "Display": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "Primary": {
+                "type": "boolean",
+                "x-aws-shape": "BooleanType"
+              },
+              "Type": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "Value": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              }
+            },
+            "required": [
+              "Value"
+            ],
+            "type": "object",
+            "x-aws-shape": "Photo"
+          },
+          "type": "array",
+          "x-aws-shape": "Photos"
+        },
+        "PreferredLanguage": {
+          "type": "string",
+          "x-aws-shape": "SensitiveStringType"
+        },
+        "ProfileUrl": {
+          "type": "string",
+          "x-aws-shape": "SensitiveStringType"
+        },
+        "Roles": {
+          "items": {
+            "additionalProperties": false,
+            "description": "<p>The role associated with the user.</p>",
+            "properties": {
+              "Primary": {
+                "type": "boolean",
+                "x-aws-shape": "BooleanType"
+              },
+              "Type": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "Value": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              }
+            },
+            "type": "object",
+            "x-aws-shape": "Role"
+          },
+          "type": "array",
+          "x-aws-shape": "Roles"
+        },
+        "Timezone": {
+          "type": "string",
+          "x-aws-shape": "SensitiveStringType"
+        },
+        "Title": {
+          "type": "string",
+          "x-aws-shape": "SensitiveStringType"
+        },
+        "UpdatedAt": {
+          "oneOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "x-aws-shape": "DateType"
+        },
+        "UpdatedBy": {
+          "type": "string",
+          "x-aws-shape": "StringType"
+        },
+        "UserId": {
+          "type": "string",
+          "x-aws-shape": "ResourceId"
+        },
+        "UserName": {
+          "type": "string",
+          "x-aws-shape": "UserName"
+        },
+        "UserStatus": {
+          "enum": [
+            "ENABLED",
+            "DISABLED"
+          ],
+          "type": "string",
+          "x-aws-shape": "UserStatus"
+        },
+        "UserType": {
+          "type": "string",
+          "x-aws-shape": "SensitiveStringType"
+        },
+        "Website": {
+          "type": "string",
+          "x-aws-shape": "SensitiveStringType"
+        }
+      },
+      "required": [
+        "IdentityStoreId",
+        "UserId"
+      ],
+      "type": "object",
+      "x-aws-shape": "DescribeUserResponse"
+    },
+    "ListGroupMembershipsForMemberResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "GroupMemberships": {
+          "items": {
+            "additionalProperties": false,
+            "description": "<p>Contains the identifiers for a group, a group member, and a <code>GroupMembership</code> object in the identity store.</p>",
+            "properties": {
+              "CreatedAt": {
+                "oneOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "x-aws-shape": "DateType"
+              },
+              "CreatedBy": {
+                "type": "string",
+                "x-aws-shape": "StringType"
+              },
+              "GroupId": {
+                "type": "string",
+                "x-aws-shape": "ResourceId"
+              },
+              "IdentityStoreId": {
+                "type": "string",
+                "x-aws-shape": "IdentityStoreId"
+              },
+              "MemberId": {
+                "additionalProperties": false,
+                "description": "<p>An object containing the identifier of a group member.</p>",
+                "properties": {
+                  "UserId": {
+                    "type": "string",
+                    "x-aws-shape": "ResourceId"
+                  }
+                },
+                "type": "object",
+                "x-aws-shape": "MemberId"
+              },
+              "MembershipId": {
+                "type": "string",
+                "x-aws-shape": "ResourceId"
+              },
+              "UpdatedAt": {
+                "oneOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "x-aws-shape": "DateType"
+              },
+              "UpdatedBy": {
+                "type": "string",
+                "x-aws-shape": "StringType"
+              }
+            },
+            "required": [
+              "IdentityStoreId"
+            ],
+            "type": "object",
+            "x-aws-shape": "GroupMembership"
+          },
+          "type": "array",
+          "x-aws-shape": "GroupMemberships"
+        },
+        "NextToken": {
+          "type": "string",
+          "x-aws-shape": "NextToken"
+        }
+      },
+      "required": [
+        "GroupMemberships"
+      ],
+      "type": "object",
+      "x-aws-shape": "ListGroupMembershipsForMemberResponse"
+    },
+    "ListGroupMembershipsResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "GroupMemberships": {
+          "items": {
+            "additionalProperties": false,
+            "description": "<p>Contains the identifiers for a group, a group member, and a <code>GroupMembership</code> object in the identity store.</p>",
+            "properties": {
+              "CreatedAt": {
+                "oneOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "x-aws-shape": "DateType"
+              },
+              "CreatedBy": {
+                "type": "string",
+                "x-aws-shape": "StringType"
+              },
+              "GroupId": {
+                "type": "string",
+                "x-aws-shape": "ResourceId"
+              },
+              "IdentityStoreId": {
+                "type": "string",
+                "x-aws-shape": "IdentityStoreId"
+              },
+              "MemberId": {
+                "additionalProperties": false,
+                "description": "<p>An object containing the identifier of a group member.</p>",
+                "properties": {
+                  "UserId": {
+                    "type": "string",
+                    "x-aws-shape": "ResourceId"
+                  }
+                },
+                "type": "object",
+                "x-aws-shape": "MemberId"
+              },
+              "MembershipId": {
+                "type": "string",
+                "x-aws-shape": "ResourceId"
+              },
+              "UpdatedAt": {
+                "oneOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "x-aws-shape": "DateType"
+              },
+              "UpdatedBy": {
+                "type": "string",
+                "x-aws-shape": "StringType"
+              }
+            },
+            "required": [
+              "IdentityStoreId"
+            ],
+            "type": "object",
+            "x-aws-shape": "GroupMembership"
+          },
+          "type": "array",
+          "x-aws-shape": "GroupMemberships"
+        },
+        "NextToken": {
+          "type": "string",
+          "x-aws-shape": "NextToken"
+        }
+      },
+      "required": [
+        "GroupMemberships"
+      ],
+      "type": "object",
+      "x-aws-shape": "ListGroupMembershipsResponse"
+    },
+    "ListGroupsResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "Groups": {
+          "items": {
+            "additionalProperties": false,
+            "description": "<p>A group object that contains the metadata and attributes for a specified group.</p>",
+            "properties": {
+              "CreatedAt": {
+                "oneOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "x-aws-shape": "DateType"
+              },
+              "CreatedBy": {
+                "type": "string",
+                "x-aws-shape": "StringType"
+              },
+              "Description": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "DisplayName": {
+                "type": "string",
+                "x-aws-shape": "GroupDisplayName"
+              },
+              "ExternalIds": {
+                "items": {
+                  "additionalProperties": false,
+                  "description": "<p>The identifier issued to this resource by an external identity provider.</p>",
+                  "properties": {
+                    "Id": {
+                      "type": "string",
+                      "x-aws-shape": "ExternalIdIdentifier"
+                    },
+                    "Issuer": {
+                      "type": "string",
+                      "x-aws-shape": "ExternalIdIssuer"
+                    }
+                  },
+                  "required": [
+                    "Issuer",
+                    "Id"
+                  ],
+                  "type": "object",
+                  "x-aws-shape": "ExternalId"
+                },
+                "type": "array",
+                "x-aws-shape": "ExternalIds"
+              },
+              "GroupId": {
+                "type": "string",
+                "x-aws-shape": "ResourceId"
+              },
+              "IdentityStoreId": {
+                "type": "string",
+                "x-aws-shape": "IdentityStoreId"
+              },
+              "UpdatedAt": {
+                "oneOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "x-aws-shape": "DateType"
+              },
+              "UpdatedBy": {
+                "type": "string",
+                "x-aws-shape": "StringType"
+              }
+            },
+            "required": [
+              "GroupId",
+              "IdentityStoreId"
+            ],
+            "type": "object",
+            "x-aws-shape": "Group"
+          },
+          "type": "array",
+          "x-aws-shape": "Groups"
+        },
+        "NextToken": {
+          "type": "string",
+          "x-aws-shape": "NextToken"
+        }
+      },
+      "required": [
+        "Groups"
+      ],
+      "type": "object",
+      "x-aws-shape": "ListGroupsResponse"
+    },
+    "ListUsersResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "NextToken": {
+          "type": "string",
+          "x-aws-shape": "NextToken"
+        },
+        "Users": {
+          "items": {
+            "additionalProperties": false,
+            "description": "<p>A user object that contains the metadata and attributes for a specified user.</p>",
+            "properties": {
+              "Addresses": {
+                "items": {
+                  "additionalProperties": false,
+                  "description": "<p>The address associated with the specified user.</p>",
+                  "properties": {
+                    "Country": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    },
+                    "Formatted": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    },
+                    "Locality": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    },
+                    "PostalCode": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    },
+                    "Primary": {
+                      "type": "boolean",
+                      "x-aws-shape": "BooleanType"
+                    },
+                    "Region": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    },
+                    "StreetAddress": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    },
+                    "Type": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    }
+                  },
+                  "type": "object",
+                  "x-aws-shape": "Address"
+                },
+                "type": "array",
+                "x-aws-shape": "Addresses"
+              },
+              "Birthdate": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "CreatedAt": {
+                "oneOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "x-aws-shape": "DateType"
+              },
+              "CreatedBy": {
+                "type": "string",
+                "x-aws-shape": "StringType"
+              },
+              "DisplayName": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "Emails": {
+                "items": {
+                  "additionalProperties": false,
+                  "description": "<p>The email address associated with the user.</p>",
+                  "properties": {
+                    "Primary": {
+                      "type": "boolean",
+                      "x-aws-shape": "BooleanType"
+                    },
+                    "Type": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    },
+                    "Value": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    }
+                  },
+                  "type": "object",
+                  "x-aws-shape": "Email"
+                },
+                "type": "array",
+                "x-aws-shape": "Emails"
+              },
+              "Extensions": {
+                "additionalProperties": {
+                  "additionalProperties": false,
+                  "description": "<p>The value of the attribute. This is a <code>Document</code> type. This type is not supported by Java V1, Go V1, and older versions of the CLI.</p>",
+                  "properties": {},
+                  "type": "object",
+                  "x-aws-shape": "AttributeValue"
+                },
+                "type": "object",
+                "x-aws-shape": "Extensions"
+              },
+              "ExternalIds": {
+                "items": {
+                  "additionalProperties": false,
+                  "description": "<p>The identifier issued to this resource by an external identity provider.</p>",
+                  "properties": {
+                    "Id": {
+                      "type": "string",
+                      "x-aws-shape": "ExternalIdIdentifier"
+                    },
+                    "Issuer": {
+                      "type": "string",
+                      "x-aws-shape": "ExternalIdIssuer"
+                    }
+                  },
+                  "required": [
+                    "Issuer",
+                    "Id"
+                  ],
+                  "type": "object",
+                  "x-aws-shape": "ExternalId"
+                },
+                "type": "array",
+                "x-aws-shape": "ExternalIds"
+              },
+              "IdentityStoreId": {
+                "type": "string",
+                "x-aws-shape": "IdentityStoreId"
+              },
+              "Locale": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "Name": {
+                "additionalProperties": false,
+                "description": "<p>The full name of the user.</p>",
+                "properties": {
+                  "FamilyName": {
+                    "type": "string",
+                    "x-aws-shape": "SensitiveStringType"
+                  },
+                  "Formatted": {
+                    "type": "string",
+                    "x-aws-shape": "SensitiveStringType"
+                  },
+                  "GivenName": {
+                    "type": "string",
+                    "x-aws-shape": "SensitiveStringType"
+                  },
+                  "HonorificPrefix": {
+                    "type": "string",
+                    "x-aws-shape": "SensitiveStringType"
+                  },
+                  "HonorificSuffix": {
+                    "type": "string",
+                    "x-aws-shape": "SensitiveStringType"
+                  },
+                  "MiddleName": {
+                    "type": "string",
+                    "x-aws-shape": "SensitiveStringType"
+                  }
+                },
+                "type": "object",
+                "x-aws-shape": "Name"
+              },
+              "NickName": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "PhoneNumbers": {
+                "items": {
+                  "additionalProperties": false,
+                  "description": "<p>The phone number associated with the user.</p>",
+                  "properties": {
+                    "Primary": {
+                      "type": "boolean",
+                      "x-aws-shape": "BooleanType"
+                    },
+                    "Type": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    },
+                    "Value": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    }
+                  },
+                  "type": "object",
+                  "x-aws-shape": "PhoneNumber"
+                },
+                "type": "array",
+                "x-aws-shape": "PhoneNumbers"
+              },
+              "Photos": {
+                "items": {
+                  "additionalProperties": false,
+                  "description": "<p>Contains information about a user's photo. Users can have up to 3 photos, with one designated as primary. Supports common image formats, including jpg, jpeg, png, and gif.</p>",
+                  "properties": {
+                    "Display": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    },
+                    "Primary": {
+                      "type": "boolean",
+                      "x-aws-shape": "BooleanType"
+                    },
+                    "Type": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    },
+                    "Value": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    }
+                  },
+                  "required": [
+                    "Value"
+                  ],
+                  "type": "object",
+                  "x-aws-shape": "Photo"
+                },
+                "type": "array",
+                "x-aws-shape": "Photos"
+              },
+              "PreferredLanguage": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "ProfileUrl": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "Roles": {
+                "items": {
+                  "additionalProperties": false,
+                  "description": "<p>The role associated with the user.</p>",
+                  "properties": {
+                    "Primary": {
+                      "type": "boolean",
+                      "x-aws-shape": "BooleanType"
+                    },
+                    "Type": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    },
+                    "Value": {
+                      "type": "string",
+                      "x-aws-shape": "SensitiveStringType"
+                    }
+                  },
+                  "type": "object",
+                  "x-aws-shape": "Role"
+                },
+                "type": "array",
+                "x-aws-shape": "Roles"
+              },
+              "Timezone": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "Title": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "UpdatedAt": {
+                "oneOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "x-aws-shape": "DateType"
+              },
+              "UpdatedBy": {
+                "type": "string",
+                "x-aws-shape": "StringType"
+              },
+              "UserId": {
+                "type": "string",
+                "x-aws-shape": "ResourceId"
+              },
+              "UserName": {
+                "type": "string",
+                "x-aws-shape": "UserName"
+              },
+              "UserStatus": {
+                "enum": [
+                  "ENABLED",
+                  "DISABLED"
+                ],
+                "type": "string",
+                "x-aws-shape": "UserStatus"
+              },
+              "UserType": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              },
+              "Website": {
+                "type": "string",
+                "x-aws-shape": "SensitiveStringType"
+              }
+            },
+            "required": [
+              "IdentityStoreId",
+              "UserId"
+            ],
+            "type": "object",
+            "x-aws-shape": "User"
+          },
+          "type": "array",
+          "x-aws-shape": "Users"
+        }
+      },
+      "required": [
+        "Users"
+      ],
+      "type": "object",
+      "x-aws-shape": "ListUsersResponse"
+    }
+  },
+  "service_full_name": "AWS SSO Identity Store",
+  "source_url": "https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/identitystore/2020-06-15/service-2.json"
+}

@@ -132,7 +132,7 @@ WITH ordered_cu AS (
   FROM canonical_users
   WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid
 )
-INSERT INTO google_workspace_users (id, tenant_id, google_id, primary_email, name_full, suspended, archived, is_admin, creation_time, last_login_time, org_unit_path, raw_response, created_at, updated_at, last_synced_at)
+INSERT INTO google_workspace_users (id, tenant_id, google_id, primary_email, name_full, suspended, archived, is_admin, is_delegated_admin, is_enrolled_in_2sv, is_enforced_in_2sv, customer_id, creation_time, last_login_time, org_unit_path, raw_response, created_at, updated_at, last_synced_at)
 SELECT
   gen_random_uuid(),
   p.tenant_id,
@@ -142,6 +142,10 @@ SELECT
   FALSE,
   FALSE,
   CASE WHEN p.rn <= 5 THEN TRUE ELSE FALSE END,
+  CASE WHEN p.rn BETWEEN 6 AND 10 THEN TRUE ELSE FALSE END,
+  CASE WHEN p.rn <= 300 THEN TRUE ELSE FALSE END,
+  CASE WHEN p.rn <= 200 THEN TRUE ELSE FALSE END,
+  'C01demo',
   p.created_at,
   '2026-02-10T00:00:00Z'::timestamptz + (p.rn % 14) * interval '1 day',
   '/employees/' || (ARRAY['engineering','finance','marketing','operations','legal','hr','sales','support','product','data'])[1 + abs(hashint4(p.rn::int * 13)) % 10],
@@ -156,7 +160,7 @@ WHERE p.rn <= 370;
 -- 4. Google Workspace Groups (110)
 -- ============================================================
 
-INSERT INTO google_workspace_groups (id, tenant_id, google_id, email, name, description, admin_created, raw_response, created_at, updated_at, last_synced_at)
+INSERT INTO google_workspace_groups (id, tenant_id, google_id, email, name, description, admin_created, direct_members_count, raw_response, created_at, updated_at, last_synced_at)
 SELECT
   gen_random_uuid(),
   '11111111-1111-1111-1111-111111111111'::uuid,
@@ -170,6 +174,7 @@ SELECT
     || ' ' || (ARRAY['Team','Admins','Viewers','Operators','Leads','Contributors','All','Reviewers'])[1 + ((i - 1) / 20) % 8],
   'Google Workspace group ' || i,
   TRUE,
+  5 + abs(hashint4(i * 23)) % 50,
   jsonb_build_object('kind', 'admin#directory#group'),
   '2025-06-01T00:00:00Z'::timestamptz + (i * interval '1 day'),
   '2026-02-14T00:00:00Z'::timestamptz,
@@ -233,7 +238,7 @@ WITH ordered_cu AS (
   FROM canonical_users
   WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid
 )
-INSERT INTO aws_identity_center_users (id, tenant_id, identity_store_id, user_id, user_name, display_name, active, raw_response, created_at, updated_at, last_synced_at)
+INSERT INTO aws_identity_center_users (id, tenant_id, identity_store_id, user_id, user_name, display_name, active, user_status, email, given_name, family_name, raw_response, created_at, updated_at, last_synced_at)
 SELECT
   gen_random_uuid(),
   p.tenant_id,
@@ -242,6 +247,10 @@ SELECT
   p.primary_email,
   p.full_name,
   TRUE,
+  'ENABLED',
+  p.primary_email,
+  split_part(p.full_name, ' ', 1),
+  split_part(p.full_name, ' ', 2),
   jsonb_build_object('IdentityStoreId', 'd-demo0001', 'UserName', p.primary_email),
   p.created_at,
   '2026-02-14T00:00:00Z'::timestamptz,
@@ -340,7 +349,7 @@ WITH ordered_cu AS (
   FROM canonical_users
   WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid
 )
-INSERT INTO github_users (id, tenant_id, github_id, node_id, login, name, email, type, site_admin, raw_response, created_at, updated_at, last_synced_at)
+INSERT INTO github_users (id, tenant_id, github_id, node_id, login, name, email, type, site_admin, avatar_url, raw_response, created_at, updated_at, last_synced_at)
 SELECT
   gen_random_uuid(),
   p.tenant_id,
@@ -354,6 +363,7 @@ SELECT
   END,
   'User',
   FALSE,
+  'https://avatars.githubusercontent.com/u/' || (20000 + p.rn)::text,
   jsonb_build_object('type', 'User', 'site_admin', FALSE, 'hireable', abs(hashint4(p.rn::int)) % 3 = 0),
   p.created_at,
   '2026-02-14T00:00:00Z'::timestamptz,
@@ -371,7 +381,7 @@ WITH org AS (
     AND login = 'demo-eng'
   LIMIT 1
 )
-INSERT INTO github_teams (id, tenant_id, github_id, node_id, org_node_id, name, slug, description, privacy, parent_team_id, raw_response, created_at, updated_at, last_synced_at)
+INSERT INTO github_teams (id, tenant_id, github_id, node_id, org_node_id, name, slug, description, privacy, permission, parent_team_id, parent_team_node_id, raw_response, created_at, updated_at, last_synced_at)
 SELECT
   gen_random_uuid(),
   '11111111-1111-1111-1111-111111111111'::uuid,
@@ -387,6 +397,8 @@ SELECT
     'infrastructure','API development','core systems','cloud architecture','analytics','documentation','design systems',
     'release management','test automation','on-call rotation'])[i]),
   CASE WHEN i % 3 = 0 THEN 'secret' ELSE 'closed' END,
+  (ARRAY['pull','push','push','admin','push'])[1 + (i - 1) % 5],
+  NULL,
   NULL,
   '{}'::jsonb,
   '2025-06-01T00:00:00Z'::timestamptz + (i * interval '1 day'),
@@ -449,7 +461,7 @@ memberships AS (
     ON t.team_rn = 1 + ((u.user_rn * 7 + slot.s * 11 + abs(hashint4(u.user_rn::int * 29 + slot.s))) % t.team_cnt)
   WHERE slot.s < (2 + abs(hashint4(u.user_rn::int + 77)) % 3)
 )
-INSERT INTO github_team_memberships (id, tenant_id, team_node_id, user_node_id, role, raw_response, created_at, updated_at, last_synced_at)
+INSERT INTO github_team_memberships (id, tenant_id, team_node_id, user_node_id, role, state, raw_response, created_at, updated_at, last_synced_at)
 SELECT
   gen_random_uuid(),
   m.tenant_id,
@@ -457,6 +469,9 @@ SELECT
   m.user_node_id,
   CASE WHEN abs(hashint4(hashtext(m.team_node_id || m.user_node_id))) % 8 = 0 THEN 'maintainer'
        ELSE 'member'
+  END,
+  CASE WHEN abs(hashint4(hashtext(m.team_node_id || m.user_node_id))) % 20 = 0 THEN 'pending'
+       ELSE 'active'
   END,
   '{}'::jsonb,
   '2025-06-01T00:00:00Z'::timestamptz,
@@ -474,7 +489,7 @@ WITH org AS (
     AND login = 'demo-eng'
   LIMIT 1
 )
-INSERT INTO github_repositories (id, tenant_id, github_id, node_id, org_node_id, name, full_name, private, visibility, archived, default_branch, raw_response, created_at, updated_at, last_synced_at)
+INSERT INTO github_repositories (id, tenant_id, github_id, node_id, org_node_id, name, full_name, private, visibility, archived, default_branch, description, fork, language, pushed_at, raw_response, created_at, updated_at, last_synced_at)
 SELECT
   gen_random_uuid(),
   '11111111-1111-1111-1111-111111111111'::uuid,
@@ -505,6 +520,19 @@ SELECT
   CASE WHEN i <= 45 THEN 'private' ELSE 'public' END,
   CASE WHEN i IN (25, 26) THEN TRUE ELSE FALSE END,
   'main',
+  'Repository for ' || (ARRAY['infra-core','api-gateway','auth-service','user-service','billing-service',
+         'notification-service','search-service','analytics-engine','data-pipeline','ml-platform',
+         'frontend-app','admin-dashboard','mobile-ios','mobile-android','docs-site',
+         'terraform-modules','helm-charts','ci-templates','monitoring-stack','logging-stack',
+         'shared-libs','sdk-python','sdk-node','sdk-go','test-harness',
+         'load-tester','chaos-monkey','config-service','feature-flags','cache-layer',
+         'queue-worker','scheduler','webhook-relay','identity-provider','sso-proxy',
+         'compliance-scanner','audit-service','backup-tool','migration-runner','schema-registry',
+         'event-bus','graph-api','file-storage','cdn-manager','dns-manager',
+         'cert-manager','secret-rotator','cost-optimizer','resource-tagger','policy-engine'])[i],
+  CASE WHEN i IN (22, 23, 24) THEN TRUE ELSE FALSE END,
+  (ARRAY['TypeScript','Python','Go','Rust','Java','HCL','Shell','Kotlin','Swift','Dockerfile'])[1 + (i - 1) % 10],
+  '2026-02-01T00:00:00Z'::timestamptz + (i % 20) * interval '1 day',
   jsonb_build_object('language', (ARRAY['TypeScript','Python','Go','Rust','Java','HCL','Shell','Kotlin','Swift','Dockerfile'])[1 + (i - 1) % 10]),
   '2025-01-01T00:00:00Z'::timestamptz + (i * interval '7 days'),
   '2026-02-14T00:00:00Z'::timestamptz,
@@ -712,6 +740,7 @@ WHERE gu.tenant_id = '11111111-1111-1111-1111-111111111111'::uuid
 -- 19a. 15 suspended Google Workspace users
 UPDATE google_workspace_users
 SET suspended = TRUE,
+    suspension_reason = 'ADMIN',
     raw_response = raw_response || '{"suspensionReason": "ADMIN"}'::jsonb
 WHERE id IN (
   SELECT id FROM google_workspace_users
@@ -736,6 +765,7 @@ WHERE id IN (
 -- 19c. 30 inactive AWS Identity Center users
 UPDATE aws_identity_center_users
 SET active = FALSE,
+    user_status = 'DISABLED',
     last_synced_at = '2025-11-01T00:00:00Z'::timestamptz,
     raw_response = raw_response || '{"stale_flag": true}'::jsonb
 WHERE id IN (

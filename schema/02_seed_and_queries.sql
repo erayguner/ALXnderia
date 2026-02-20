@@ -16,18 +16,18 @@ BEGIN
 
 -- Scenario 1: Alice (Present in all 3 providers, Happy Path)
 -- Google
-INSERT INTO google_workspace_users (tenant_id, google_id, primary_email, name_full, is_admin)
-VALUES (v_tenant_id, 'g_alice_123', 'alice@company.com', 'Alice Engineer', FALSE)
+INSERT INTO google_workspace_users (tenant_id, google_id, primary_email, name_full, is_admin, is_delegated_admin, is_enrolled_in_2sv, is_enforced_in_2sv, customer_id)
+VALUES (v_tenant_id, 'g_alice_123', 'alice@company.com', 'Alice Engineer', FALSE, FALSE, TRUE, TRUE, 'C01demo')
 ON CONFLICT (tenant_id, google_id) DO NOTHING;
 
 -- AWS
-INSERT INTO aws_identity_center_users (tenant_id, identity_store_id, user_id, user_name, display_name)
-VALUES (v_tenant_id, 'd_12345', 'aws_alice_abc', 'alice@company.com', 'Alice Engineer')
+INSERT INTO aws_identity_center_users (tenant_id, identity_store_id, user_id, user_name, display_name, user_status, email, given_name, family_name)
+VALUES (v_tenant_id, 'd_12345', 'aws_alice_abc', 'alice@company.com', 'Alice Engineer', 'ENABLED', 'alice@company.com', 'Alice', 'Engineer')
 ON CONFLICT (tenant_id, identity_store_id, user_id) DO NOTHING;
 
 -- GitHub
-INSERT INTO github_users (tenant_id, github_id, node_id, login, email, type)
-VALUES (v_tenant_id, 1001, 'U_alice', 'alicerocks', 'alice@company.com', 'User')
+INSERT INTO github_users (tenant_id, github_id, node_id, login, email, type, avatar_url)
+VALUES (v_tenant_id, 1001, 'U_alice', 'alicerocks', 'alice@company.com', 'User', 'https://avatars.githubusercontent.com/u/1001')
 ON CONFLICT (tenant_id, node_id) DO NOTHING;
 
 -- Canonical Identity (The "Human")
@@ -50,8 +50,8 @@ ON CONFLICT (tenant_id, provider_type, provider_user_id) DO NOTHING;
 
 
 -- Scenario 2: Bob (GitHub only, hidden email, Unmapped / Needs Review)
-INSERT INTO github_users (tenant_id, github_id, node_id, login, email, type)
-VALUES (v_tenant_id, 2002, 'U_bob', 'bobby_tables', NULL, 'User')
+INSERT INTO github_users (tenant_id, github_id, node_id, login, email, type, avatar_url)
+VALUES (v_tenant_id, 2002, 'U_bob', 'bobby_tables', NULL, 'User', 'https://avatars.githubusercontent.com/u/2002')
 ON CONFLICT (tenant_id, node_id) DO NOTHING;
 
 -- Reconciliation Queue Item
@@ -61,8 +61,8 @@ VALUES (v_tenant_id, 'GITHUB', 'U_bob', 'No verified email found for matching', 
 
 -- Scenario 3: Carol (External Collaborator)
 -- Not in Google/AWS, only GitHub
-INSERT INTO github_users (tenant_id, github_id, node_id, login, email, type)
-VALUES (v_tenant_id, 3003, 'U_carol', 'carol_vendor', 'carol@vendor.com', 'User')
+INSERT INTO github_users (tenant_id, github_id, node_id, login, email, type, avatar_url)
+VALUES (v_tenant_id, 3003, 'U_carol', 'carol_vendor', 'carol@vendor.com', 'User', 'https://avatars.githubusercontent.com/u/3003')
 ON CONFLICT (tenant_id, node_id) DO NOTHING;
 
 -- Org & Repo
@@ -70,8 +70,8 @@ INSERT INTO github_organisations (tenant_id, github_id, node_id, login)
 VALUES (v_tenant_id, 1, 'O_tech', 'techco')
 ON CONFLICT (tenant_id, node_id) DO NOTHING;
 
-INSERT INTO github_repositories (tenant_id, github_id, node_id, org_node_id, name, full_name, private)
-VALUES (v_tenant_id, 500, 'R_backend', 'O_tech', 'backend', 'techco/backend', TRUE)
+INSERT INTO github_repositories (tenant_id, github_id, node_id, org_node_id, name, full_name, private, description, language, pushed_at)
+VALUES (v_tenant_id, 500, 'R_backend', 'O_tech', 'backend', 'techco/backend', TRUE, 'Core backend service', 'TypeScript', '2026-02-18T14:30:00Z')
 ON CONFLICT (tenant_id, node_id) DO NOTHING;
 
 -- Permission (Direct Collaborator)
@@ -81,8 +81,8 @@ ON CONFLICT (tenant_id, repo_node_id, user_node_id) DO NOTHING;
 
 
 -- Use Case 4: Conflict (Same email 'dave@company.com' on two different AWS identities? Rare but possible with bad hygiene)
-INSERT INTO google_workspace_users (tenant_id, google_id, primary_email) 
-VALUES (v_tenant_id, 'g_dave_444', 'dave@company.com')
+INSERT INTO google_workspace_users (tenant_id, google_id, primary_email, customer_id)
+VALUES (v_tenant_id, 'g_dave_444', 'dave@company.com', 'C01demo')
 ON CONFLICT (tenant_id, google_id) DO NOTHING;
 
 END $$;

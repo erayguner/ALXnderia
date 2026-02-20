@@ -152,24 +152,24 @@ The `canonical_users` table is the hub of the identity graph. Provider-specific 
 
 ### 3.2 Google Workspace Tables
 
-- **`google_workspace_users`** -- One row per Google Workspace user. Identified by `google_id`. Stores `primary_email`, `name_full`, admin status, suspension/archive state, and `last_login_time`.
-- **`google_workspace_groups`** -- Workspace groups identified by `google_id`. Stores `email`, `name`, `description`.
-- **`google_workspace_memberships`** -- Links groups (by `group_id` = google group ID) to members (by `member_id` = google user ID). `member_type` can be USER, GROUP, EXTERNAL, or CUSTOMER.
+- **`google_workspace_users`** -- One row per Google Workspace user. Identified by `google_id`. Stores `primary_email`, `name_full`, admin status (`is_admin`, `is_delegated_admin`), 2FA status (`is_enrolled_in_2sv`, `is_enforced_in_2sv`), suspension/archive state, `suspension_reason`, `customer_id`, `org_unit_path`, and `last_login_time`.
+- **`google_workspace_groups`** -- Workspace groups identified by `google_id`. Stores `email`, `name`, `description`, and `direct_members_count`.
+- **`google_workspace_memberships`** -- Links groups (by `group_id` = google group ID) to members (by `member_id` = google user ID). `member_type` can be USER, GROUP, EXTERNAL, or CUSTOMER. Stores `member_email` for identity resolution of external members.
 
 ### 3.3 AWS Identity Center Tables
 
-- **`aws_identity_center_users`** -- Identity Center users identified by `identity_store_id` + `user_id`. Stores `user_name`, `display_name`, `active` status.
+- **`aws_identity_center_users`** -- Identity Center users identified by `identity_store_id` + `user_id`. Stores `user_name`, `display_name`, `active` status, `user_status` (ENABLED/DISABLED), `email`, `given_name`, and `family_name`.
 - **`aws_identity_center_groups`** -- Groups scoped by `identity_store_id` + `group_id`. Stores `display_name`, `description`.
 - **`aws_identity_center_memberships`** -- Links groups to users via `identity_store_id`, `group_id`, and `member_user_id`.
 
 ### 3.4 GitHub Tables
 
 - **`github_organisations`** -- One row per GitHub organisation. Identified by `node_id` and `github_id` (BIGINT). Stores `login`, `name`, `email`.
-- **`github_users`** -- GitHub users identified by `node_id` and `github_id`. Stores `login`, `name`, `email`, `type` (User/Bot), `site_admin`.
-- **`github_teams`** -- Teams within an organisation. Identified by `node_id`. Stores `name`, `slug`, `description`, `privacy`, and self-referencing `parent_team_id`.
+- **`github_users`** -- GitHub users identified by `node_id` and `github_id`. Stores `login`, `name`, `email`, `type` (User/Bot), `site_admin`, and `avatar_url`.
+- **`github_teams`** -- Teams within an organisation. Identified by `node_id`. Stores `name`, `slug`, `description`, `privacy`, `permission` (default permission level), and self-referencing `parent_team_id`/`parent_team_node_id`.
 - **`github_org_memberships`** -- Links users to organisations via `org_node_id` and `user_node_id`. `role` is 'member' or 'admin'.
-- **`github_team_memberships`** -- Links users to teams via `team_node_id` and `user_node_id`. `role` is 'member' or 'maintainer'.
-- **`github_repositories`** -- Repositories within an organisation. Stores `name`, `full_name`, `private`, `visibility`, `archived`, `default_branch`.
+- **`github_team_memberships`** -- Links users to teams via `team_node_id` and `user_node_id`. `role` is 'member' or 'maintainer'. `state` tracks membership status (active/pending).
+- **`github_repositories`** -- Repositories within an organisation. Stores `name`, `full_name`, `private`, `visibility`, `archived`, `default_branch`, `description`, `fork`, `language`, and `pushed_at`.
 - **`github_repo_team_permissions`** -- Links repos to teams with a `permission` level.
 - **`github_repo_collaborator_permissions`** -- Links repos to individual users with `permission` and `is_outside_collaborator` flag.
 

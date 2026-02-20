@@ -169,7 +169,7 @@ npm test          # single run
 npm run test:watch  # watch mode
 ```
 
-The test suite uses Vitest 3.0. There are currently 32 tests: 28 covering the SQL validator and 4 covering the chat route handler. Tests live in `app/tests/server/`.
+The test suite uses Vitest 4.x. There are currently 142 tests across 13 suites covering the SQL validator, chat route handler, NL2SQL agent, API routes (access, audit, health, people), database pool, React components, and shared constants. Tests live in `app/tests/`.
 
 ### 4.4 Linting
 

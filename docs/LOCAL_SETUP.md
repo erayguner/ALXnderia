@@ -153,7 +153,7 @@ curl -s http://localhost:3000/api/audit     # audit log entries
 ### 4. Run tests
 
 ```bash
-npm test        # 32 tests (28 SQL validator + 4 chat route)
+npm test        # 142 tests across 13 suites
 npm run lint    # ESLint 9 with eslint-config-next
 ```
 
@@ -303,7 +303,7 @@ ALXnderia/
 │   │   ├── client/       # React components (10 components)
 │   │   ├── server/       # DB pool, route handlers, NL2SQL agent, SQL validator
 │   │   └── shared/       # TypeScript types and constants
-│   └── tests/            # Vitest tests (32 tests across 2 suites)
+│   └── tests/            # Vitest tests (142 tests across 13 suites)
 ├── schema/               # SQL files: DDL, seed data, and mock data
 │   ├── 01_schema.sql     # All table DDL, indexes, enums, extensions
 │   ├── 02_seed_and_queries.sql  # Seed data and example queries

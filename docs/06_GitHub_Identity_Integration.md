@@ -25,20 +25,24 @@ This document describes how GitHub organisation members, teams, repositories, an
 │ node_id TEXT   │  │──────────────────│  │ node_id TEXT         │
 │ slug TEXT      │  │ org_node_id TEXT  │  │ full_name TEXT       │
 │ privacy TEXT   │  │ user_node_id TEXT │  │ visibility TEXT      │
-│ parent_team_id │  │ role TEXT         │  │ org_node_id TEXT     │
-└────┬───────────┘  │ state TEXT       │  └──────┬──────────────┘
-     │ 1:N          └──────┬───────────┘         │ 1:N
-     ▼                     │ N:1                  ├──────────────┐
-┌──────────────────┐       ▼                      ▼              ▼
-│github_team       │  ┌──────────────────┐  ┌──────────┐  ┌──────────────┐
-│memberships       │  │  github_users    │  │repo_team │  │repo_collabor │
-│──────────────────│  │──────────────────│  │permissions│  │permissions   │
-│ team_node_id     │  │ github_id BIGINT │  │──────────│  │──────────────│
-│ user_node_id     │  │ node_id TEXT     │  │repo_     │  │repo_node_id  │
-│ role TEXT        │  │ login TEXT       │  │node_id   │  │user_node_id  │
-└──────────────────┘  │ email TEXT       │  │team_     │  │permission    │
-                      │ type TEXT        │  │node_id   │  │is_outside_   │
-                      └──────────────────┘  │permission│  │collaborator  │
+│ permission TEXT│  │ role TEXT         │  │ org_node_id TEXT     │
+│ parent_team_id │  │ state TEXT       │  │ description TEXT     │
+│ parent_team_   │  └──────┬───────────┘  │ fork BOOLEAN        │
+│  node_id TEXT  │         │ N:1          │ language TEXT        │
+└────┬───────────┘         │              │ pushed_at TIMESTAMPTZ│
+     │ 1:N                 │              └──────┬──────────────┘
+     ▼                     ▼                     │ 1:N
+┌──────────────────┐  ┌──────────────────┐       ├──────────────┐
+│github_team       │  │  github_users    │       ▼              ▼
+│memberships       │  │──────────────────│  ┌──────────┐  ┌──────────────┐
+│──────────────────│  │ github_id BIGINT │  │repo_team │  │repo_collabor │
+│ team_node_id     │  │ node_id TEXT     │  │permissions│  │permissions   │
+│ user_node_id     │  │ login TEXT       │  │──────────│  │──────────────│
+│ role TEXT        │  │ email TEXT       │  │repo_     │  │repo_node_id  │
+│ state TEXT       │  │ type TEXT        │  │node_id   │  │user_node_id  │
+└──────────────────┘  │ avatar_url TEXT  │  │team_     │  │permission    │
+                      └──────────────────┘  │node_id   │  │is_outside_   │
+                                            │permission│  │collaborator  │
                                             └──────────┘  └──────────────┘
 ```
 
@@ -230,13 +234,13 @@ All tables include a `deleted_at` column for soft-delete support, allowing histo
 
 | Entity | Count |
 |--------|-------|
-| `github_organisations` | 1 (demo-org) |
-| `github_users` | 2 (alice, bob) |
-| `github_teams` | 1 (platform-team) |
-| `github_org_memberships` | 2 |
-| `github_team_memberships` | 2 |
-| `github_repositories` | 1 (infra-core) |
-| `github_repo_team_permissions` | 1 |
+| `github_organisations` | 1 (techco) |
+| `github_users` | 3 (alice, bob, carol) |
+| `github_teams` | 0 (created in extended mock data) |
+| `github_org_memberships` | 0 (created in extended mock data) |
+| `github_team_memberships` | 0 (created in extended mock data) |
+| `github_repositories` | 1 (techco/backend) |
+| `github_repo_team_permissions` | 0 (created in extended mock data) |
 | `github_repo_collaborator_permissions` | 1 (carol, external) |
 
 ### Edge cases in seed data

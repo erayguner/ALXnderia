@@ -22,10 +22,15 @@ CREATE TABLE google_workspace_users (
     suspended BOOLEAN DEFAULT FALSE,
     archived BOOLEAN DEFAULT FALSE,
     is_admin BOOLEAN DEFAULT FALSE,
+    is_delegated_admin BOOLEAN DEFAULT FALSE,
+    is_enrolled_in_2sv BOOLEAN DEFAULT FALSE,
+    is_enforced_in_2sv BOOLEAN DEFAULT FALSE,
+    customer_id TEXT,
+    suspension_reason TEXT,
     creation_time TIMESTAMP WITH TIME ZONE,
     last_login_time TIMESTAMP WITH TIME ZONE,
     org_unit_path TEXT,
-    
+
     -- Metadata & Audit
     raw_response JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -46,7 +51,8 @@ CREATE TABLE google_workspace_groups (
     name TEXT,
     description TEXT,
     admin_created BOOLEAN DEFAULT TRUE,
-    
+    direct_members_count INTEGER,
+
     -- Metadata & Audit
     raw_response JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -65,19 +71,21 @@ CREATE TABLE google_workspace_memberships (
     group_id TEXT NOT NULL, -- references google_workspace_groups(google_id) within tenant
     member_id TEXT NOT NULL,
     member_type TEXT NOT NULL CHECK (member_type IN ('USER', 'GROUP', 'EXTERNAL', 'CUSTOMER')),
+    member_email TEXT,
     role TEXT DEFAULT 'MEMBER',
     status TEXT DEFAULT 'ACTIVE',
-    
+
     -- Metadata & Audit
     raw_response JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     last_synced_at TIMESTAMP WITH TIME ZONE,
     deleted_at TIMESTAMP WITH TIME ZONE,
-    
+
     PRIMARY KEY (id, tenant_id),
     UNIQUE (tenant_id, group_id, member_id)
 );
+CREATE INDEX idx_gw_memberships_member ON google_workspace_memberships(tenant_id, member_id);
 
 -- =================================================================================================
 -- 2. AWS IAM Identity Center Schema
@@ -91,7 +99,11 @@ CREATE TABLE aws_identity_center_users (
     user_name TEXT NOT NULL,
     display_name TEXT,
     active BOOLEAN DEFAULT TRUE,
-    
+    user_status TEXT,               -- API enum: ENABLED / DISABLED
+    email TEXT,                     -- Primary email for cross-provider identity resolution
+    given_name TEXT,
+    family_name TEXT,
+
     -- Metadata & Audit
     raw_response JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -103,6 +115,9 @@ CREATE TABLE aws_identity_center_users (
     UNIQUE (tenant_id, identity_store_id, user_id)
 );
 CREATE INDEX idx_aws_users_username ON aws_identity_center_users(tenant_id, user_name);
+CREATE INDEX idx_aws_users_email ON aws_identity_center_users(tenant_id, email);
+
+CREATE INDEX idx_aws_groups_name ON aws_identity_center_groups(tenant_id, display_name);
 
 CREATE TABLE aws_identity_center_groups (
     id UUID DEFAULT uuid_generate_v4(),
@@ -177,7 +192,8 @@ CREATE TABLE github_users (
     email TEXT,
     type TEXT NOT NULL,
     site_admin BOOLEAN DEFAULT FALSE,
-    
+    avatar_url TEXT,
+
     -- Metadata & Audit
     raw_response JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -200,8 +216,10 @@ CREATE TABLE github_teams (
     slug TEXT NOT NULL,
     description TEXT,
     privacy TEXT,
+    permission TEXT,
     parent_team_id BIGINT,
-    
+    parent_team_node_id TEXT,
+
     -- Metadata & Audit
     raw_response JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -212,6 +230,7 @@ CREATE TABLE github_teams (
     PRIMARY KEY (id, tenant_id),
     UNIQUE (tenant_id, node_id)
 );
+CREATE INDEX idx_github_teams_org ON github_teams(tenant_id, org_node_id);
 
 -- Org Members (User <-> Org)
 CREATE TABLE github_org_memberships (
@@ -232,6 +251,7 @@ CREATE TABLE github_org_memberships (
     PRIMARY KEY (id, tenant_id),
     UNIQUE (tenant_id, org_node_id, user_node_id)
 );
+CREATE INDEX idx_github_org_memberships_user ON github_org_memberships(tenant_id, user_node_id);
 
 -- Team Memberships (User <-> Team)
 CREATE TABLE github_team_memberships (
@@ -240,17 +260,19 @@ CREATE TABLE github_team_memberships (
     team_node_id TEXT NOT NULL,
     user_node_id TEXT NOT NULL,
     role TEXT DEFAULT 'member',
-    
+    state TEXT DEFAULT 'active',
+
     -- Metadata & Audit
     raw_response JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     last_synced_at TIMESTAMP WITH TIME ZONE,
     deleted_at TIMESTAMP WITH TIME ZONE,
-    
+
     PRIMARY KEY (id, tenant_id),
     UNIQUE (tenant_id, team_node_id, user_node_id)
 );
+CREATE INDEX idx_github_team_memberships_user ON github_team_memberships(tenant_id, user_node_id);
 
 CREATE TABLE github_repositories (
     id UUID DEFAULT uuid_generate_v4(),
@@ -264,7 +286,11 @@ CREATE TABLE github_repositories (
     visibility TEXT,
     archived BOOLEAN DEFAULT FALSE,
     default_branch TEXT,
-    
+    description TEXT,
+    fork BOOLEAN DEFAULT FALSE,
+    language TEXT,
+    pushed_at TIMESTAMP WITH TIME ZONE,
+
     -- Metadata & Audit
     raw_response JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -275,6 +301,7 @@ CREATE TABLE github_repositories (
     PRIMARY KEY (id, tenant_id),
     UNIQUE (tenant_id, node_id)
 );
+CREATE INDEX idx_github_repos_org ON github_repositories(tenant_id, org_node_id);
 
 CREATE TABLE github_repo_team_permissions (
     id UUID DEFAULT uuid_generate_v4(),
@@ -293,6 +320,7 @@ CREATE TABLE github_repo_team_permissions (
     PRIMARY KEY (id, tenant_id),
     UNIQUE (tenant_id, repo_node_id, team_node_id)
 );
+CREATE INDEX idx_github_repo_team_perms_team ON github_repo_team_permissions(tenant_id, team_node_id);
 
 CREATE TABLE github_repo_collaborator_permissions (
     id UUID DEFAULT uuid_generate_v4(),
@@ -312,6 +340,7 @@ CREATE TABLE github_repo_collaborator_permissions (
     PRIMARY KEY (id, tenant_id),
     UNIQUE (tenant_id, repo_node_id, user_node_id)
 );
+CREATE INDEX idx_github_repo_collab_perms_user ON github_repo_collaborator_permissions(tenant_id, user_node_id);
 
 -- =================================================================================================
 -- 4. Canonical Identity Layer
@@ -366,6 +395,7 @@ CREATE TABLE canonical_user_provider_links (
     UNIQUE (tenant_id, provider_type, provider_user_id),
     FOREIGN KEY (canonical_user_id, tenant_id) REFERENCES canonical_users(id, tenant_id) ON DELETE CASCADE
 );
+CREATE INDEX idx_canonical_links_user ON canonical_user_provider_links(tenant_id, canonical_user_id);
 
 CREATE TABLE identity_reconciliation_queue (
     id UUID DEFAULT uuid_generate_v4(),
