@@ -42,7 +42,7 @@ Thank you for your interest in contributing. This guide covers the conventions, 
 cd app
 npm run lint          # ESLint 9
 npx tsc --noEmit     # Type check
-npm test             # Vitest (142 tests)
+npm test             # Vitest (14 suites)
 npm run build        # Next.js production build
 ```
 
@@ -91,7 +91,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 
 ### Scopes
 
-`app`, `schema`, `infra`, `ci`, `docs`, `agent`, `validator`, `db`, `llm`, `github`, `aws`, `gcp`
+`app`, `schema`, `infra`, `ci`, `docs`, `agent`, `validator`, `db`, `llm`, `github`, `aws`, `gcp`, `accounts`
 
 ### Examples
 
@@ -158,7 +158,7 @@ Database schema changes require extra care. Follow this process:
 5. If the table contains PII, add it to `PII_TABLES`, create a redacted view, and add the mapping to `REDACTED_VIEW_MAP`.
 6. Add synonyms to `SCHEMA_SYNONYMS` if the table has common alternative names.
 7. Consider RLS policies, indexes, and role grants. If your table is in a directory that sorts after `08-security/`, include these in a post-setup file (see `11-github/060_github_post_setup.sql` for the pattern).
-8. Add seed data in `schema/02_seed_and_queries.sql` (base seed) or `schema/99-seed/010_mock_data.sql` (mock data).
+8. Add seed data in `schema/02_seed_and_queries.sql` (base seed), `schema/99-seed/010_mock_data.sql` (identity mock), or `schema/99-seed/020_cloud_resources_seed.sql` (cloud resource mock).
 9. Re-run `terraform apply` in `infra/` to validate.
 
 ### Modifying existing tables

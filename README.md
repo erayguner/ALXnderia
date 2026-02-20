@@ -33,16 +33,21 @@ ALXnderia enables security teams, compliance officers, and identity administrato
   PostgreSQL (Aurora / Cloud SQL)
     ├── Google Workspace (users, groups, memberships)
     ├── AWS Identity Center (users, groups, memberships)
+    ├── AWS Accounts & account assignments (IAM IDC → account mapping)
+    ├── GCP Organisations & Projects (IAM bindings)
     ├── GitHub (orgs, users, teams, repos, permissions)
-    └── Canonical identity layer (cross-provider linkage)
+    ├── Canonical identity layer (cross-provider linkage)
+    └── Resource access grants (normalised cross-provider permissions matrix)
 ```
 
 ### Key capabilities
 
 - **NL2SQL** -- Ask questions in plain English; get validated, tenant-isolated SQL
 - **Multi-cloud identity** -- AWS Identity Center, Google Workspace, GitHub Orgs/Users/Teams
+- **Cloud resource inventory** -- AWS accounts (12-digit IDs, org structure) and GCP projects (project IDs, folders, labels)
 - **Person graph** -- Cross-provider identity linkage via email matching
 - **Access Explorer** -- Cross-provider effective access view combining GitHub (direct + team-derived), Google Workspace group memberships, and AWS Identity Center group memberships
+- **Accounts browser** -- Unified AWS account and GCP project view with assignment/binding counts
 - **Defence-in-depth** -- 7-layer SQL validation (libpg-query WASM AST parser), tenant-scoped queries, composite PK multi-tenancy
 - **LLM-agnostic** -- Swap between Anthropic Claude, OpenAI GPT, or Google Gemini via env var
 - **Dual-cloud deploy** -- AWS (App Runner + Aurora Serverless v2) and GCP (Cloud Run + Cloud SQL)
@@ -86,7 +91,7 @@ cp .env.example .env.local   # then set your LLM_API_KEY
 npm install && npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and try a question like *"Show all GitHub org admins"* or *"Who has access to the production AWS account?"*.
+Open [http://localhost:3000](http://localhost:3000) and try a question like *"Show all GitHub org admins"*, *"Who has access to the production AWS account?"*, or *"List all GCP projects with editor bindings"*.
 
 > **Detailed setup guide**: See [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md) for step-by-step instructions, schema application order, troubleshooting, and database reset procedures.
 
@@ -94,7 +99,7 @@ Open [http://localhost:3000](http://localhost:3000) and try a question like *"Sh
 
 ```bash
 cd app
-npm test        # 142 tests across 13 suites
+npm test        # 14 test suites
 npm run lint    # ESLint 9 with eslint-config-next
 ```
 
@@ -103,8 +108,9 @@ npm run lint    # ESLint 9 with eslint-config-next
 ```
 ALXnderia/
   app/              Next.js 15 application (App Router, API routes, NL2SQL agent)
-  schema/           SQL files: DDL, seed data, and mock data
+  schema/           SQL files: DDL, cloud resources extension, seed data, and mock data
   infra/            Terraform modules for local Docker, AWS, and GCP deployments
+  scripts/          Utility scripts (preflight, seed_cloud_resources.py)
   docs/             Architecture and operations documentation
   .github/          5 GitHub Actions CI/CD workflows
 ```
@@ -113,16 +119,23 @@ ALXnderia/
 
 | File | Contents |
 |------|----------|
-| `schema/01_schema.sql` | Extensions (`uuid-ossp`), all table DDL, indexes, enums (`provider_type_enum`) |
+| `schema/01_schema.sql` | Extensions (`uuid-ossp`), identity table DDL, indexes, enums (`provider_type_enum`) |
+| `schema/02_cloud_resources.sql` | AWS accounts, GCP orgs/projects, IAM bindings, `resource_access_grants` matrix |
 | `schema/02_seed_and_queries.sql` | Seed data for demo tenant `11111111-...`, example queries |
-| `schema/99-seed/010_mock_data.sql` | Extended mock dataset (~700 users, ~10K rows across all providers) |
+| `schema/99-seed/010_mock_data.sql` | Extended identity mock dataset (~700 users, ~10K rows across all providers) |
+| `schema/99-seed/020_cloud_resources_seed.sql` | Cloud resource seed data (12 AWS accounts, 15 GCP projects, ~240 assignments, ~180 IAM bindings, 800+ access grants) |
+| `schema/99-seed/021_cloud_resources_validation.sql` | 10 validation queries for cloud resource data integrity |
+| `scripts/seed_cloud_resources.py` | Repeatable Python seed script (`--dry-run`, `--dsn`, `-o`) |
 
 | Provider | Tables |
 |----------|--------|
 | **Google Workspace** | `google_workspace_users`, `google_workspace_groups`, `google_workspace_memberships` |
 | **AWS Identity Center** | `aws_identity_center_users`, `aws_identity_center_groups`, `aws_identity_center_memberships` |
+| **AWS Accounts** | `aws_accounts`, `aws_account_assignments` |
+| **GCP Cloud** | `gcp_organisations`, `gcp_projects`, `gcp_project_iam_bindings` |
 | **GitHub** | `github_organisations`, `github_users`, `github_teams`, `github_org_memberships`, `github_team_memberships`, `github_repositories`, `github_repo_team_permissions`, `github_repo_collaborator_permissions` |
 | **Canonical Identity** | `canonical_users`, `canonical_emails`, `canonical_user_provider_links`, `identity_reconciliation_queue` |
+| **Cross-Provider** | `resource_access_grants` (denormalised permissions matrix) |
 
 All tables use composite primary keys `(id, tenant_id)` for partition-friendly multi-tenancy.
 
@@ -132,6 +145,7 @@ All tables use composite primary keys `(id, tenant_id)` for partition-friendly m
 - **Tenant Isolation** -- All tables use composite PK `(id, tenant_id)`; app sets `SET LOCAL app.current_tenant_id` per transaction (RLS-ready)
 - **Audit Logging** -- All queries logged with metadata (question, SQL, row count, timing, status); database-backed audit planned
 - **Identity Reconciliation** -- Unresolved cross-provider matches queued in `identity_reconciliation_queue` for review
+- **Denormalised Access Matrix** -- `resource_access_grants` provides pre-computed, group-expanded cross-provider access with canonical user resolution
 
 ## CI/CD Pipelines
 
@@ -188,7 +202,7 @@ cd infra/deploy/gcp && terraform apply
 | Infrastructure | Terraform, Docker |
 | Compute | AWS App Runner / GCP Cloud Run v2 |
 | CI/CD | GitHub Actions (5 workflows) |
-| Testing | Vitest 4.x (142 tests across 13 suites) |
+| Testing | Vitest 4.x (14 test suites) |
 | Linting | ESLint 9 with eslint-config-next |
 
 ## License

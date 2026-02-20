@@ -34,9 +34,42 @@ resource "docker_volume" "pg_data" {
 }
 
 # ---------------------------------------------------------------------------
+# Pre-flight: fail fast if the target port is already occupied
+# ---------------------------------------------------------------------------
+resource "null_resource" "port_check" {
+  triggers = {
+    port = var.pg_port
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      if lsof -iTCP:${var.pg_port} -sTCP:LISTEN >/dev/null 2>&1; then
+        PROC=$(lsof -iTCP:${var.pg_port} -sTCP:LISTEN -t 2>/dev/null | head -1)
+        PNAME=$(ps -p "$PROC" -o comm= 2>/dev/null || echo "unknown")
+        echo ""
+        echo "ERROR: Port ${var.pg_port} is already in use by $PNAME (PID $PROC)."
+        echo ""
+        echo "  Common cause: a local PostgreSQL (Homebrew / Postgres.app) is running."
+        echo ""
+        echo "  Fix options:"
+        echo "    1. Stop the conflicting process:  brew services stop postgresql"
+        echo "    2. Use a different port:          terraform apply -var pg_port=5434"
+        echo ""
+        echo "  Diagnose:  lsof -iTCP:${var.pg_port} -sTCP:LISTEN"
+        echo ""
+        exit 1
+      fi
+      echo "Port ${var.pg_port} is free."
+    EOT
+  }
+}
+
+# ---------------------------------------------------------------------------
 # PostgreSQL container
 # ---------------------------------------------------------------------------
 resource "docker_container" "postgres" {
+  depends_on = [null_resource.port_check]
+
   name  = "${var.project_name}-postgres"
   image = docker_image.postgres.image_id
 

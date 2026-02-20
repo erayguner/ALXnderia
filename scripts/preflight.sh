@@ -26,6 +26,15 @@ version_gte() {
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Detect configured PG port (read from Terraform variables, default 5433)
+PG_PORT=5433
+if [ -f "$PROJECT_ROOT/infra/variables.tf" ]; then
+  PARSED_PORT=$(grep -A3 '"pg_port"' "$PROJECT_ROOT/infra/variables.tf" | grep 'default' | grep -oE '[0-9]+' || true)
+  if [ -n "$PARSED_PORT" ]; then
+    PG_PORT="$PARSED_PORT"
+  fi
+fi
+
 echo ""
 echo "============================================"
 echo "  ALXnderia Pre-flight Check"
@@ -96,12 +105,23 @@ else
   fail "terraform not found. See https://developer.hashicorp.com/terraform/install"
 fi
 
-# ----- Port 5432 -----
-echo "6. Port 5432 (PostgreSQL)"
-if lsof -iTCP:5432 -sTCP:LISTEN &>/dev/null; then
-  warn "Port 5432 is already in use. Check with: lsof -iTCP:5432"
+# ----- PostgreSQL port -----
+echo "6. Port $PG_PORT (PostgreSQL — Docker target)"
+if lsof -iTCP:"$PG_PORT" -sTCP:LISTEN &>/dev/null; then
+  # Something is listening — check if it's our Docker container or a conflict
+  LISTENER_PID=$(lsof -iTCP:"$PG_PORT" -sTCP:LISTEN -t 2>/dev/null | head -1)
+  LISTENER_NAME=$(ps -p "$LISTENER_PID" -o comm= 2>/dev/null || echo "unknown")
+
+  if echo "$LISTENER_NAME" | grep -qi "docker\|com.docke"; then
+    # Docker owns the port — likely our container, that's fine
+    pass "Port $PG_PORT is used by Docker (expected if DB is already running)"
+  else
+    fail "Port $PG_PORT is occupied by $LISTENER_NAME (PID $LISTENER_PID)"
+    echo -e "         This will cause the app to connect to $LISTENER_NAME instead of Docker."
+    echo -e "         Fix: brew services stop postgresql   OR   use a different port in Terraform"
+  fi
 else
-  pass "Port 5432 is free"
+  pass "Port $PG_PORT is free"
 fi
 
 # ----- Port 3000 -----
@@ -123,8 +143,14 @@ if [ -f "$PROJECT_ROOT/app/.env.local" ]; then
   else
     warn "LLM_API_KEY looks empty or missing in app/.env.local — the chat feature won't work"
   fi
+
+  # Check PG_PORT matches Terraform default
+  ENV_PORT=$(grep -E '^PG_PORT=' "$PROJECT_ROOT/app/.env.local" | cut -d= -f2 | tr -d '[:space:]' || true)
+  if [ -n "$ENV_PORT" ] && [ "$ENV_PORT" != "$PG_PORT" ]; then
+    warn "PG_PORT in .env.local ($ENV_PORT) differs from Terraform default ($PG_PORT)"
+  fi
 else
-  warn "app/.env.local not found — copy from the guide and set your LLM key"
+  warn "app/.env.local not found — copy from app/.env.example and set your LLM key"
 fi
 
 # ----- Terraform state (DB already up?) -----

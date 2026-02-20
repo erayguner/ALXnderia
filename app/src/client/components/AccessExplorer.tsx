@@ -18,7 +18,7 @@ export function AccessExplorer() {
   const [data, setData] = useState<AccessRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [provider, setProvider] = useState<'all' | 'github' | 'aws' | 'google'>('all');
+  const [provider, setProvider] = useState<'all' | 'github' | 'aws' | 'google' | 'gcp'>('all');
   const [accessPath, setAccessPath] = useState<'all' | 'direct' | 'group'>('all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -102,6 +102,7 @@ export function AccessExplorer() {
           <option value="github">GitHub</option>
           <option value="google">Google Workspace</option>
           <option value="aws">AWS Identity Center</option>
+          <option value="gcp">GCP</option>
         </select>
         <select
           value={accessPath}

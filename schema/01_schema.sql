@@ -117,8 +117,6 @@ CREATE TABLE aws_identity_center_users (
 CREATE INDEX idx_aws_users_username ON aws_identity_center_users(tenant_id, user_name);
 CREATE INDEX idx_aws_users_email ON aws_identity_center_users(tenant_id, email);
 
-CREATE INDEX idx_aws_groups_name ON aws_identity_center_groups(tenant_id, display_name);
-
 CREATE TABLE aws_identity_center_groups (
     id UUID DEFAULT uuid_generate_v4(),
     tenant_id UUID NOT NULL,
@@ -137,6 +135,7 @@ CREATE TABLE aws_identity_center_groups (
     PRIMARY KEY (id, tenant_id),
     UNIQUE (tenant_id, identity_store_id, group_id)
 );
+CREATE INDEX idx_aws_groups_name ON aws_identity_center_groups(tenant_id, display_name);
 
 CREATE TABLE aws_identity_center_memberships (
     id UUID DEFAULT uuid_generate_v4(),

@@ -64,15 +64,16 @@ The front-end and API surface are served by a **Next.js 15** application using t
 |-----------|---------------|
 | **ChatInterface** | Presents the NL2SQL conversational interface; sends user questions and renders structured responses. |
 | **AccessExplorer** | Cross-provider effective access browser with provider and access-path filters across GitHub, Google Workspace, and AWS Identity Center. Includes CSV export. |
+| **AccountsList** | Unified AWS account and GCP project browser with provider filter, search, and assignment/binding counts. |
 | **GroupsList** | Paginated group browser across all three providers with provider filter and search. Groups link to detail pages. |
 | **PeopleList** | Paginated canonical user browser with search. People link to detail pages showing cross-provider identities. |
 | **PersonDetail** | Person detail view showing accounts/access, linked identities, and canonical emails across all providers. |
 | **AuditLog** | Paginated audit log viewer with action type filter. |
 | **ResourcesList** | Resource browser (GitHub repos, Google Workspace groups, AWS IDC groups) with provider filter and search. |
 | **ResultsTable** | Generic data grid with dynamic column inference, client-side sorting, provider badge colouring, and clickable row support via `getRowLink`. |
-| **Sidebar** | Six-item navigation sidebar: Chat, People, Resources, Groups, Access Explorer, Audit Log. |
+| **Sidebar** | Seven-item navigation sidebar: Chat, People, Resources, Accounts, Groups, Access Explorer, Audit Log. |
 | **UserBadge** | User avatar and identity badge displayed in the header. |
-| **API Routes** | Nine HTTP endpoints: `/api/chat` (NL2SQL), `/api/access` (cross-provider access), `/api/people` (people list), `/api/people/[id]` (person detail), `/api/groups` (groups list), `/api/groups/[id]` (group detail), `/api/resources` (resources list), `/api/audit` (audit log), `/api/health` (readiness probe). |
+| **API Routes** | Eleven HTTP endpoints: `/api/chat` (NL2SQL), `/api/access` (cross-provider access), `/api/accounts` (AWS accounts + GCP projects), `/api/accounts/[id]` (account detail), `/api/people` (people list), `/api/people/[id]` (person detail), `/api/groups` (groups list), `/api/groups/[id]` (group detail), `/api/resources` (resources list), `/api/audit` (audit log), `/api/health` (readiness probe). |
 
 ### 2.2 AI / NL2SQL Pipeline
 
@@ -89,9 +90,12 @@ The **SQL Validator** enforces a seven-layer defence-in-depth pipeline before an
 | **Canonical identity layer** (canonical_users, canonical_emails, canonical_user_provider_links, identity_reconciliation_queue) | Unified person-centric hub linking identities across providers. |
 | **Google Workspace tables** (google_workspace_users, google_workspace_groups, google_workspace_memberships) | Google Workspace identity and group data. |
 | **AWS Identity Center tables** (aws_identity_center_users, aws_identity_center_groups, aws_identity_center_memberships) | AWS SSO identity and group data. |
+| **AWS Account tables** (aws_accounts, aws_account_assignments) | AWS Organisation member accounts and IAM Identity Center account-level permission assignments. |
+| **GCP tables** (gcp_organisations, gcp_projects, gcp_project_iam_bindings) | GCP organisations, projects, and project-level IAM policy bindings. |
 | **GitHub tables** (github_organisations, github_users, github_teams, github_org_memberships, github_team_memberships, github_repositories, github_repo_team_permissions, github_repo_collaborator_permissions) | GitHub organisation, user, team, and repository access data. |
+| **Cross-provider permissions matrix** (resource_access_grants) | Denormalised, pre-computed effective access across all providers. Group-expanded to individual users with canonical user resolution. |
 
-The schema is defined in flat SQL files: `schema/01_schema.sql` (DDL, extensions, indexes, enums), `schema/02_seed_and_queries.sql` (seed data and example queries), and `schema/99-seed/010_mock_data.sql` (extended mock dataset with ~700 users). All tables use composite primary keys `(id, tenant_id)` for partition-friendliness. A `provider_type_enum` (GOOGLE_WORKSPACE, AWS_IDENTITY_CENTER, GITHUB) classifies provider links.
+The schema is defined in flat SQL files: `schema/01_schema.sql` (identity DDL), `schema/02_cloud_resources.sql` (cloud resource DDL: AWS accounts, GCP projects, access grants), `schema/02_seed_and_queries.sql` (seed data), `schema/99-seed/010_mock_data.sql` (extended identity mock with ~700 users), and `schema/99-seed/020_cloud_resources_seed.sql` (cloud resource mock with 12 AWS accounts, 15 GCP projects, 800+ access grants). All tables use composite primary keys `(id, tenant_id)` for partition-friendliness. A `provider_type_enum` (GOOGLE_WORKSPACE, AWS_IDENTITY_CENTER, GITHUB) classifies provider links.
 
 ### 2.4 Infrastructure Layer
 
@@ -118,7 +122,7 @@ External identity data (Google Workspace users/groups, AWS Identity Center users
 
 ### 3.3 Schema Migration Flow
 
-The `migrate-schema.sh` script applies the two SQL files from `schema/` in order (`01_schema.sql` then `02_seed_and_queries.sql`). The schema uses `CREATE TABLE` and `CREATE INDEX` statements without `IF NOT EXISTS`, so the target database must be empty or the schema must be dropped first.
+The `migrate-schema.sh` script applies the SQL files from `schema/` in order (`01_schema.sql`, `02_cloud_resources.sql`, `02_seed_and_queries.sql`). The schema uses `CREATE TABLE` and `CREATE INDEX` statements without `IF NOT EXISTS`, so the target database must be empty or the schema must be dropped first. Mock data files in `99-seed/` are applied separately after the base schema.
 
 ---
 

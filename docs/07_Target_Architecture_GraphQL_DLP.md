@@ -28,14 +28,14 @@
 | Layer | Technology | State |
 |-------|-----------|-------|
 | Frontend | Next.js 15 / React 19 / Tailwind | Working chat UI + access explorer |
-| API | Next.js API routes (REST) | 4 endpoints: `/api/chat`, `/api/access`, `/api/people`, `/api/health` |
+| API | Next.js API routes (REST) | 11 endpoints: `/api/chat`, `/api/access`, `/api/accounts`, `/api/accounts/[id]`, `/api/people`, `/api/people/[id]`, `/api/groups`, `/api/groups/[id]`, `/api/resources`, `/api/audit`, `/api/health` |
 | AI | NL2SQL agent with 7-layer SQL validator | Anthropic / OpenAI / Gemini, provider-agnostic |
-| Database | PostgreSQL (18 Cloud SQL / 16 Aurora) | 18 tables across 4 providers + canonical identity layer, composite PK `(id, tenant_id)`, no RLS yet |
+| Database | PostgreSQL (18 Cloud SQL / 16 Aurora) | 24 tables across 4 providers + canonical identity layer + cloud resources (AWS accounts, GCP projects, access grants), composite PK `(id, tenant_id)`, no RLS yet |
 | Auth | **Mock** — hardcoded session in route handlers | No real AuthN/AuthZ |
 | Ingestion | External pipeline assumed | No application-level connector code |
 | Export/DLP | Not implemented | Planned for future iteration |
 | Infra | Terraform (Docker local / AWS Aurora+App Runner / GCP Cloud SQL+Cloud Run) | Dual-cloud IaC defined |
-| Tests | Vitest | 32 tests (28 SQL validator + 4 chat route) |
+| Tests | Vitest | 14 test suites covering SQL validator, route handlers, middleware, LLM providers, and shared constants |
 
 ### Key gaps
 
@@ -56,7 +56,7 @@
 - `provider_type_enum` (GOOGLE_WORKSPACE, AWS_IDENTITY_CENTER, GITHUB) — typed provider classification.
 - `identity_reconciliation_queue` — explicit handling for unmatched identities.
 - 5 CI/CD pipelines (CI, CodeQL, Checkov, Security Audit, Bundle Analysis).
-- 32 tests (28 SQL validator + 4 chat route).
+- 14 test suites covering SQL validator, route handlers, middleware, LLM providers, and shared constants.
 
 ---
 
@@ -1408,6 +1408,12 @@ const SCOPE_QUERIES: Record<string, string[]> = {
     'SELECT * FROM github_repo_team_permissions',
     'SELECT * FROM github_repo_collaborator_permissions',
     'SELECT * FROM identity_reconciliation_queue',
+    'SELECT * FROM aws_accounts',
+    'SELECT * FROM aws_account_assignments',
+    'SELECT * FROM gcp_organisations',
+    'SELECT * FROM gcp_projects',
+    'SELECT * FROM gcp_project_iam_bindings',
+    'SELECT * FROM resource_access_grants',
   ],
   canonical_users: [
     'SELECT * FROM canonical_users',
@@ -1433,6 +1439,14 @@ const SCOPE_QUERIES: Record<string, string[]> = {
     'SELECT * FROM aws_identity_center_users',
     'SELECT * FROM aws_identity_center_groups',
     'SELECT * FROM aws_identity_center_memberships',
+  ],
+  access: [
+    'SELECT * FROM aws_accounts',
+    'SELECT * FROM aws_account_assignments',
+    'SELECT * FROM gcp_organisations',
+    'SELECT * FROM gcp_projects',
+    'SELECT * FROM gcp_project_iam_bindings',
+    'SELECT * FROM resource_access_grants',
   ],
 };
 

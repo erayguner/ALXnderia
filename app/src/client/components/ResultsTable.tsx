@@ -35,8 +35,8 @@ function getDrilldownLink(key: string, value: unknown, row: Record<string, unkno
     return `/people/${row.person_id}`;
   }
 
-  // Person name -> person detail page (people list rows)
-  if (key === 'full_name' && row.id) {
+  // Person name -> person detail page (people list rows only, not GitHub repo full_name)
+  if (key === 'full_name' && row.id && 'primary_email' in row) {
     return `/people/${row.id}`;
   }
 
@@ -45,13 +45,13 @@ function getDrilldownLink(key: string, value: unknown, row: Record<string, unkno
     return `/people/${row.id}`;
   }
 
-  // Account ID -> resource page (AWS)
+  // Account ID -> accounts page (AWS)
   if (key === 'account_or_project_id' && row.cloud_provider === 'aws') {
-    return `/resources/aws-accounts?search=${stringValue}`;
+    return `/accounts?provider=aws&search=${encodeURIComponent(stringValue)}`;
   }
-  // Account ID -> resource page (GCP)
+  // Project ID -> accounts page (GCP)
   if (key === 'account_or_project_id' && row.cloud_provider === 'gcp') {
-    return `/resources/gcp-projects?search=${stringValue}`;
+    return `/accounts?provider=gcp&search=${encodeURIComponent(stringValue)}`;
   }
   // Group name -> group page
   if (key === 'via_group_name' && stringValue) {
@@ -62,6 +62,17 @@ function getDrilldownLink(key: string, value: unknown, row: Record<string, unkno
   if (key === 'member_count' && row.id) {
     const provider = row.provider ? `?provider=${row.provider}` : '';
     return `/groups/${row.id}${provider}`;
+  }
+
+  // Group/team name -> group detail (groups list rows have provider + id)
+  if (key === 'name' && row.id && row.provider && 'member_count' in row) {
+    const provider = row.provider ? `?provider=${row.provider}` : '';
+    return `/groups/${row.id}${provider}`;
+  }
+
+  // Collaborator/team count on github repos -> resource detail
+  if ((key === 'collaborator_count' || key === 'team_permission_count') && row.id) {
+    return `/groups?provider=github&search=${encodeURIComponent(String(row.full_name ?? ''))}`;
   }
 
   return null;

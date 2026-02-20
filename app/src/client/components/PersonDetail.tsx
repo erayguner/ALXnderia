@@ -41,6 +41,29 @@ interface GithubIdentity {
   type: string | null;
 }
 
+interface GithubOrgMembership {
+  org_login: string;
+  org_name: string | null;
+  role: string;
+  state: string;
+}
+
+interface GithubTeamMembership {
+  team_id: string;
+  team_name: string;
+  team_slug: string;
+  org_login: string;
+  role: string;
+  state: string;
+}
+
+interface GithubRepoAccess {
+  repo_full_name: string;
+  repo_name: string;
+  permission: string;
+  is_outside_collaborator: boolean;
+}
+
 interface PersonRecord {
   id: string;
   full_name: string | null;
@@ -53,6 +76,9 @@ interface PersonRecord {
   google_identities: GoogleIdentity[] | null;
   aws_idc_identities: AwsIdentityCenterIdentity[] | null;
   github_identities: GithubIdentity[] | null;
+  github_org_memberships: GithubOrgMembership[] | null;
+  github_team_memberships: GithubTeamMembership[] | null;
+  github_repo_access: GithubRepoAccess[] | null;
 }
 
 interface PersonDetailResponse {
@@ -127,6 +153,30 @@ function buildAccountAccessRows(person: PersonRecord): AccountAccessRow[] {
   return rows;
 }
 
+const PERMISSION_COLOR: Record<string, string> = {
+  admin: 'bg-red-50 text-red-700 border-red-100',
+  maintain: 'bg-orange-50 text-orange-700 border-orange-100',
+  push: 'bg-amber-50 text-amber-700 border-amber-100',
+  triage: 'bg-blue-50 text-blue-700 border-blue-100',
+  pull: 'bg-slate-100 text-slate-600 border-slate-200',
+};
+
+const ROLE_COLOR: Record<string, string> = {
+  owner: 'bg-purple-50 text-purple-700 border-purple-100',
+  admin: 'bg-red-50 text-red-700 border-red-100',
+  maintainer: 'bg-orange-50 text-orange-700 border-orange-100',
+  member: 'bg-slate-100 text-slate-600 border-slate-200',
+};
+
+function Badge({ label, colorMap }: { label: string; colorMap: Record<string, string> }) {
+  const cls = colorMap[label.toLowerCase()] || 'bg-slate-100 text-slate-600 border-slate-200';
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
 export function PersonDetail({ personId }: PersonDetailProps) {
   const [person, setPerson] = useState<PersonRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -170,6 +220,9 @@ export function PersonDetail({ personId }: PersonDetailProps) {
 
   const linkedIdentities = normalizeArray(person.linked_identities);
   const emails = normalizeArray(person.emails);
+  const orgMemberships = normalizeArray(person.github_org_memberships);
+  const teamMemberships = normalizeArray(person.github_team_memberships);
+  const repoAccess = normalizeArray(person.github_repo_access);
 
   return (
     <div className="p-6 space-y-6">
@@ -191,6 +244,119 @@ export function PersonDetail({ personId }: PersonDetailProps) {
         </h2>
         <ResultsTable data={accountRows as unknown as Record<string, unknown>[]} pageSize={10} />
       </section>
+
+      {orgMemberships.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">
+            GitHub Organisation Memberships
+          </h2>
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Organisation</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Role</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">State</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {orgMemberships.map((om, i) => (
+                  <tr key={i} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-3 py-2.5 text-slate-700 font-medium">
+                      {om.org_name || om.org_login}
+                      <span className="ml-1.5 text-xs text-slate-400 font-mono">{om.org_login}</span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <Badge label={om.role} colorMap={ROLE_COLOR} />
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-500 text-xs">{om.state}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {teamMemberships.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">
+            GitHub Team Memberships
+          </h2>
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Organisation</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Team</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Role</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">State</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {teamMemberships.map((tm, i) => (
+                  <tr key={i} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-3 py-2.5 text-slate-500 text-xs font-mono">{tm.org_login}</td>
+                    <td className="px-3 py-2.5">
+                      <a
+                        href={`/groups/${tm.team_id}?provider=github`}
+                        className="text-indigo-600 hover:text-indigo-800 hover:underline font-medium"
+                      >
+                        {tm.team_name}
+                      </a>
+                      <span className="ml-1.5 text-xs text-slate-400 font-mono">{tm.team_slug}</span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <Badge label={tm.role} colorMap={ROLE_COLOR} />
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-500 text-xs">{tm.state}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {repoAccess.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">
+            GitHub Direct Repository Access
+          </h2>
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Repository</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Permission</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Type</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {repoAccess.map((ra, i) => (
+                  <tr key={i} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-3 py-2.5 font-mono text-xs text-slate-700">{ra.repo_full_name}</td>
+                    <td className="px-3 py-2.5">
+                      <Badge label={ra.permission} colorMap={PERMISSION_COLOR} />
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {ra.is_outside_collaborator ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-amber-50 text-amber-700 border-amber-100">
+                          Outside Collaborator
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-slate-100 text-slate-600 border-slate-200">
+                          Member
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="text-lg font-semibold text-slate-900 mb-2">

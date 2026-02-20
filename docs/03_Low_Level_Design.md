@@ -5,7 +5,7 @@
 | Status       | Draft                  |
 | Authors      | Engineering Team       |
 | Audience     | Developers, Tech Leads |
-| Last Updated | 2026-02-15             |
+| Last Updated | 2026-02-20             |
 
 ---
 
@@ -70,7 +70,9 @@ The application uses Next.js 15 with the App Router convention. All pages reside
 
 **`ResultsTable.tsx`** -- Generic data grid with dynamic column inference from row data. Supports client-side column sorting, automatic formatting of column headers (snake_case to Title Case), provider badge colouring, clickable rows via `getRowLink` prop, and automatic hiding of internal ID columns. Hides columns ending in `_id` (except `account_or_project_id`) and hides the `id` column when `getRowLink` is active.
 
-**`Sidebar.tsx`** -- Navigation sidebar with six items: Chat, People, Resources, Groups, Access Explorer, and Audit Log. Active route is highlighted with an indigo accent. Includes a connection status indicator at the bottom.
+**`AccountsList.tsx`** -- Unified AWS account and GCP project browser. Queries `/api/accounts` with provider filter (aws/gcp/all), free-text search, and server-side pagination. Displays cloud account metadata including IDs, names, status, and assignment/binding counts.
+
+**`Sidebar.tsx`** -- Navigation sidebar with seven items: Chat, People, Resources, Accounts, Groups, Access Explorer, and Audit Log. Active route is highlighted with an indigo accent. Includes a connection status indicator at the bottom.
 
 **`UserBadge.tsx`** -- User avatar and identity badge displayed in the header. Shows a gradient avatar with the user's initials and name/email.
 
@@ -86,7 +88,7 @@ The application uses Next.js 15 with the App Router convention. All pages reside
 
 **`sql-validator.ts`** -- Seven-layer validation pipeline. Described in full in section 5.2.
 
-**`validators/` and `routes/`** -- Each route handler (`chat.ts`, `access.ts`, `people.ts`) validates input, acquires a tenant-scoped connection via `pool.withTenant()`, executes the query, and returns a shaped response. No business logic leaks into the `app/api/` thin wrappers.
+**`validators/` and `routes/`** -- Each route handler (`chat.ts`, `access.ts`, `accounts.ts`, `people.ts`) validates input, acquires a tenant-scoped connection via `pool.withTenant()`, executes the query, and returns a shaped response. No business logic leaks into the `app/api/` thin wrappers.
 
 ### 1.4 Shared Code
 
@@ -137,7 +139,7 @@ The health endpoint bypasses tenant scoping entirely and runs a bare `SELECT 1` 
 
 ## 3. Database Schema and Key Tables
 
-The schema is defined in `schema/01_schema.sql` (DDL), `schema/02_seed_and_queries.sql` (seed data and example queries), and `schema/99-seed/010_mock_data.sql` (extended mock dataset).
+The schema is defined in `schema/01_schema.sql` (identity DDL), `schema/02_cloud_resources.sql` (cloud resource DDL: AWS accounts, GCP projects, `resource_access_grants`), `schema/02_seed_and_queries.sql` (seed data and example queries), `schema/99-seed/010_mock_data.sql` (extended identity mock), and `schema/99-seed/020_cloud_resources_seed.sql` (cloud resource mock).
 
 ### 3.1 Canonical Identity Layer
 
@@ -173,15 +175,30 @@ The `canonical_users` table is the hub of the identity graph. Provider-specific 
 - **`github_repo_team_permissions`** -- Links repos to teams with a `permission` level.
 - **`github_repo_collaborator_permissions`** -- Links repos to individual users with `permission` and `is_outside_collaborator` flag.
 
-### 3.5 Provider Type Enum
+### 3.5 AWS Account Tables
+
+- **`aws_accounts`** -- AWS Organisation member accounts. Identified by `account_id` (12-digit). Stores `name`, `email` (root account), `status` (ACTIVE/SUSPENDED), `joined_method` (CREATED/INVITED), `org_id`, and `parent_id` (OU).
+- **`aws_account_assignments`** -- IAM Identity Center account assignments. Maps a principal (user or group via `principal_type` + `principal_id`) to an AWS account via a `permission_set_arn`. Stores `permission_set_name` for readability.
+
+### 3.6 GCP Tables
+
+- **`gcp_organisations`** -- GCP organisations. Identified by `org_id` (e.g. `organizations/123456789012`). Stores `display_name`, `domain`, and `lifecycle_state`.
+- **`gcp_projects`** -- GCP projects. Identified by `project_id` (slug) and `project_number`. Stores `display_name`, `lifecycle_state`, `org_id`, `folder_id`, and `labels` (JSONB).
+- **`gcp_project_iam_bindings`** -- Project-level IAM policy bindings. Links a `member_type` + `member_id` (user email or group email) to a project via a `role`. Supports optional IAM conditions (`condition_expression`, `condition_title`).
+
+### 3.7 Cross-Provider Permissions Matrix
+
+- **`resource_access_grants`** -- Denormalised table populated by sync jobs. Represents effective, resolved access across all providers. Columns: `provider` (aws/gcp/github), `resource_type` (account/project/repository), `resource_id`, `subject_type` (user/group/team/service_account), `subject_provider_id`, `canonical_user_id` (resolved where possible), `role_or_permission`, `access_path` (direct/group/inherited), and `via_group_id`/`via_group_display_name` for group-expanded grants.
+
+### 3.8 Provider Type Enum
 
 A PostgreSQL enum `provider_type_enum` with values: `GOOGLE_WORKSPACE`, `AWS_IDENTITY_CENTER`, `GITHUB`. Used by `canonical_user_provider_links` and `identity_reconciliation_queue`.
 
-### 3.6 Multi-Tenancy Model
+### 3.9 Multi-Tenancy Model
 
 All tables use composite primary keys `(id, tenant_id)` for partition-friendliness. Every table has a `tenant_id UUID NOT NULL` column. The application sets `app.current_tenant_id` via `SET LOCAL` at the start of each connection lease. RLS policies should be added in production.
 
-### 3.7 Common Columns
+### 3.10 Common Columns
 
 All provider tables share these metadata/audit columns:
 - `raw_response JSONB` -- Full API response for data fidelity
@@ -263,7 +280,13 @@ All provider tables share these metadata/audit columns:
 
 **Response:** `PaginatedResponse` with audit log entries: `id`, `event_time`, `actor`, `action`, `target_table`, `question`, `query_status`, `row_count`, `duration_ms`.
 
-### 4.9 GET /api/health
+### 4.9 GET /api/accounts
+
+**Query parameters:** `page` (default 1), `limit` (default 50, max 100), `search` (free-text, optional), `provider` (aws|gcp, optional).
+
+**Response:** `PaginatedResponse` with unified AWS account and GCP project data. AWS rows include: `account_id`, `name`, `email`, `status`, `org_id`, `assignment_count`. GCP rows include: `project_id`, `project_number`, `display_name`, `lifecycle_state`, `org_id`, `binding_count`. All rows include a `provider` field.
+
+### 4.10 GET /api/health
 
 **Response:** `{ "status": "ok" }` or `{ "status": "error", "message": "Connection refused" }`.
 
@@ -381,6 +404,12 @@ app/api/resources/route.ts
   +-> src/server/routes/resources.ts
         +-> src/server/db/pool.ts
 
+app/api/accounts/route.ts
+  +-> src/server/routes/accounts.ts
+        +-> src/server/db/pool.ts
+        (UNION ALL across aws_accounts + gcp_projects
+         with assignment/binding count subqueries)
+
 app/api/audit/route.ts
   +-> src/server/routes/audit.ts
         +-> src/server/db/pool.ts
@@ -407,4 +436,6 @@ app/api/health/route.ts
 
 7. **No audit table.** The current schema does not include an `audit_log` table. Audit entries are logged to the console. A dedicated audit table should be added for production.
 
-8. **No materialised views.** The schema does not include pre-computed views like `mv_effective_access`. Access data is queried via a dynamic UNION ALL across GitHub collaborator/team permissions, Google Workspace group memberships, and AWS Identity Center group memberships.
+8. **No materialised views.** The schema does not include pre-computed views like `mv_effective_access`. Access data is queried via a dynamic UNION ALL across GitHub collaborator/team permissions, Google Workspace group memberships, and AWS Identity Center group memberships. However, the `resource_access_grants` table provides a denormalised, pre-computed cross-provider permissions matrix that can be populated by sync jobs for fast lookups.
+
+9. **Cloud resources require separate seeding.** AWS accounts, GCP projects, and the `resource_access_grants` matrix are populated via `schema/99-seed/020_cloud_resources_seed.sql` (or `scripts/seed_cloud_resources.py`). These must be loaded after the identity mock data (`010_mock_data.sql`).

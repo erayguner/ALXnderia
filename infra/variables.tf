@@ -11,9 +11,9 @@ variable "pg_version" {
 }
 
 variable "pg_port" {
-  description = "Host port to expose PostgreSQL on"
+  description = "Host port to expose PostgreSQL on (5433 avoids conflicts with local PostgreSQL installs)"
   type        = number
-  default     = 5432
+  default     = 5433
 }
 
 variable "pg_superuser" {

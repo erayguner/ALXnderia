@@ -20,8 +20,9 @@ The repository is split into three top-level directories with clear boundaries.
 ```
 ALXnderia/
   app/          Next.js 15 application (App Router, API routes, NL2SQL agent)
-  schema/       SQL files: DDL (01_schema.sql), seed data (02_seed_and_queries.sql), mock data (99-seed/)
+  schema/       SQL files: DDL (01_schema.sql, 02_cloud_resources.sql), seed data, mock data (99-seed/)
   infra/        Terraform for local Docker PostgreSQL and cloud deploy modules
+  scripts/      Utility scripts (preflight.sh, seed_cloud_resources.py)
   docs/         Project documentation
   .github/      GitHub Actions CI/CD pipelines (5 workflows)
 ```
@@ -36,12 +37,12 @@ app/src/
     llm/            LLM provider abstraction (Anthropic, OpenAI, Gemini)
     middleware/     Audit logging (fire-and-forget)
     routes/         Handler functions for each API endpoint
-                    (access.ts, audit.ts, chat.ts, groups.ts, people.ts, resources.ts)
+                    (access.ts, accounts.ts, audit.ts, chat.ts, groups.ts, people.ts, resources.ts)
     validators/     SQL security validator (libpg-query WASM parser)
   client/
     components/     React client components
-                    (AccessExplorer, AuditLog, ChatInterface, GroupsList, PeopleList,
-                     PersonDetail, ResourcesList, ResultsTable, Sidebar, UserBadge)
+                    (AccessExplorer, AccountsList, AuditLog, ChatInterface, GroupsList,
+                     PeopleList, PersonDetail, ResourcesList, ResultsTable, Sidebar, UserBadge)
   shared/
     types/          TypeScript interfaces shared across client and server
     constants/      Allow-lists, block-lists, limits, synonyms
@@ -57,9 +58,10 @@ app/app/
   groups/page.tsx     Groups list
   groups/[id]/page.tsx  Group detail
   resources/page.tsx  Resources list
+  accounts/page.tsx   Accounts (AWS accounts + GCP projects)
   access/page.tsx     Access Explorer
   audit/page.tsx      Audit Log
-  api/                API route handlers (9 endpoints)
+  api/                API route handlers (11 endpoints)
 ```
 
 API route files under `app/app/api/` are thin wrappers that delegate to the corresponding handler in `src/server/routes/`. For example, `app/api/chat/route.ts` imports and calls `handleChat` from `@server/routes/chat`.
@@ -86,6 +88,8 @@ API route files under `app/app/api/` are thin wrappers that delegate to the corr
 **`src/server/routes/people.ts`** -- The people endpoint handler. Supports `handlePeopleList()` (lists canonical users with identity counts) and `handlePersonDetail()` (returns a full canonical user with linked identities from Google Workspace, AWS Identity Center, and GitHub, plus canonical emails).
 
 **`src/server/routes/resources.ts`** -- The resources endpoint handler. Lists resources from the selected provider (GitHub repos, Google Workspace groups, or AWS IDC groups) with member/permission counts.
+
+**`src/server/routes/accounts.ts`** -- The accounts endpoint handler. Lists AWS accounts and GCP projects in a unified view via `handleAccountList()`. Supports `provider` filter (aws/gcp), free-text search across account names/IDs, and server-side pagination. Includes assignment counts for AWS accounts and binding counts for GCP projects.
 
 **`src/server/routes/audit.ts`** -- The audit endpoint handler. Returns paginated audit log entries with optional action filter.
 
@@ -169,7 +173,7 @@ npm test          # single run
 npm run test:watch  # watch mode
 ```
 
-The test suite uses Vitest 4.x. There are currently 142 tests across 13 suites covering the SQL validator, chat route handler, NL2SQL agent, API routes (access, audit, health, people), database pool, React components, and shared constants. Tests live in `app/tests/`.
+The test suite uses Vitest 4.x. There are currently 14 test suites covering the SQL validator, chat route handler, NL2SQL agent, API routes (access, accounts, audit, groups, people, resources), database pool, LLM factory, LLM providers, middleware audit, and shared constants. Tests live in `app/tests/`.
 
 ### 4.4 Linting
 
@@ -348,4 +352,4 @@ Never commit `.env` files or hardcode credentials in source. Use the infrastruct
 
 6. **The `source_ip` field in audit entries is hardcoded to `127.0.0.1`.** Production must extract the real client IP from the request headers (respecting proxy configuration).
 
-7. **The schema is defined in flat SQL files.** `schema/01_schema.sql` contains all DDL (extensions, tables, indexes, enums), `schema/02_seed_and_queries.sql` contains seed data and example queries, and `schema/99-seed/010_mock_data.sql` contains an extended mock dataset (~700 users, ~10K rows). They are applied in sort order. Terraform re-applies the schema when either file changes; there is no incremental migration tracking. The schema does not define database roles, RLS policies, or PII redaction views — these are planned for a future iteration.
+7. **The schema is defined in flat SQL files.** `schema/01_schema.sql` contains identity DDL (extensions, tables, indexes, enums), `schema/02_cloud_resources.sql` contains cloud resource DDL (AWS accounts, GCP projects, `resource_access_grants`), `schema/02_seed_and_queries.sql` contains seed data, `schema/99-seed/010_mock_data.sql` contains the extended identity mock (~700 users, ~10K rows), and `schema/99-seed/020_cloud_resources_seed.sql` contains the cloud resource mock (12 AWS accounts, 15 GCP projects, 800+ access grants). They are applied in sort order. Terraform re-applies the schema when files change; there is no incremental migration tracking. A Python seed script (`scripts/seed_cloud_resources.py`) is also available for repeatable cloud resource seeding. The schema does not define database roles, RLS policies, or PII redaction views — these are planned for a future iteration.

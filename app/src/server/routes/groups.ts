@@ -144,6 +144,7 @@ export async function handleGroupDetails(req: NextRequest, id: string): Promise<
   try {
     let group: Record<string, unknown> | null = null;
     let members: Record<string, unknown>[] = [];
+    let repositories: Record<string, unknown>[] = [];
 
     // NOTE: In a real implementation with known provider, we could skip other checks.
     // If provider is not passed, we might have to check all tables or rely on ID format if distinct.
@@ -162,9 +163,13 @@ export async function handleGroupDetails(req: NextRequest, id: string): Promise<
         
         const gwMembersSql = `
           SELECT m.id, COALESCE(u.primary_email, m.member_id) AS email, m.role, m.status, m.member_type,
-                 u.name_full AS name
+                 u.name_full AS name, cu_link.canonical_user_id
           FROM google_workspace_memberships m
           LEFT JOIN google_workspace_users u ON m.member_id = u.google_id AND m.tenant_id = u.tenant_id
+          LEFT JOIN canonical_user_provider_links cu_link
+            ON cu_link.provider_type = 'GOOGLE_WORKSPACE'
+            AND cu_link.provider_user_id = u.google_id
+            AND cu_link.tenant_id = m.tenant_id
           WHERE m.group_id = $1 AND m.tenant_id = $2
         `;
         const membersResult = await executeWithTenant(session.tenantId, gwMembersSql, [group.google_id, session.tenantId]);
@@ -184,9 +189,14 @@ export async function handleGroupDetails(req: NextRequest, id: string): Promise<
         group = awsGroupResult.rows[0];
 
         const awsMembersSql = `
-          SELECT m.id, m.member_user_id AS user_id, u.user_name AS email, u.display_name AS name, 'MEMBER' as role
+          SELECT m.id, m.member_user_id AS user_id, u.user_name AS email, u.display_name AS name, 'MEMBER' as role,
+                 cu_link.canonical_user_id
           FROM aws_identity_center_memberships m
           LEFT JOIN aws_identity_center_users u ON m.member_user_id = u.user_id AND m.identity_store_id = u.identity_store_id AND m.tenant_id = u.tenant_id
+          LEFT JOIN canonical_user_provider_links cu_link
+            ON cu_link.provider_type = 'AWS_IDENTITY_CENTER'
+            AND cu_link.provider_user_id = u.user_id
+            AND cu_link.tenant_id = m.tenant_id
           WHERE m.group_id = $1 AND m.identity_store_id = $2 AND m.tenant_id = $3
         `;
         const membersResult = await executeWithTenant(session.tenantId, awsMembersSql, [group.group_id, group.identity_store_id, session.tenantId]);
@@ -206,13 +216,27 @@ export async function handleGroupDetails(req: NextRequest, id: string): Promise<
         group = ghGroupResult.rows[0];
 
         const ghMembersSql = `
-          SELECT m.id, u.login AS email, u.name, m.role
+          SELECT m.id, u.login, u.name, m.role, m.state, cu_link.canonical_user_id
           FROM github_team_memberships m
           LEFT JOIN github_users u ON m.user_node_id = u.node_id AND m.tenant_id = u.tenant_id
+          LEFT JOIN canonical_user_provider_links cu_link
+            ON cu_link.provider_type = 'GITHUB'
+            AND cu_link.provider_user_id = m.user_node_id
+            AND cu_link.tenant_id = m.tenant_id
           WHERE m.team_node_id = $1 AND m.tenant_id = $2
         `;
         const membersResult = await executeWithTenant(session.tenantId, ghMembersSql, [group.node_id, session.tenantId]);
         members = membersResult.rows;
+
+        const ghReposSql = `
+          SELECT r.id AS repo_id, r.full_name, r.name AS repo_name, r.visibility, r.archived, tp.permission
+          FROM github_repo_team_permissions tp
+          JOIN github_repositories r ON tp.repo_node_id = r.node_id AND tp.tenant_id = r.tenant_id
+          WHERE tp.team_node_id = $1 AND tp.tenant_id = $2
+          ORDER BY r.full_name
+        `;
+        const reposResult = await executeWithTenant(session.tenantId, ghReposSql, [group.node_id, session.tenantId]);
+        repositories = reposResult.rows;
       }
     }
 
@@ -220,7 +244,7 @@ export async function handleGroupDetails(req: NextRequest, id: string): Promise<
       return NextResponse.json({ error: 'Group not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ group, members });
+    return NextResponse.json({ group, members, repositories });
   } catch (error) {
     console.error('Group details error:', error);
     return NextResponse.json({ error: 'Failed to load group details' }, { status: 500 });

@@ -25,6 +25,8 @@ The vision is straightforward: every organisation should be able to answer any i
 
 **Unified Identity Model.** Alxderia consolidates identities from AWS Identity Center, Google Workspace, and GitHub (organisations, users, teams, repositories) into a single, person-centric canonical identity layer. Users, groups, memberships, and repository permissions are linked via `canonical_users` and `canonical_user_provider_links` so that cross-provider identity questions can be answered in one place rather than across multiple provider dashboards.
 
+**Cloud Resource Inventory.** AWS accounts (organisation member accounts with permission-set assignments) and GCP projects (with IAM policy bindings) are modelled alongside identity data. A denormalised `resource_access_grants` matrix pre-computes effective access across all three providers, expanding group memberships to individual users with canonical identity resolution.
+
 **Natural-Language Querying.** Analysts interact with the platform through a conversational interface. An AI agent powered by a configurable LLM provider (supporting Anthropic Claude, OpenAI GPT, and Google Gemini) interprets questions expressed in plain English and converts them into precise, validated SQL queries against the unified data model. No specialist query language or cloud-provider expertise is required.
 
 **Seven-Layer Query Validation.** Every AI-generated query passes through a defence-in-depth validation pipeline before it reaches the database, ensuring that only safe, read-only operations against approved tables are ever executed.

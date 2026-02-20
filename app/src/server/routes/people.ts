@@ -100,7 +100,39 @@ export async function handlePersonDetail(req: NextRequest, id: string): Promise<
                 ON pl4.provider_type = 'GITHUB'
                 AND pl4.provider_user_id = gu.node_id
                 AND pl4.tenant_id = gu.tenant_id
-              WHERE pl4.canonical_user_id = cu.id AND pl4.tenant_id = cu.tenant_id) AS github_identities
+              WHERE pl4.canonical_user_id = cu.id AND pl4.tenant_id = cu.tenant_id) AS github_identities,
+              (SELECT json_agg(json_build_object(
+                'org_login', o.login, 'org_name', o.name,
+                'role', om.role, 'state', om.state
+              )) FROM github_org_memberships om
+              JOIN github_organisations o ON om.org_node_id = o.node_id AND om.tenant_id = o.tenant_id
+              JOIN canonical_user_provider_links pl5
+                ON pl5.provider_type = 'GITHUB'
+                AND pl5.provider_user_id = om.user_node_id
+                AND pl5.tenant_id = om.tenant_id
+              WHERE pl5.canonical_user_id = cu.id AND pl5.tenant_id = cu.tenant_id) AS github_org_memberships,
+              (SELECT json_agg(json_build_object(
+                'team_id', t.id, 'team_name', t.name, 'team_slug', t.slug,
+                'org_login', o.login, 'role', tm.role, 'state', tm.state
+              )) FROM github_team_memberships tm
+              JOIN github_teams t ON tm.team_node_id = t.node_id AND tm.tenant_id = t.tenant_id
+              JOIN github_organisations o ON t.org_node_id = o.node_id AND t.tenant_id = o.tenant_id
+              JOIN canonical_user_provider_links pl6
+                ON pl6.provider_type = 'GITHUB'
+                AND pl6.provider_user_id = tm.user_node_id
+                AND pl6.tenant_id = tm.tenant_id
+              WHERE pl6.canonical_user_id = cu.id AND pl6.tenant_id = cu.tenant_id) AS github_team_memberships,
+              (SELECT json_agg(json_build_object(
+                'repo_full_name', r.full_name, 'repo_name', r.name,
+                'permission', cp.permission,
+                'is_outside_collaborator', cp.is_outside_collaborator
+              )) FROM github_repo_collaborator_permissions cp
+              JOIN github_repositories r ON cp.repo_node_id = r.node_id AND cp.tenant_id = r.tenant_id
+              JOIN canonical_user_provider_links pl7
+                ON pl7.provider_type = 'GITHUB'
+                AND pl7.provider_user_id = cp.user_node_id
+                AND pl7.tenant_id = cp.tenant_id
+              WHERE pl7.canonical_user_id = cu.id AND pl7.tenant_id = cu.tenant_id) AS github_repo_access
        FROM canonical_users cu WHERE cu.id = $1`,
       [id],
     );
