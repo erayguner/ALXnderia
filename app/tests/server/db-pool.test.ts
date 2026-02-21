@@ -44,10 +44,12 @@ describe('executeWithTenant', () => {
 
     expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
     expect(mockClient.query).toHaveBeenCalledWith(
-      expect.stringContaining('SET LOCAL statement_timeout'),
+      'SELECT set_config($1, $2, true)',
+      ['statement_timeout', '10000ms'],
     );
     expect(mockClient.query).toHaveBeenCalledWith(
-      expect.stringContaining(tenantId),
+      'SELECT set_config($1, $2, true)',
+      ['app.current_tenant_id', tenantId],
     );
     expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
     expect(mockClient.release).toHaveBeenCalledOnce();
@@ -100,9 +102,13 @@ describe('executeWithTenant', () => {
 
     await executeWithTenant(maliciousTenantId, 'SELECT 1');
 
-    const setTenantCall = mockClient.query.mock.calls[2][0] as string;
-    expect(setTenantCall).not.toContain('DROP');
-    expect(setTenantCall).not.toContain(';');
+    // With parameterised set_config, the tenant value is in the params array, not the SQL string
+    const setTenantArgs = mockClient.query.mock.calls[2] as [string, string[]];
+    expect(setTenantArgs[0]).toBe('SELECT set_config($1, $2, true)');
+    // Regex sanitisation strips everything except [a-f0-9-]
+    const sanitisedValue = setTenantArgs[1][1];
+    expect(sanitisedValue).not.toContain('DROP');
+    expect(sanitisedValue).not.toContain(';');
   });
 
   it('should use the provided timeout', async () => {
@@ -115,8 +121,9 @@ describe('executeWithTenant', () => {
 
     await executeWithTenant('11111111-1111-1111-1111-111111111111', 'SELECT 1', [], 5000);
 
-    const timeoutCall = mockClient.query.mock.calls[1][0] as string;
-    expect(timeoutCall).toContain('5000');
+    const timeoutArgs = mockClient.query.mock.calls[1] as [string, string[]];
+    expect(timeoutArgs[0]).toBe('SELECT set_config($1, $2, true)');
+    expect(timeoutArgs[1]).toEqual(['statement_timeout', '5000ms']);
   });
 
   it('should always release the client, even on error', async () => {
