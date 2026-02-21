@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeWithTenant } from '../db/pool';
+import { parsePagination, executePaginatedQuery } from '../lib/query-builder';
 
 function getSession() {
   return {
@@ -94,12 +95,9 @@ const QUERY_BUILDERS: Record<Provider, typeof buildAwsQuery> = {
  */
 export async function handleResourcesList(req: NextRequest): Promise<NextResponse> {
   const session = getSession();
-  const url = new URL(req.url);
+  const { url, page, limit, offset } = parsePagination(req);
   const provider = (url.searchParams.get('provider') || 'github') as Provider;
-  const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
-  const limit = Math.min(100, parseInt(url.searchParams.get('limit') || '50'));
   const search = url.searchParams.get('search');
-  const offset = (page - 1) * limit;
 
   if (!QUERY_BUILDERS[provider]) {
     return NextResponse.json({ error: 'Invalid provider' }, { status: 400 });
@@ -108,17 +106,7 @@ export async function handleResourcesList(req: NextRequest): Promise<NextRespons
   try {
     const params: unknown[] = [];
     const { countSql, dataSql } = QUERY_BUILDERS[provider](search, params, 1);
-
-    const countResult = await executeWithTenant<{ total: string }>(
-      session.tenantId,
-      countSql,
-      params,
-    );
-    const total = parseInt(countResult.rows[0]?.total || '0');
-
-    const dataResult = await executeWithTenant(session.tenantId, dataSql, [...params, limit, offset]);
-
-    return NextResponse.json({ data: dataResult.rows, total, page, limit, totalPages: Math.ceil(total / limit) });
+    return await executePaginatedQuery(session.tenantId, countSql, dataSql, params, page, limit, offset);
   } catch (error) {
     console.error('Resources list error:', error);
     return NextResponse.json({ error: 'Failed to load resources' }, { status: 500 });

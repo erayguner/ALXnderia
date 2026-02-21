@@ -19,14 +19,16 @@ import { getLLMProvider } from '../llm';
 // Schema context (cached after first retrieval)
 // ---------------------------------------------------------------------------
 
-let cachedSchema: string | null = null;
+const SCHEMA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let schemaCache: { data: string; expiry: number } | null = null;
 
 /**
  * Build the schema context string from live database metadata.
- * The result is cached in memory so subsequent calls avoid a round-trip.
+ * The result is cached in memory with a TTL so subsequent calls avoid a round-trip.
+ * Cache auto-refreshes after TTL expires — no manual clearing needed.
  */
 async function getSchemaContext(): Promise<string> {
-  if (cachedSchema) return cachedSchema;
+  if (schemaCache && Date.now() < schemaCache.expiry) return schemaCache.data;
 
   const meta = await getSchemaMetadata();
   const lines: string[] = [
@@ -90,8 +92,9 @@ async function getSchemaContext(): Promise<string> {
     lines.push('');
   }
 
-  cachedSchema = lines.join('\n');
-  return cachedSchema;
+  const data = lines.join('\n');
+  schemaCache = { data, expiry: Date.now() + SCHEMA_CACHE_TTL_MS };
+  return data;
 }
 
 // ---------------------------------------------------------------------------
@@ -465,8 +468,9 @@ function generateNarrative(
 
 /**
  * Clear the cached schema context.
- * Call this after schema migrations or DDL changes.
+ * Normally not needed since the cache auto-refreshes after TTL.
+ * Provided for testing or forced refresh after DDL changes.
  */
 export function clearSchemaCache(): void {
-  cachedSchema = null;
+  schemaCache = null;
 }

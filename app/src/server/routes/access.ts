@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeWithTenant } from '../db/pool';
+import { ParamBuilder, buildSearchFilter, parsePagination } from '../lib/query-builder';
 
 function getSession() {
   return {
@@ -23,34 +24,25 @@ export async function handleAccessList(req: NextRequest): Promise<NextResponse> 
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
 
-  const url = new URL(req.url);
-  const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
-  const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50')));
+  const { url, page, limit, offset } = parsePagination(req);
   const search = url.searchParams.get('search');
   const provider = url.searchParams.get('provider');
   const accessPath = url.searchParams.get('accessPath');
-  const offset = (page - 1) * limit;
 
-  // Build per-provider sub-selects, then UNION ALL.
-  // Each returns a uniform shape:
-  //   display_name, primary_email, cloud_provider, account_or_project_id,
-  //   account_or_project_name, role_or_permission_set, access_path, via_group_name, person_id
+  const pb = new ParamBuilder();
 
-  const parts: string[] = [];
-  const allParams: unknown[] = [];
-  let paramIdx = 1;
-
-  // We might need a search placeholder index
-  let searchIdx: number | null = null;
+  // Pre-register search param so all sub-selects reference the same $N
+  let searchIdx: string | null = null;
   if (search) {
-    allParams.push(`%${search}%`);
-    searchIdx = paramIdx++;
+    searchIdx = pb.add(`%${search}%`);
   }
 
-  const searchFilter = (cols: string[]) => {
+  const sf = (cols: string[]) => {
     if (!searchIdx) return '';
-    return `AND (${cols.map(c => `${c} ILIKE $${searchIdx}`).join(' OR ')})`;
+    return `AND (${cols.map(c => `${c} ILIKE ${searchIdx}`).join(' OR ')})`;
   };
+
+  const parts: string[] = [];
 
   // ── GitHub Direct Collaborator Access ──
   if (!provider || provider === 'github') {
@@ -72,7 +64,7 @@ export async function handleAccessList(req: NextRequest): Promise<NextResponse> 
         LEFT JOIN canonical_user_provider_links pl ON pl.provider_type = 'GITHUB' AND pl.provider_user_id = u.node_id AND pl.tenant_id = u.tenant_id
         LEFT JOIN canonical_users cu ON cu.id = pl.canonical_user_id AND cu.tenant_id = pl.tenant_id
         WHERE perm.deleted_at IS NULL
-        ${searchFilter(['u.login', 'u.email', 'r.full_name', 'perm.permission'])}
+        ${sf(['u.login', 'u.email', 'r.full_name', 'perm.permission'])}
       `);
     }
 
@@ -97,7 +89,7 @@ export async function handleAccessList(req: NextRequest): Promise<NextResponse> 
         LEFT JOIN canonical_user_provider_links pl ON pl.provider_type = 'GITHUB' AND pl.provider_user_id = u.node_id AND pl.tenant_id = u.tenant_id
         LEFT JOIN canonical_users cu ON cu.id = pl.canonical_user_id AND cu.tenant_id = pl.tenant_id
         WHERE tp.deleted_at IS NULL AND tm.deleted_at IS NULL
-        ${searchFilter(['u.login', 'u.email', 'r.full_name', 't.name'])}
+        ${sf(['u.login', 'u.email', 'r.full_name', 't.name'])}
       `);
     }
   }
@@ -122,7 +114,7 @@ export async function handleAccessList(req: NextRequest): Promise<NextResponse> 
         LEFT JOIN canonical_user_provider_links pl ON pl.provider_type = 'GOOGLE_WORKSPACE' AND pl.provider_user_id = gwu.google_id AND pl.tenant_id = gwu.tenant_id
         LEFT JOIN canonical_users cu ON cu.id = pl.canonical_user_id AND cu.tenant_id = pl.tenant_id
         WHERE m.deleted_at IS NULL AND g.deleted_at IS NULL
-        ${searchFilter(['gwu.name_full', 'gwu.primary_email', 'g.name', 'g.email'])}
+        ${sf(['gwu.name_full', 'gwu.primary_email', 'g.name', 'g.email'])}
       `);
     }
   }
@@ -147,7 +139,7 @@ export async function handleAccessList(req: NextRequest): Promise<NextResponse> 
         LEFT JOIN canonical_user_provider_links pl ON pl.provider_type = 'AWS_IDENTITY_CENTER' AND pl.provider_user_id = awu.user_id AND pl.tenant_id = awu.tenant_id
         LEFT JOIN canonical_users cu ON cu.id = pl.canonical_user_id AND cu.tenant_id = pl.tenant_id
         WHERE m.deleted_at IS NULL AND g.deleted_at IS NULL
-        ${searchFilter(['awu.display_name', 'awu.user_name', 'g.display_name'])}
+        ${sf(['awu.display_name', 'awu.user_name', 'g.display_name'])}
       `);
     }
   }
@@ -178,7 +170,7 @@ export async function handleAccessList(req: NextRequest): Promise<NextResponse> 
          AND pl.tenant_id = awu.tenant_id
         LEFT JOIN canonical_users cu ON cu.id = pl.canonical_user_id AND cu.tenant_id = pl.tenant_id
         WHERE aa.principal_type = 'USER' AND aa.deleted_at IS NULL
-        ${searchFilter(['awu.display_name', 'awu.user_name', 'aa.account_id', 'ac.name'])}
+        ${sf(['awu.display_name', 'awu.user_name', 'aa.account_id', 'ac.name'])}
       `);
     }
   }
@@ -218,7 +210,7 @@ export async function handleAccessList(req: NextRequest): Promise<NextResponse> 
          AND pl.tenant_id = awu.tenant_id
         LEFT JOIN canonical_users cu ON cu.id = pl.canonical_user_id AND cu.tenant_id = pl.tenant_id
         WHERE aa.principal_type = 'GROUP' AND aa.deleted_at IS NULL
-        ${searchFilter(['awu.display_name', 'awu.user_name', 'aa.account_id', 'ac.name', 'g.display_name'])}
+        ${sf(['awu.display_name', 'awu.user_name', 'aa.account_id', 'ac.name', 'g.display_name'])}
       `);
     }
   }
@@ -247,7 +239,7 @@ export async function handleAccessList(req: NextRequest): Promise<NextResponse> 
          AND pl.tenant_id = gwu.tenant_id
         LEFT JOIN canonical_users cu ON cu.id = pl.canonical_user_id AND cu.tenant_id = pl.tenant_id
         WHERE b.member_type IN ('user', 'serviceAccount') AND b.deleted_at IS NULL
-        ${searchFilter(['b.member_id', 'b.project_id', 'p.display_name', 'gwu.name_full'])}
+        ${sf(['b.member_id', 'b.project_id', 'p.display_name', 'gwu.name_full'])}
       `);
     }
   }
@@ -280,7 +272,7 @@ export async function handleAccessList(req: NextRequest): Promise<NextResponse> 
          AND pl.tenant_id = gwu.tenant_id
         LEFT JOIN canonical_users cu ON cu.id = pl.canonical_user_id AND cu.tenant_id = pl.tenant_id
         WHERE b.member_type = 'group' AND b.deleted_at IS NULL
-        ${searchFilter(['gwu.primary_email', 'gwu.name_full', 'b.project_id', 'p.display_name', 'gwg.name'])}
+        ${sf(['gwu.primary_email', 'gwu.name_full', 'b.project_id', 'p.display_name', 'gwg.name'])}
       `);
     }
   }
@@ -290,28 +282,26 @@ export async function handleAccessList(req: NextRequest): Promise<NextResponse> 
   }
 
   const unionSql = parts.join('\nUNION ALL\n');
-
   const countSql = `SELECT COUNT(*) AS total FROM (${unionSql}) AS combined`;
-  const limitIdx = paramIdx++;
-  const offsetIdx = paramIdx++;
+  const limitIdx = pb.nextIndex;
   const dataSql = `SELECT display_name, primary_email, cloud_provider, account_or_project_id,
     account_or_project_name, role_or_permission_set, access_path, via_group_name, person_id
     FROM (${unionSql}) AS combined
     ORDER BY cloud_provider, display_name
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
+    LIMIT $${limitIdx} OFFSET $${limitIdx + 1}`;
 
   try {
     const countResult = await executeWithTenant<{ total: string }>(
       session.tenantId,
       countSql,
-      allParams,
+      pb.params,
     );
     const total = parseInt(countResult.rows[0]?.total || '0');
 
     const dataResult = await executeWithTenant(
       session.tenantId,
       dataSql,
-      [...allParams, limit, offset],
+      [...pb.params, limit, offset],
     );
 
     return NextResponse.json({

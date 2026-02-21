@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeWithTenant } from '../db/pool';
+import { ParamBuilder, buildSearchFilter, parsePagination, executePaginatedQuery } from '../lib/query-builder';
 
 function getSession() {
   return {
@@ -10,23 +11,14 @@ function getSession() {
 
 export async function handlePeopleList(req: NextRequest): Promise<NextResponse> {
   const session = getSession();
-  const url = new URL(req.url);
-  const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
-  const limit = Math.min(100, parseInt(url.searchParams.get('limit') || '50'));
-  const search = url.searchParams.get('search');
-  const offset = (page - 1) * limit;
+  const { page, limit, offset } = parsePagination(req);
+  const search = new URL(req.url).searchParams.get('search');
 
-  const params: unknown[] = [];
-  let paramIdx = 1;
-  let searchClause = '';
-
-  if (search) {
-    searchClause = `AND (cu.full_name ILIKE $${paramIdx} OR cu.primary_email ILIKE $${paramIdx})`;
-    params.push(`%${search}%`);
-    paramIdx++;
-  }
+  const pb = new ParamBuilder();
+  const searchClause = buildSearchFilter(pb, ['cu.full_name', 'cu.primary_email'], search);
 
   const countSql = `SELECT COUNT(*) AS total FROM canonical_users cu WHERE cu.deleted_at IS NULL ${searchClause}`;
+  const limitIdx = pb.nextIndex;
   const dataSql = `
     SELECT cu.id, cu.full_name, cu.primary_email,
            cu.created_at, cu.updated_at,
@@ -35,22 +27,11 @@ export async function handlePeopleList(req: NextRequest): Promise<NextResponse> 
     FROM canonical_users cu
     WHERE cu.deleted_at IS NULL ${searchClause}
     ORDER BY cu.full_name
-    LIMIT $${paramIdx++} OFFSET $${paramIdx++}
+    LIMIT $${limitIdx} OFFSET $${limitIdx + 1}
   `;
 
   try {
-    const countResult = await executeWithTenant<{ total: string }>(session.tenantId, countSql, params);
-    const total = parseInt(countResult.rows[0]?.total || '0');
-
-    const dataResult = await executeWithTenant(session.tenantId, dataSql, [...params, limit, offset]);
-
-    return NextResponse.json({
-      data: dataResult.rows,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    });
+    return await executePaginatedQuery(session.tenantId, countSql, dataSql, pb.params, page, limit, offset);
   } catch (error) {
     console.error('People list error:', error);
     return NextResponse.json({ error: 'Failed to load people' }, { status: 500 });
@@ -61,7 +42,6 @@ export async function handlePersonDetail(req: NextRequest, id: string): Promise<
   const session = getSession();
 
   try {
-    // Canonical user info with linked identities
     const personResult = await executeWithTenant(session.tenantId,
       `SELECT cu.*,
               (SELECT json_agg(json_build_object(
