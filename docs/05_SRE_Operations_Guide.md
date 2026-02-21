@@ -60,9 +60,14 @@ A Docker-managed PostgreSQL container provisioned by Terraform using the kreuzwe
   ECR (scan on push, KMS, lifecycle: keep 10)
   Secrets Manager (DB creds JSON, LLM API key)
   S3 + DynamoDB (Terraform state locking)
+
+  Ingestion:
+    Lambda functions (AWS IDC + Organizations providers)
+    EventBridge scheduler (configurable per environment)
+    Same VPC / private subnet connectivity to Aurora
 ```
 
-Key IAM roles: App Runner instance role (Secrets Manager access), ECR access role, RDS enhanced monitoring role.
+Key IAM roles: App Runner instance role (Secrets Manager access), ECR access role, RDS enhanced monitoring role, Lambda execution role (VPC access, Secrets Manager, Identity Store, Organizations, SSO Admin).
 
 ### 1.3 GCP Production
 
@@ -94,9 +99,14 @@ Key IAM roles: App Runner instance role (Secrets Manager access), ECR access rol
   Artifact Registry (Docker, cleanup: keep 10)
   Secret Manager (DB creds, LLM API key)
   GCS (Terraform state)
+
+  Ingestion:
+    Cloud Run Jobs (Google Workspace + GCP CRM + GitHub providers)
+    Cloud Scheduler (configurable per environment)
+    Same VPC connectivity to Cloud SQL
 ```
 
-Cloud Run service account holds Secret Manager Accessor role.
+Cloud Run service account holds Secret Manager Accessor role. Ingestion Cloud Run Jobs use Workload Identity for provider API access.
 
 ---
 
@@ -152,6 +162,8 @@ This endpoint is consumed by App Runner (interval 10s, timeout 5s), Cloud Run st
 | Secret access failure | Non-200 from Secrets Manager / Secret Manager | Critical |
 | ECR / Artifact Registry push failure | Build pipeline image push fails | Critical |
 | Disk / storage anomaly | Aurora storage or Cloud SQL storage growing unexpectedly | Warning |
+| Ingestion run failure | `ingestion_runs.status = 'FAILED'` for any provider | Warning |
+| Stale ingestion data | No successful `ingestion_runs` for a provider in 2x its scheduled interval | Warning |
 
 Use CloudWatch Alarms for AWS and Cloud Monitoring alert policies for GCP. Route critical alerts to the on-call channel; route warnings to the operations channel.
 
@@ -216,6 +228,7 @@ These are not formally defined. As a starting point, target RTO of 1 hour and RP
 | Schema migration failure | SQL syntax error, lock contention | Roll back the offending SQL file, fix, re-run. See Runbook 9.3. |
 | LLM API errors | LLM provider service outage or invalid key | Check provider status page, verify LLM_API_KEY secret value. See Runbook 9.4. |
 | Stale canonical identity links | Links not updated after provider data ingest | Re-run the identity reconciliation pipeline. |
+| Ingestion service failure | Provider API credentials expired, network/VPC issues, rate limiting | Check `ingestion_runs` table, verify credentials, review Lambda/Cloud Run Job logs. See Runbook 9.6. |
 
 ### 7.2 Escalation Path
 
@@ -317,6 +330,38 @@ WHERE tenant_id = '11111111-1111-1111-1111-111111111111'
 
 2. Review each entry and either create a canonical user link or dismiss the entry.
 3. Consider automating this reconciliation after each ingestion pipeline run.
+
+### 9.6 Ingestion Service Failure
+
+**Symptoms**: `ingestion_runs` table shows `FAILED` status. Provider data is stale (`last_synced_at` not updating). EventBridge / Cloud Scheduler triggers are firing but no new data appears.
+
+**Steps**:
+
+1. Check recent ingestion runs:
+
+```sql
+SELECT provider, entity_type, status, error_message, started_at, finished_at
+FROM ingestion_runs
+WHERE tenant_id = '11111111-1111-1111-1111-111111111111'
+ORDER BY started_at DESC LIMIT 10;
+```
+
+2. For **AWS Lambda** failures: check CloudWatch Logs for the Lambda function. Common causes: IAM permissions (Identity Store, Organizations API), VPC connectivity to Aurora, secret resolution failure.
+3. For **GCP Cloud Run Jobs** failures: check Cloud Logging for the job execution. Common causes: Workload Identity misconfiguration, Secret Manager access, VPC connector to Cloud SQL.
+4. Verify provider credentials are valid (GitHub token not expired, Google SA key file accessible, AWS IAM role permissions).
+5. Re-run a single provider manually to test:
+
+```bash
+python -m scripts.ingestion sync --provider github   # or: google_workspace, aws_identity_center, aws_organizations, gcp_resource_manager
+```
+
+6. If post-processing (identity resolution + grants backfill) fails independently, run it separately:
+
+```bash
+python -m scripts.ingestion sync --provider post-process
+```
+
+7. Check environment-specific scheduler config in `infra/environments/{dev,stage,prod}.tfvars` for correct intervals and enable/disable flags.
 
 ### 9.7 Secret Rotation
 

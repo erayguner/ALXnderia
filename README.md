@@ -38,6 +38,20 @@ ALXnderia enables security teams, compliance officers, and identity administrato
     ├── GitHub (orgs, users, teams, repos, permissions)
     ├── Canonical identity layer (cross-provider linkage)
     └── Resource access grants (normalised cross-provider permissions matrix)
+       ▲
+       |  (upsert via ON CONFLICT DO UPDATE)
+  Ingestion Service (Python)
+    ├── GCP providers ──> Cloud Run Jobs (Workload Identity)
+    │   ├── Google Workspace (Admin SDK)
+    │   ├── GCP Resource Manager (CRM v3)
+    │   └── GitHub (REST API, token from Secret Manager)
+    ├── AWS providers ──> Lambda (IAM roles)
+    │   ├── AWS Identity Center (identitystore + sso-admin)
+    │   └── AWS Organizations (organizations API)
+    ├── Post-processing
+    │   ├── Identity resolver (cross-provider email matching)
+    │   └── Grants backfill (resource_access_grants rebuild)
+    └── Scheduling: Cloud Scheduler (GCP) / EventBridge (AWS)
 ```
 
 ### Key capabilities
@@ -50,6 +64,7 @@ ALXnderia enables security teams, compliance officers, and identity administrato
 - **Accounts browser** -- Unified AWS account and GCP project view with assignment/binding counts
 - **Defence-in-depth** -- 7-layer SQL validation (libpg-query WASM AST parser), tenant-scoped queries, composite PK multi-tenancy
 - **LLM-agnostic** -- Swap between Anthropic Claude, OpenAI GPT, or Google Gemini via env var
+- **Live ingestion** -- Modular Python service syncs live data from all 5 providers with pagination, rate limiting, and run tracking
 - **Dual-cloud deploy** -- AWS (App Runner + Aurora Serverless v2) and GCP (Cloud Run + Cloud SQL)
 
 ## Quick Start
@@ -108,9 +123,9 @@ npm run lint    # ESLint 9 with eslint-config-next
 ```
 ALXnderia/
   app/              Next.js 15 application (App Router, API routes, NL2SQL agent)
-  schema/           SQL files: DDL, cloud resources extension, seed data, and mock data
-  infra/            Terraform modules for local Docker, AWS, and GCP deployments
-  scripts/          Utility scripts (preflight, seed_cloud_resources.py)
+  schema/           SQL files: DDL, cloud resources extension, ingestion tracking, seed data
+  infra/            Terraform modules for local Docker, AWS, and GCP deployments (incl. ingestion)
+  scripts/          Utility scripts (preflight, seed_cloud_resources.py, ingestion service)
   docs/             Architecture and operations documentation
   .github/          5 GitHub Actions CI/CD workflows
 ```
@@ -122,10 +137,12 @@ ALXnderia/
 | `schema/01_schema.sql` | Extensions (`uuid-ossp`), identity table DDL, indexes, enums (`provider_type_enum`) |
 | `schema/02_cloud_resources.sql` | AWS accounts, GCP orgs/projects, IAM bindings, `resource_access_grants` matrix |
 | `schema/02_seed_and_queries.sql` | Seed data for demo tenant `11111111-...`, example queries |
+| `schema/03_ingestion_runs.sql` | Ingestion run tracking table (`ingestion_runs`) |
 | `schema/99-seed/010_mock_data.sql` | Extended identity mock dataset (~700 users, ~10K rows across all providers) |
 | `schema/99-seed/020_cloud_resources_seed.sql` | Cloud resource seed data (12 AWS accounts, 15 GCP projects, ~240 assignments, ~180 IAM bindings, 800+ access grants) |
 | `schema/99-seed/021_cloud_resources_validation.sql` | 10 validation queries for cloud resource data integrity |
 | `scripts/seed_cloud_resources.py` | Repeatable Python seed script (`--dry-run`, `--dsn`, `-o`) |
+| `scripts/ingestion/` | Modular Python ingestion service (5 providers, scheduler, CLI) |
 
 | Provider | Tables |
 |----------|--------|
@@ -136,8 +153,9 @@ ALXnderia/
 | **GitHub** | `github_organisations`, `github_users`, `github_teams`, `github_org_memberships`, `github_team_memberships`, `github_repositories`, `github_repo_team_permissions`, `github_repo_collaborator_permissions` |
 | **Canonical Identity** | `canonical_users`, `canonical_emails`, `canonical_user_provider_links`, `identity_reconciliation_queue` |
 | **Cross-Provider** | `resource_access_grants` (denormalised permissions matrix) |
+| **Ingestion Tracking** | `ingestion_runs` (execution history, status, record counts) |
 
-All tables use composite primary keys `(id, tenant_id)` for partition-friendly multi-tenancy.
+All tables use composite primary keys `(id, tenant_id)` for partition-friendly multi-tenancy. **25 tables** across 8 domains.
 
 ## Security
 
@@ -161,20 +179,36 @@ All tables use composite primary keys `(id, tenant_id)` for partition-friendly m
 
 ### AWS
 
-App Runner + Aurora Serverless v2 (0.5--16 ACU) in a custom VPC with private subnets. ECR for images, Secrets Manager for credentials.
+App Runner + Aurora Serverless v2 (0.5--16 ACU) in a custom VPC with private subnets. ECR for images, Secrets Manager for credentials. Ingestion runs as Lambda functions (Identity Center + Organizations) triggered by EventBridge.
 
 ```bash
 ./infra/scripts/build-and-push-aws.sh
+./infra/scripts/build-and-push-ingestion-aws.sh   # ingestion container
 cd infra/deploy/aws && terraform apply
 ```
 
 ### GCP
 
-Cloud Run v2 + Cloud SQL (PostgreSQL 18, regional HA) with private IP. Artifact Registry for images, Secret Manager for credentials.
+Cloud Run v2 + Cloud SQL (PostgreSQL 18, regional HA) with private IP. Artifact Registry for images, Secret Manager for credentials. Ingestion runs as Cloud Run Jobs (Google Workspace + GCP CRM + GitHub) triggered by Cloud Scheduler.
 
 ```bash
 ./infra/scripts/build-and-push-gcp.sh
+./infra/scripts/build-and-push-ingestion-gcp.sh   # ingestion container
 cd infra/deploy/gcp && terraform apply
+```
+
+### Environment Configs
+
+Per-environment Terraform variable files are provided in `infra/environments/`:
+
+| File | Scheduler | Log Level | Batch Size |
+|------|-----------|-----------|------------|
+| `dev.tfvars` | Disabled | DEBUG | 100 |
+| `stage.tfvars` | Enabled | INFO | 500 |
+| `prod.tfvars` | Enabled | INFO | 500 |
+
+```bash
+cd infra/deploy/gcp && terraform apply -var-file=../../environments/prod.tfvars
 ```
 
 ## Documentation
@@ -188,6 +222,7 @@ cd infra/deploy/gcp && terraform apply
 | [SRE Operations Guide](docs/05_SRE_Operations_Guide.md) | Deployment, monitoring, runbooks |
 | [GitHub Identity Integration](docs/06_GitHub_Identity_Integration.md) | GitHub provider design and mapping |
 | [Target Architecture](docs/07_Target_Architecture_GraphQL_DLP.md) | GraphQL API and Export/DLP roadmap |
+| [Database Schema](docs/08_Database_Schema.md) | Complete schema reference (25 tables, indexes, constraints) |
 | [Local Setup](docs/LOCAL_SETUP.md) | Complete local setup guide (native PG + Docker options, troubleshooting, reset procedures) |
 | [Performance Metrics](docs/performance-metrics.md) | Query benchmarks and index analysis |
 
@@ -199,8 +234,9 @@ cd infra/deploy/gcp && terraform apply
 | LLM | Anthropic Claude / OpenAI GPT / Google Gemini (configurable) |
 | SQL Validation | libpg-query (PostgreSQL parser compiled to WASM) |
 | Database | PostgreSQL 16 (Aurora) / 18 (Cloud SQL) |
+| Ingestion | Python 3.12, psycopg2, boto3, google-api-python-client, APScheduler |
 | Infrastructure | Terraform, Docker |
-| Compute | AWS App Runner / GCP Cloud Run v2 |
+| Compute | AWS App Runner / GCP Cloud Run v2, Lambda (ingestion), Cloud Run Jobs (ingestion) |
 | CI/CD | GitHub Actions (5 workflows) |
 | Testing | Vitest 4.x (14 test suites) |
 | Linting | ESLint 9 with eslint-config-next |

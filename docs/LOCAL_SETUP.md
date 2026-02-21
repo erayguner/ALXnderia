@@ -68,6 +68,9 @@ psql -U $(whoami) -d cloud_identity_intel -f schema/01_schema.sql
 # DDL: cloud resource tables (AWS accounts, GCP projects, access grants)
 psql -U $(whoami) -d cloud_identity_intel -f schema/02_cloud_resources.sql
 
+# DDL: ingestion run tracking table
+psql -U $(whoami) -d cloud_identity_intel -f schema/03_ingestion_runs.sql
+
 # Seed data and example queries
 psql -U $(whoami) -d cloud_identity_intel -f schema/02_seed_and_queries.sql
 ```
@@ -275,6 +278,7 @@ Validation queries: `schema/99-seed/021_cloud_resources_validation.sql` (10 quer
 | `schema/01_schema.sql` | Extensions (`uuid-ossp`), identity table DDL, indexes, `provider_type_enum` |
 | `schema/02_cloud_resources.sql` | AWS accounts, GCP orgs/projects, IAM bindings, `resource_access_grants` matrix |
 | `schema/02_seed_and_queries.sql` | Seed data for demo tenant, 4 example queries |
+| `schema/03_ingestion_runs.sql` | Ingestion run tracking table |
 | `schema/99-seed/010_mock_data.sql` | Extended identity mock dataset (~700 users, ~10K rows) |
 | `schema/99-seed/020_cloud_resources_seed.sql` | Cloud resource seed (12 AWS accounts, 15 GCP projects, 800+ grants) |
 | `schema/99-seed/021_cloud_resources_validation.sql` | 10 validation queries for cloud resource integrity |
@@ -299,6 +303,79 @@ Validation queries: `schema/99-seed/021_cloud_resources_validation.sql` (10 quer
 - All tables include `deleted_at` for soft-delete support
 - `provider_type_enum` classifies links: `GOOGLE_WORKSPACE`, `AWS_IDENTITY_CENTER`, `GITHUB`
 - The application sets `SET LOCAL app.current_tenant_id` per transaction (RLS-ready for future)
+
+---
+
+## Ingestion Service (Optional)
+
+The ingestion service syncs live data from provider APIs into the database, replacing static seed data with real identity and resource information.
+
+### 1. Install Python dependencies
+
+```bash
+cd scripts/ingestion
+pip install -r requirements.txt
+```
+
+### 2. Configure provider credentials
+
+```bash
+cp scripts/ingestion/.env.example scripts/ingestion/.env
+# Edit .env and fill in credentials for the providers you want to sync
+```
+
+At minimum, set `TENANT_ID` and database connection variables. Then enable providers by setting their credentials:
+
+| Provider | Required Variables |
+|----------|-------------------|
+| GitHub | `GITHUB_TOKEN`, `GITHUB_ORG_LOGINS` |
+| Google Workspace | `GOOGLE_SA_KEY_FILE`, `GOOGLE_ADMIN_EMAIL`, `GOOGLE_CUSTOMER_ID` |
+| AWS Identity Center | `AWS_IDENTITY_STORE_ID`, `AWS_SSO_INSTANCE_ARN` |
+| AWS Organizations | `AWS_ORGANIZATIONS_ENABLED=true` (uses default AWS credentials) |
+| GCP Resource Manager | `GCP_SA_KEY_FILE`, `GCP_ORG_ID` |
+
+### 3. Run a sync
+
+```bash
+# Sync a single provider (GitHub is easiest to test with just a token)
+python -m scripts.ingestion sync --provider github
+
+# Sync all configured providers
+python -m scripts.ingestion sync --provider all
+
+# Run post-processing (identity resolution + grants backfill)
+python -m scripts.ingestion sync --provider post-process
+
+# Check run status
+python -m scripts.ingestion status --provider github --limit 5
+```
+
+### 4. Run the scheduler (optional)
+
+For continuous syncing on intervals:
+
+```bash
+python -m scripts.ingestion scheduler
+```
+
+Default intervals: Google Workspace 60 min, AWS IDC 60 min, GitHub 30 min, AWS Orgs 6 hours, GCP CRM 2 hours, post-processing 15 min.
+
+### 5. Verify data
+
+```bash
+# Check ingestion runs
+psql -U cloudintel -h localhost -d cloud_identity_intel -c \
+  "SELECT provider, status, records_upserted, started_at FROM ingestion_runs ORDER BY started_at DESC LIMIT 10;"
+
+# Verify data landed
+psql -U cloudintel -h localhost -d cloud_identity_intel -c \
+  "SELECT COUNT(*) FROM github_users WHERE last_synced_at > NOW() - INTERVAL '1 hour';"
+```
+
+> **Note:** The ingestion service requires `INSERT`/`UPDATE` grants on identity tables. If using the read-only `cloudintel` role from Option A, grant write access:
+> ```bash
+> psql -U $(whoami) -d cloud_identity_intel -c "GRANT INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO cloudintel;"
+> ```
 
 ---
 
@@ -411,8 +488,8 @@ ALXnderia/
 │       ├── 010_mock_data.sql             # Extended identity mock (~700 users, ~10K rows)
 │       ├── 020_cloud_resources_seed.sql  # Cloud resource seed (12 AWS accounts, 15 GCP projects, 800+ grants)
 │       └── 021_cloud_resources_validation.sql  # Validation queries
-├── infra/                # Terraform (local Docker + AWS/GCP cloud deploy)
-├── scripts/              # Utility scripts (preflight.sh, seed_cloud_resources.py)
+├── infra/                # Terraform (local Docker + AWS/GCP cloud deploy + ingestion modules)
+├── scripts/              # Utility scripts (preflight.sh, seed_cloud_resources.py, ingestion/)
 ├── docs/                 # Architecture and operations documentation
 └── .github/              # GitHub Actions CI/CD (5 workflows)
 ```

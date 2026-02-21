@@ -30,9 +30,9 @@
 | Frontend | Next.js 15 / React 19 / Tailwind | Working chat UI + access explorer |
 | API | Next.js API routes (REST) | 11 endpoints: `/api/chat`, `/api/access`, `/api/accounts`, `/api/accounts/[id]`, `/api/people`, `/api/people/[id]`, `/api/groups`, `/api/groups/[id]`, `/api/resources`, `/api/audit`, `/api/health` |
 | AI | NL2SQL agent with 7-layer SQL validator | Anthropic / OpenAI / Gemini, provider-agnostic |
-| Database | PostgreSQL (18 Cloud SQL / 16 Aurora) | 24 tables across 4 providers + canonical identity layer + cloud resources (AWS accounts, GCP projects, access grants), composite PK `(id, tenant_id)`, no RLS yet |
+| Database | PostgreSQL (18 Cloud SQL / 16 Aurora) | 25 tables across 4 providers + canonical identity layer + cloud resources (AWS accounts, GCP projects, access grants) + ingestion tracking, composite PK `(id, tenant_id)`, no RLS yet |
 | Auth | **Mock** — hardcoded session in route handlers | No real AuthN/AuthZ |
-| Ingestion | External pipeline assumed | No application-level connector code |
+| Ingestion | Python service (`scripts/ingestion/`) | 5 providers (Google Workspace, AWS IDC, AWS Orgs, GitHub, GCP CRM) with identity resolution, grants backfill, scheduler, and run tracking. Cloud deployment via Lambda (AWS) and Cloud Run Jobs (GCP). |
 | Export/DLP | Not implemented | Planned for future iteration |
 | Infra | Terraform (Docker local / AWS Aurora+App Runner / GCP Cloud SQL+Cloud Run) | Dual-cloud IaC defined |
 | Tests | Vitest | 14 test suites covering SQL validator, route handlers, middleware, LLM providers, and shared constants |
@@ -41,7 +41,7 @@
 
 1. **No real authentication.** `getSession()` returns a hardcoded mock.
 2. **No GraphQL.** API is bespoke REST endpoints with inline SQL.
-3. **No ingestion API or connectors.** Data loading is assumed external.
+3. **Ingestion service is CLI/scheduled only.** A modular Python ingestion service exists (`scripts/ingestion/`) with 5 providers, identity resolution, and grants backfill. Cloud deployment is wired (Lambda for AWS, Cloud Run Jobs for GCP). No REST/GraphQL ingestion API yet.
 4. **No export/backup jobs.** No export schema or execution layer.
 5. **No RLS policies.** App sets `SET LOCAL app.current_tenant_id` per transaction (forward-compatible) but no RLS policies defined yet.
 6. **No database-backed audit.** Audit middleware logs to console only; database audit table planned.

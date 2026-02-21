@@ -99,7 +99,23 @@ The schema is defined in flat SQL files: `schema/01_schema.sql` (identity DDL), 
 
 ### 2.4 Infrastructure Layer
 
-Infrastructure is defined in **Terraform** with a modular structure under `infra/modules/{aws,gcp}/{networking,database,compute,registry,secrets}`. Deployment configurations reside under `infra/deploy/{aws,gcp}/` with remote state backends (S3 for AWS, GCS for GCP). Shell scripts handle container image builds and schema migrations.
+Infrastructure is defined in **Terraform** with a modular structure under `infra/modules/{aws,gcp}/{networking,database,compute,registry,secrets,ingestion}`. Deployment configurations reside under `infra/deploy/{aws,gcp}/` with remote state backends (S3 for AWS, GCS for GCP). Shell scripts handle container image builds and schema migrations.
+
+### 2.5 Ingestion Service
+
+A modular **Python** ingestion service (`scripts/ingestion/`) syncs live identity and resource data from five cloud providers into the database.
+
+| Component | Responsibility |
+|-----------|---------------|
+| **Provider modules** (`providers/`) | API-specific sync logic for Google Workspace (Admin SDK), AWS Identity Center (Identity Store + SSO Admin), AWS Organizations, GitHub (REST API), and GCP Resource Manager (CRM v3). Each provider handles pagination, rate limiting, and upsert-based sync. |
+| **Identity resolver** (`identity_resolver.py`) | Cross-provider canonical identity resolution via email matching. Links provider users to `canonical_users` and queues unresolved matches. |
+| **Grants backfill** (`grants_backfill.py`) | Rebuilds the denormalised `resource_access_grants` matrix with group expansion and canonical user resolution. |
+| **Run tracking** (`db.py`) | Records each execution in `ingestion_runs` with status, record counts, timing, and error details. |
+| **Scheduler** (`scheduler.py`) | APScheduler-based interval jobs for continuous sync. |
+| **Cloud entrypoints** (`entrypoints/`) | AWS Lambda handler and GCP Cloud Run Job entry point for cloud-native execution. |
+| **Secret resolution** (`secrets.py`) | Supports `aws-secret://` and `gcp-secret://` prefixes for cloud-native credential resolution. |
+
+Cloud deployment: AWS providers run as Lambda functions triggered by EventBridge; GCP and GitHub providers run as Cloud Run Jobs triggered by Cloud Scheduler. Infrastructure modules are in `infra/modules/{aws,gcp}/ingestion/`.
 
 ---
 
@@ -118,11 +134,18 @@ Infrastructure is defined in **Terraform** with a modular structure under `infra
 
 ### 3.2 Ingestion Flow
 
-External identity data (Google Workspace users/groups, AWS Identity Center users/groups, GitHub organisations/users/teams/repositories/permissions) is loaded into the provider-specific tables. After ingestion, canonical identity links are updated or created in the `canonical_user_provider_links` table. Unresolved matches are queued in `identity_reconciliation_queue` for manual review.
+A modular Python ingestion service (`scripts/ingestion/`) syncs live data from five provider APIs into the database:
+
+1. **Provider sync** -- Each provider module (Google Workspace, AWS Identity Center, AWS Organizations, GitHub, GCP Resource Manager) fetches data with pagination and rate limiting, then upserts into the corresponding tables via `ON CONFLICT DO UPDATE`.
+2. **Post-processing** -- After provider syncs complete, two post-processing steps run:
+   - **Identity resolver**: Matches provider users to canonical users via email matching. Creates new `canonical_user_provider_links` entries or queues unresolved matches in `identity_reconciliation_queue`.
+   - **Grants backfill**: Rebuilds the denormalised `resource_access_grants` table by expanding group memberships to individual users with canonical identity resolution.
+3. **Run tracking** -- Each execution is recorded in the `ingestion_runs` table with status (`RUNNING`, `SUCCESS`, `FAILED`), record counts, timing, and error details.
+4. **Cloud deployment** -- AWS providers run as Lambda functions triggered by EventBridge. GCP and GitHub providers run as Cloud Run Jobs triggered by Cloud Scheduler. Environment-specific scheduling is configured via `infra/environments/{dev,stage,prod}.tfvars`.
 
 ### 3.3 Schema Migration Flow
 
-The `migrate-schema.sh` script applies the SQL files from `schema/` in order (`01_schema.sql`, `02_cloud_resources.sql`, `02_seed_and_queries.sql`). The schema uses `CREATE TABLE` and `CREATE INDEX` statements without `IF NOT EXISTS`, so the target database must be empty or the schema must be dropped first. Mock data files in `99-seed/` are applied separately after the base schema.
+The `migrate-schema.sh` script applies the SQL files from `schema/` in order (`01_schema.sql`, `02_cloud_resources.sql`, `02_seed_and_queries.sql`, `03_ingestion_runs.sql`). The schema uses `CREATE TABLE` and `CREATE INDEX` statements without `IF NOT EXISTS`, so the target database must be empty or the schema must be dropped first. Mock data files in `99-seed/` are applied separately after the base schema.
 
 ---
 
@@ -135,6 +158,11 @@ The `migrate-schema.sh` script applies the SQL files from `schema/` in order (`0
 | **AWS Services** (VPC, Aurora, App Runner, ECR, Secrets Manager) | AWS SDK / Terraform | Internal | AWS deployment target; managed networking, database, compute, container registry, and secrets. |
 | **GCP Services** (VPC, Cloud SQL, Cloud Run, Artifact Registry, Secret Manager) | GCP SDK / Terraform | Internal | GCP deployment target; equivalent managed services on Google Cloud. |
 | **Docker** | Container runtime | Local | Local development database provisioned via Terraform using the kreuzwerker/docker and cyrilgdn/postgresql providers. |
+| **Google Workspace Admin SDK** | HTTPS / REST | Outbound (ingestion) | Users, groups, and memberships sync. Authenticated via service account with domain-wide delegation. |
+| **AWS Identity Store + SSO Admin** | AWS SDK | Outbound (ingestion) | Identity Center users, groups, memberships, and account assignments. Authenticated via IAM roles. |
+| **AWS Organizations** | AWS SDK | Outbound (ingestion) | Organisation member accounts. Authenticated via IAM roles. |
+| **GitHub REST API** | HTTPS / REST | Outbound (ingestion) | Organisations, users, teams, repositories, and permissions. Authenticated via personal access token (supports `gcp-secret://` resolution). |
+| **GCP Cloud Resource Manager** | HTTPS / REST | Outbound (ingestion) | Organisations, projects, and IAM policy bindings. Authenticated via service account or Workload Identity. |
 
 ---
 
@@ -157,6 +185,8 @@ The `migrate-schema.sh` script applies the SQL files from `schema/` in order (`0
 | Container registry (GCP) | Artifact Registry | -- | Docker image storage |
 | Secrets (AWS) | Secrets Manager | -- | Credential storage |
 | Secrets (GCP) | Secret Manager | -- | Credential storage |
+| Ingestion | Python | 3.12 | Provider data sync (psycopg2, boto3, google-api-python-client) |
+| Ingestion scheduling | APScheduler / EventBridge / Cloud Scheduler | -- | Periodic provider sync |
 | Infrastructure as Code | Terraform | -- | Declarative infrastructure provisioning |
 | Local database | Docker + Terraform | -- | Containerised PostgreSQL for development |
 

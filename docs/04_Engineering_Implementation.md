@@ -20,9 +20,9 @@ The repository is split into three top-level directories with clear boundaries.
 ```
 ALXnderia/
   app/          Next.js 15 application (App Router, API routes, NL2SQL agent)
-  schema/       SQL files: DDL (01_schema.sql, 02_cloud_resources.sql), seed data, mock data (99-seed/)
-  infra/        Terraform for local Docker PostgreSQL and cloud deploy modules
-  scripts/      Utility scripts (preflight.sh, seed_cloud_resources.py)
+  schema/       SQL files: DDL (01_schema.sql, 02_cloud_resources.sql, 03_ingestion_runs.sql), seed data, mock data (99-seed/)
+  infra/        Terraform for local Docker PostgreSQL, cloud deploy modules, and ingestion infrastructure
+  scripts/      Utility scripts (preflight.sh, seed_cloud_resources.py) and ingestion service
   docs/         Project documentation
   .github/      GitHub Actions CI/CD pipelines (5 workflows)
 ```
@@ -62,6 +62,33 @@ app/app/
   access/page.tsx     Access Explorer
   audit/page.tsx      Audit Log
   api/                API route handlers (11 endpoints)
+```
+
+The ingestion service lives in `scripts/ingestion/`:
+
+```
+scripts/ingestion/
+  __init__.py, __main__.py    Entry point (python -m scripts.ingestion)
+  cli.py                      argparse CLI: sync, scheduler, status
+  config.py                   Frozen dataclass config from env vars
+  db.py                       Connection pool, upsert_batch, run tracking
+  base_provider.py            Abstract base: sync, pagination, rate limiting
+  identity_resolver.py        Cross-provider canonical identity resolution
+  grants_backfill.py          resource_access_grants denormalised rebuild
+  scheduler.py                APScheduler interval jobs
+  secrets.py                  Cloud-native secret resolution (aws-secret://, gcp-secret://)
+  logging_config.py           Structured JSON logging
+  providers/
+    google_workspace.py       Admin SDK: users, groups, memberships
+    aws_identity_center.py    Identity Store + SSO Admin
+    github_org.py             REST API: orgs, users, teams, repos, permissions
+    aws_organizations.py      Organizations API: accounts
+    gcp_resource_manager.py   CRM: organisations, projects, IAM bindings
+  entrypoints/
+    aws_lambda.py             Lambda handler for AWS providers
+    gcp_cloudrun.py           Cloud Run Job entry point for GCP/GitHub providers
+  Dockerfile                  Container image for cloud deployment
+  requirements.txt            Python dependencies
 ```
 
 API route files under `app/app/api/` are thin wrappers that delegate to the corresponding handler in `src/server/routes/`. For example, `app/api/chat/route.ts` imports and calls `handleChat` from `@server/routes/chat`.
@@ -319,6 +346,44 @@ terraform apply
 
 Schema migrations in cloud environments are handled by `infra/scripts/migrate-schema.sh`.
 
+### 6.7 Running the ingestion service
+
+```bash
+# Install Python dependencies
+pip install -r scripts/ingestion/requirements.txt
+
+# Sync a single provider
+python -m scripts.ingestion sync --provider github
+
+# Sync all configured providers then run post-processing
+python -m scripts.ingestion sync --provider all
+python -m scripts.ingestion sync --provider post-process
+
+# Check recent run status
+python -m scripts.ingestion status --provider github --limit 10
+
+# Run continuous scheduler
+python -m scripts.ingestion scheduler
+```
+
+See `scripts/ingestion/.env.example` for all environment variables. Provider syncs are skipped if their credentials are not configured.
+
+### 6.8 Building and deploying the ingestion container
+
+For AWS (Lambda):
+
+```bash
+./infra/scripts/build-and-push-ingestion-aws.sh
+```
+
+For GCP (Cloud Run Jobs):
+
+```bash
+./infra/scripts/build-and-push-ingestion-gcp.sh
+```
+
+Ingestion infrastructure modules are in `infra/modules/aws/ingestion/` and `infra/modules/gcp/ingestion/`. Deploy wiring is in `infra/deploy/aws/ingestion.tf` and `infra/deploy/gcp/ingestion.tf`. Environment-specific configs are in `infra/environments/{dev,stage,prod}.tfvars`.
+
 
 ## 7. Environment Variables Reference
 
@@ -334,6 +399,25 @@ Schema migrations in cloud environments are handled by `infra/scripts/migrate-sc
 | `LLM_MODEL`       | No       | (provider default)               | Model identifier (e.g. claude-sonnet-4-5-20250929, gpt-4o, gemini-2.5-pro) |
 | `PORT`            | No       | `3000`                           | Application listen port (Docker)           |
 | `HOSTNAME`        | No       | `0.0.0.0`                        | Application bind address (Docker)          |
+
+### Ingestion Service Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `TENANT_ID` | Yes | -- | UUID of the tenant to sync data for |
+| `DATABASE_URL` | No | (built from PG_* vars) | Full connection string (supports `aws-secret://`, `gcp-secret://` prefixes) |
+| `GOOGLE_SA_KEY_FILE` | No | -- | Path to Google service account JSON (omit for Workload Identity) |
+| `GOOGLE_ADMIN_EMAIL` | No | -- | Admin email for Google Workspace delegation |
+| `GOOGLE_CUSTOMER_ID` | No | -- | Google Workspace customer ID |
+| `AWS_IDENTITY_STORE_ID` | No | -- | IAM Identity Center store ID |
+| `AWS_SSO_INSTANCE_ARN` | No | -- | IAM Identity Center instance ARN |
+| `AWS_ORGANIZATIONS_ENABLED` | No | `false` | Enable AWS Organizations sync |
+| `GITHUB_TOKEN` | No | -- | GitHub personal access token (supports `gcp-secret://` prefix) |
+| `GITHUB_ORG_LOGINS` | No | -- | Comma-separated GitHub org logins |
+| `GCP_SA_KEY_FILE` | No | -- | Path to GCP service account JSON (omit for Workload Identity) |
+| `GCP_ORG_ID` | No | -- | GCP organization ID (e.g. `organizations/123456789012`) |
+| `INGESTION_BATCH_SIZE` | No | `500` | Rows per upsert batch |
+| `LOG_LEVEL` | No | `INFO` | Logging level |
 
 Never commit `.env` files or hardcode credentials in source. Use the infrastructure secrets modules for production deployments.
 
