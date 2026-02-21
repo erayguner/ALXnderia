@@ -54,15 +54,27 @@ jobs:
           echo "Scanning for unsafe SQL patterns..."
           UNSAFE=0
 
-          # String concatenation in SQL
-          if grep -rn 'query.*\+.*\$\|query.*\+.*req\.\|query.*\+.*params' app/src/ --include='*.ts' --include='*.tsx'; then
-            echo "WARNING: Possible SQL string concatenation found"
+          # Detect request objects interpolated near query calls (e.g. query(... + req.body))
+          if grep -rn --include='*.ts' --include='*.tsx' \
+            -e 'query.*+.*req\.' \
+            app/src/; then
+            echo "WARNING: Possible SQL concatenation with request objects"
             UNSAFE=1
           fi
 
-          # Template literals in SQL without parameterised queries
-          if grep -rn 'query(`.*\${' app/src/ --include='*.ts' --include='*.tsx'; then
-            echo "WARNING: Template literals in SQL queries found"
+          # Detect template literals used directly as the SQL argument: query(`...${expr}...`)
+          # This catches query(`SELECT ${col} FROM ...`) but NOT query('...', [`${val}`])
+          # because the backtick must immediately follow "query("
+          if grep -rEn 'query[[:space:]]*\([[:space:]]*`[^`]*\$\{' app/src/ --include='*.ts' --include='*.tsx'; then
+            echo "WARNING: Template literal interpolation in SQL query argument"
+            UNSAFE=1
+          fi
+
+          # Detect SET LOCAL with string interpolation (bypass of parameterised set_config)
+          if grep -rn --include='*.ts' --include='*.tsx' \
+            -e "SET LOCAL.*\\\${" -e "SET LOCAL.*' *+" \
+            app/src/; then
+            echo "WARNING: SET LOCAL with string interpolation found — use set_config() with bind params"
             UNSAFE=1
           fi
 
