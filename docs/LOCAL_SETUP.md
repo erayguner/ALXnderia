@@ -71,6 +71,9 @@ psql -U $(whoami) -d cloud_identity_intel -f schema/02_cloud_resources.sql
 # DDL: ingestion run tracking table
 psql -U $(whoami) -d cloud_identity_intel -f schema/03_ingestion_runs.sql
 
+# DDL: audit log table
+psql -U $(whoami) -d cloud_identity_intel -f schema/04_audit_log.sql
+
 # Seed data and example queries
 psql -U $(whoami) -d cloud_identity_intel -f schema/02_seed_and_queries.sql
 ```
@@ -279,6 +282,7 @@ Validation queries: `schema/99-seed/021_cloud_resources_validation.sql` (10 quer
 | `schema/02_cloud_resources.sql` | AWS accounts, GCP orgs/projects, IAM bindings, `resource_access_grants` matrix |
 | `schema/02_seed_and_queries.sql` | Seed data for demo tenant, 4 example queries |
 | `schema/03_ingestion_runs.sql` | Ingestion run tracking table |
+| `schema/04_audit_log.sql` | Audit log table |
 | `schema/99-seed/010_mock_data.sql` | Extended identity mock dataset (~700 users, ~10K rows) |
 | `schema/99-seed/020_cloud_resources_seed.sql` | Cloud resource seed (12 AWS accounts, 15 GCP projects, 800+ grants) |
 | `schema/99-seed/021_cloud_resources_validation.sql` | 10 validation queries for cloud resource integrity |
@@ -294,6 +298,8 @@ Validation queries: `schema/99-seed/021_cloud_resources_validation.sql` (10 quer
 | **GitHub** | `github_organisations`, `github_users`, `github_teams`, `github_org_memberships`, `github_team_memberships`, `github_repositories`, `github_repo_team_permissions`, `github_repo_collaborator_permissions` |
 | **Canonical Identity** | `canonical_users`, `canonical_emails`, `canonical_user_provider_links`, `identity_reconciliation_queue` |
 | **Cross-Provider** | `resource_access_grants` (denormalised permissions matrix) |
+| **Ingestion Tracking** | `ingestion_runs` |
+| **Audit** | `audit_log` |
 
 ### Design principles
 
@@ -484,6 +490,8 @@ ALXnderia/
 │   ├── 01_schema.sql     # Identity table DDL, indexes, enums, extensions
 │   ├── 02_cloud_resources.sql   # AWS accounts, GCP projects, access grants DDL
 │   ├── 02_seed_and_queries.sql  # Base seed data and example queries
+│   ├── 03_ingestion_runs.sql    # Ingestion run tracking table
+│   ├── 04_audit_log.sql         # Audit log table (query audit trail)
 │   └── 99-seed/
 │       ├── 010_mock_data.sql             # Extended identity mock (~700 users, ~10K rows)
 │       ├── 020_cloud_resources_seed.sql  # Cloud resource seed (12 AWS accounts, 15 GCP projects, 800+ grants)

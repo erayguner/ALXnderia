@@ -158,6 +158,38 @@ resource "aws_secretsmanager_secret_version" "ingestion_config" {
 }
 
 # ---------------------------------------------------------------------------
+# Dead-letter queue for Lambda failures
+# ---------------------------------------------------------------------------
+
+resource "aws_sqs_queue" "ingestion_dlq" {
+  name                      = "${local.function_prefix}-dlq"
+  message_retention_seconds = 1209600 # 14 days
+  sqs_managed_sse_enabled   = true
+  tags                      = var.tags
+}
+
+# Allow Lambda role to send messages to the DLQ
+resource "aws_iam_role_policy" "lambda_dlq" {
+  name = "${local.function_prefix}-dlq"
+  role = aws_iam_role.ingestion_lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "sqs:SendMessage"
+      Resource = aws_sqs_queue.ingestion_dlq.arn
+    }]
+  })
+}
+
+# Allow Lambda role to write X-Ray traces
+resource "aws_iam_role_policy_attachment" "lambda_xray" {
+  role       = aws_iam_role.ingestion_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+# ---------------------------------------------------------------------------
 # Lambda security group (outbound to Aurora + internet for AWS APIs)
 # ---------------------------------------------------------------------------
 
@@ -203,6 +235,17 @@ resource "aws_lambda_function" "ingestion" {
   # Container image from ECR
   package_type = "Image"
   image_uri    = var.ingestion_image_uri
+
+  # Concurrency limit prevents runaway invocations
+  reserved_concurrent_executions = 1
+
+  tracing_config {
+    mode = "Active"
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.ingestion_dlq.arn
+  }
 
   vpc_config {
     subnet_ids         = var.private_subnet_ids
@@ -276,6 +319,16 @@ resource "aws_lambda_function" "post_process" {
   memory_size   = 512
   package_type  = "Image"
   image_uri     = var.ingestion_image_uri
+
+  reserved_concurrent_executions = 1
+
+  tracing_config {
+    mode = "Active"
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.ingestion_dlq.arn
+  }
 
   vpc_config {
     subnet_ids         = var.private_subnet_ids

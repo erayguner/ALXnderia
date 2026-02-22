@@ -21,7 +21,7 @@ resource "google_sql_database_instance" "main" {
     ip_configuration {
       ipv4_enabled                                  = false
       private_network                               = var.network_id
-      require_ssl                                   = false
+      require_ssl                                   = true
       enable_private_path_for_google_cloud_services = true
     }
 
@@ -43,6 +43,41 @@ resource "google_sql_database_instance" "main" {
     database_flags {
       name  = "log_disconnections"
       value = "on"
+    }
+
+    database_flags {
+      name  = "log_hostname"
+      value = "on"
+    }
+
+    database_flags {
+      name  = "log_min_error_statement"
+      value = "error"
+    }
+
+    database_flags {
+      name  = "log_checkpoints"
+      value = "on"
+    }
+
+    database_flags {
+      name  = "log_lock_waits"
+      value = "on"
+    }
+
+    database_flags {
+      name  = "log_statement"
+      value = "ddl"
+    }
+
+    database_flags {
+      name  = "cloudsql.enable_pgaudit"
+      value = "on"
+    }
+
+    database_flags {
+      name  = "pgaudit.log"
+      value = "all"
     }
   }
 

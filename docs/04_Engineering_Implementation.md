@@ -32,10 +32,11 @@ Inside `app/`, source code follows a strict server/client/shared separation:
 ```
 app/src/
   server/
-    agents/         NL2SQL agent (LLM-agnostic, schema cache)
-    db/             Connection pool with tenant-scoped execution
-    llm/            LLM provider abstraction (Anthropic, OpenAI, Gemini)
-    middleware/     Audit logging (fire-and-forget)
+    agents/         NL2SQL agent (LLM-agnostic, TTL-cached schema context)
+    db/             Connection pool with parameterised tenant-scoped execution
+    lib/            Shared utilities (query-builder: ParamBuilder, pagination)
+    llm/            LLM provider abstraction (Anthropic, OpenAI, Gemini in index.ts + types.ts)
+    middleware/     Audit logging (DB-backed with console fallback)
     routes/         Handler functions for each API endpoint
                     (access.ts, accounts.ts, audit.ts, chat.ts, groups.ts, people.ts, resources.ts)
     validators/     SQL security validator (libpg-query WASM parser)
@@ -96,15 +97,17 @@ API route files under `app/app/api/` are thin wrappers that delegate to the corr
 
 ## 2. Key Modules and Responsibilities
 
-**`src/server/db/pool.ts`** -- Database connection pool. Exports `executeWithTenant()` which wraps every query in a transaction with `SET LOCAL app.current_tenant_id` for forward-compatible tenant scoping. Also exports `executeReadOnly()` for system-level queries (e.g. schema introspection), `getSchemaMetadata()` for live catalogue introspection, and `healthCheck()` for readiness probes. Note: the current schema does not define RLS policies, but the application sets the tenant session variable in preparation for future RLS enablement.
+**`src/server/db/pool.ts`** -- Database connection pool. Exports `executeWithTenant()` which wraps every query in a transaction with parameterised `set_config()` calls for `statement_timeout` and `app.current_tenant_id` (avoiding SQL string interpolation). Also exports `executeReadOnly()` for system-level queries (e.g. schema introspection), `getSchemaMetadata()` for live catalogue introspection, and `healthCheck()` for readiness probes. Note: the current schema does not define RLS policies, but the application sets the tenant session variable in preparation for future RLS enablement.
 
-**`src/server/llm/`** -- LLM provider abstraction layer. Defines an `LLMProvider` interface with a `complete()` method, and implements it for three backends: Anthropic Claude (`anthropic.ts`), OpenAI GPT (`openai.ts`), and Google Gemini (`gemini.ts`). The factory in `index.ts` reads the `LLM_PROVIDER` environment variable and returns a cached provider singleton. Only the selected provider's SDK is loaded at runtime via dynamic imports.
+**`src/server/llm/`** -- LLM provider abstraction layer. Defines an `LLMProvider` interface in `types.ts` with a `complete()` method. All three providers (Anthropic Claude, OpenAI GPT, Google Gemini) are implemented as classes in `index.ts` using lazy-loaded SDK imports. The `getLLMProvider()` factory reads the `LLM_PROVIDER` environment variable and returns a cached singleton. Call `resetProvider()` to switch providers at runtime (e.g. in tests).
 
-**`src/server/agents/nl2sql-agent.ts`** -- The NL2SQL agent. Builds a system prompt from live schema metadata, calls the configured LLM provider via the abstraction layer in `src/server/llm/`, parses the structured JSON response, validates the generated SQL, executes it within a tenant-scoped transaction, and returns a `ChatResponse` with narrative context. The schema context is cached in memory after the first call; call `clearSchemaCache()` after DDL changes.
+**`src/server/agents/nl2sql-agent.ts`** -- The NL2SQL agent. Builds a system prompt from live schema metadata, calls the configured LLM provider via the abstraction layer in `src/server/llm/`, parses the structured JSON response, validates the generated SQL, executes it within a tenant-scoped transaction, and returns a `ChatResponse` with narrative context. The schema context is cached in memory with a 5-minute TTL; the cache auto-refreshes after expiry — no manual clearing needed.
 
 **`src/server/validators/sql-validator.ts`** -- The critical security layer between LLM output and the database. Uses `libpg-query` (PostgreSQL's actual parser compiled to WASM) to parse SQL into an AST. Enforces: SELECT-only statements, table allow-list, blocked function list, blocked system-table prefixes, blocked keywords, and automatic `LIMIT` injection when absent. Defence-in-depth: comments are stripped before parsing, and a pre-parse keyword scan runs before the AST walk.
 
-**`src/server/middleware/audit.ts`** -- Logs audit entries to the console. Records question text, SQL executed, row count, timing, and status. Never stores result data (data minimisation). The current schema does not include an `audit_log` table; database-backed audit logging is planned for a future iteration.
+**`src/server/middleware/audit.ts`** -- Writes query audit entries to the `audit_log` table. Records question text, SQL executed, row count, timing, and status. Never stores result data (data minimisation). Falls back to console logging if the DB write fails — audit failures never propagate to the caller.
+
+**`src/server/lib/query-builder.ts`** -- Shared query-building utilities. `ParamBuilder` tracks parameterised query parameters with auto-incrementing `$N` indices, eliminating manual `paramIdx++` bookkeeping across route files. Also provides `buildSearchFilter()` for ILIKE patterns, `parsePagination()` for page/limit parsing, and `executePaginatedQuery()` for count+data query pairs.
 
 **`src/server/routes/chat.ts`** -- The chat endpoint handler. Validates the request body, enforces question length limits, calls `processQuestion()`, records the audit entry (fire-and-forget), and returns the response. Uses a hardcoded mock session in the current implementation.
 
@@ -255,16 +258,16 @@ Every user-facing database query must go through `executeWithTenant(tenantId, sq
 
 1. Acquires a client from the pool.
 2. Opens a transaction with `BEGIN`.
-3. Sets `SET LOCAL statement_timeout` and `SET LOCAL app.current_tenant_id`.
+3. Sets `statement_timeout` and `app.current_tenant_id` via parameterised `SELECT set_config($1, $2, true)` calls.
 4. Executes the query.
 5. Commits (or rolls back on error).
 6. Releases the client.
 
-The `SET LOCAL` ensures the tenant context is scoped to the transaction and automatically cleared on commit or rollback. The current schema does not define RLS policies, but the application sets `app.current_tenant_id` for forward compatibility. All tables include a `tenant_id` column with composite primary keys `(id, tenant_id)` to support future partition-based or RLS-based isolation.
+The `set_config(..., true)` ensures the tenant context is scoped to the transaction and automatically cleared on commit or rollback. Using parameterised calls instead of `SET LOCAL` string interpolation eliminates any SQL injection risk in the session variable setting. The current schema does not define RLS policies, but the application sets `app.current_tenant_id` for forward compatibility. All tables include a `tenant_id` column with composite primary keys `(id, tenant_id)` to support future partition-based or RLS-based isolation.
 
 ### 5.5 Audit pattern
 
-Audit logging is fire-and-forget: `recordAuditEntry(...).catch(() => {})`. This ensures a failure in the audit pipeline never degrades the primary query flow. Both successful and failed queries are audited. Result data is never stored, only metadata (question, SQL, row count, timing, status). Currently, audit entries are logged to the console. Database-backed audit logging will be added when an `audit_log` table is provisioned in the schema.
+Audit logging is fire-and-forget: `recordAuditEntry(...).catch(() => {})`. This ensures a failure in the audit pipeline never degrades the primary query flow. Both successful and failed queries are audited. Result data is never stored, only metadata (question, SQL, row count, timing, status). Entries are written to the `audit_log` table (`schema/04_audit_log.sql`); if the DB write fails, the entry is logged to the console as a fallback so audit data is never silently lost.
 
 ### 5.6 API route delegation
 
@@ -298,7 +301,7 @@ Business logic, validation, and error handling live in the route handler, not in
 4. If the table contains PII, add it to `PII_TABLES`.
 5. If the table is commonly referred to by alternative names, add entries to `SCHEMA_SYNONYMS`.
 6. Re-run `terraform apply` in `infra/` to apply the schema change.
-7. Call `clearSchemaCache()` or restart the application so the NL2SQL agent picks up the new table metadata.
+7. The NL2SQL agent's schema cache refreshes automatically every 5 minutes. For immediate pickup, restart the application.
 
 ### 6.3 Updating the NL2SQL agent's knowledge
 
@@ -321,19 +324,14 @@ Always run `npm test` before committing. The validator tests are particularly im
 
 ### 6.5 Building and deploying the Docker image
 
-For AWS:
+A unified build script supports both platforms and targets:
 
 ```bash
-./infra/scripts/build-and-push-aws.sh
+./infra/scripts/build-and-push.sh --platform aws --target app
+./infra/scripts/build-and-push.sh --platform gcp --target app
 ```
 
-For GCP:
-
-```bash
-./infra/scripts/build-and-push-gcp.sh
-```
-
-These scripts build the Docker image and push it to the respective container registry. Cloud infrastructure is defined in `infra/modules/aws/` and `infra/modules/gcp/`, each with networking, database, compute, registry, and secrets modules. Deploy configurations live in `infra/deploy/aws/` and `infra/deploy/gcp/`.
+Legacy per-platform scripts (`build-and-push-aws.sh`, `build-and-push-gcp.sh`) are still available for backward compatibility. Cloud infrastructure is defined in `infra/modules/aws/` and `infra/modules/gcp/`, each with networking, database, compute, registry, and secrets modules. Deploy configurations live in `infra/deploy/aws/` and `infra/deploy/gcp/`.
 
 ### 6.6 Deploying infrastructure changes
 
@@ -373,13 +371,13 @@ See `scripts/ingestion/.env.example` for all environment variables. Provider syn
 For AWS (Lambda):
 
 ```bash
-./infra/scripts/build-and-push-ingestion-aws.sh
+./infra/scripts/build-and-push.sh --platform aws --target ingestion
 ```
 
 For GCP (Cloud Run Jobs):
 
 ```bash
-./infra/scripts/build-and-push-ingestion-gcp.sh
+./infra/scripts/build-and-push.sh --platform gcp --target ingestion
 ```
 
 Ingestion infrastructure modules are in `infra/modules/aws/ingestion/` and `infra/modules/gcp/ingestion/`. Deploy wiring is in `infra/deploy/aws/ingestion.tf` and `infra/deploy/gcp/ingestion.tf`. Environment-specific configs are in `infra/environments/{dev,stage,prod}.tfvars`.
@@ -426,9 +424,9 @@ Never commit `.env` files or hardcode credentials in source. Use the infrastruct
 
 1. **Authentication is mocked.** The `getSession()` function in `src/server/routes/chat.ts` returns a hardcoded demo user with tenant ID `11111111-1111-1111-1111-111111111111`. Production requires replacing this with Auth.js or an equivalent session provider. All downstream code already accepts tenantId and role as parameters.
 
-2. **Schema cache is in-memory and per-process.** The NL2SQL agent caches schema metadata after the first query. In a multi-instance deployment, each instance maintains its own cache. After schema migrations, either restart all instances or expose an endpoint that calls `clearSchemaCache()`.
+2. **Schema cache is in-memory with TTL.** The NL2SQL agent caches schema metadata with a 5-minute TTL. After expiry the cache auto-refreshes on the next request. In a multi-instance deployment, each instance maintains its own cache; schema changes propagate within 5 minutes without restarts.
 
-3. **Audit logging is console-only.** The current schema does not include an `audit_log` table. Audit entries are logged to the console and failures are swallowed. For strict compliance requirements, provision an audit table and consider a write-ahead log or message queue.
+3. **Audit logging is database-backed.** Query audit entries are written to the `audit_log` table (`schema/04_audit_log.sql`). If the DB write fails, the entry is logged to the console as a fallback. Audit failures never propagate to the caller.
 
 4. **The SQL validator is the sole security boundary.** The application trusts that if the validator passes a query, it is safe to execute. The validator enforces SELECT-only, table allow-listing, function block-listing, and automatic LIMIT injection. Any new table must be explicitly added to `ALLOWED_TABLES` before the agent can query it.
 
@@ -436,4 +434,4 @@ Never commit `.env` files or hardcode credentials in source. Use the infrastruct
 
 6. **The `source_ip` field in audit entries is hardcoded to `127.0.0.1`.** Production must extract the real client IP from the request headers (respecting proxy configuration).
 
-7. **The schema is defined in flat SQL files.** `schema/01_schema.sql` contains identity DDL (extensions, tables, indexes, enums), `schema/02_cloud_resources.sql` contains cloud resource DDL (AWS accounts, GCP projects, `resource_access_grants`), `schema/02_seed_and_queries.sql` contains seed data, `schema/99-seed/010_mock_data.sql` contains the extended identity mock (~700 users, ~10K rows), and `schema/99-seed/020_cloud_resources_seed.sql` contains the cloud resource mock (12 AWS accounts, 15 GCP projects, 800+ access grants). They are applied in sort order. Terraform re-applies the schema when files change; there is no incremental migration tracking. A Python seed script (`scripts/seed_cloud_resources.py`) is also available for repeatable cloud resource seeding. The schema does not define database roles, RLS policies, or PII redaction views — these are planned for a future iteration.
+7. **The schema is defined in flat SQL files.** `schema/01_schema.sql` contains identity DDL (extensions, tables, indexes, enums), `schema/02_cloud_resources.sql` contains cloud resource DDL (AWS accounts, GCP projects, `resource_access_grants`), `schema/02_seed_and_queries.sql` contains seed data, `schema/03_ingestion_runs.sql` contains ingestion tracking, `schema/04_audit_log.sql` contains the audit log table, `schema/99-seed/010_mock_data.sql` contains the extended identity mock (~700 users, ~10K rows), and `schema/99-seed/020_cloud_resources_seed.sql` contains the cloud resource mock (12 AWS accounts, 15 GCP projects, 800+ access grants). They are applied in sort order. Terraform re-applies the schema when files change; there is no incremental migration tracking. A Python seed script (`scripts/seed_cloud_resources.py`) is also available for repeatable cloud resource seeding. The schema does not define database roles, RLS policies, or PII redaction views — these are planned for a future iteration.

@@ -128,11 +128,16 @@ jobs:
             WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
             ORDER BY table_name;" | tee /tmp/tables.txt
 
-          for tbl in tenant person person_link cloud_provider \
-                     aws_account aws_iam_user aws_idc_user aws_idc_group \
-                     gcp_project gcp_workspace_user gcp_workspace_group \
-                     github_organisation github_user github_team \
-                     github_team_membership github_org_membership; do
+          for tbl in canonical_users canonical_emails canonical_user_provider_links \
+                     google_workspace_users google_workspace_groups google_workspace_memberships \
+                     aws_identity_center_users aws_identity_center_groups aws_identity_center_memberships \
+                     aws_accounts aws_account_assignments \
+                     gcp_organisations gcp_projects gcp_project_iam_bindings \
+                     github_organisations github_users github_teams \
+                     github_team_memberships github_org_memberships \
+                     github_repositories github_repo_team_permissions github_repo_collaborator_permissions \
+                     resource_access_grants identity_reconciliation_queue \
+                     ingestion_runs audit_log; do
             grep -q "$tbl" /tmp/tables.txt || { echo "MISSING: $tbl"; exit 1; }
           done
           echo "All expected tables present."
@@ -142,37 +147,25 @@ jobs:
           PGPASSWORD: ci-test-password
         run: |
           psql -h localhost -U cloudintel -d cloud_identity_intel -c "
-            SELECT 'person' AS entity, COUNT(*) FROM person
-            UNION ALL SELECT 'person_link', COUNT(*) FROM person_link
-            UNION ALL SELECT 'github_user', COUNT(*) FROM github_user
-            UNION ALL SELECT 'github_team', COUNT(*) FROM github_team
+            SELECT 'canonical_users' AS entity, COUNT(*) FROM canonical_users
+            UNION ALL SELECT 'canonical_user_provider_links', COUNT(*) FROM canonical_user_provider_links
+            UNION ALL SELECT 'github_users', COUNT(*) FROM github_users
+            UNION ALL SELECT 'github_teams', COUNT(*) FROM github_teams
             ORDER BY entity;"
 
-      - name: Verify RLS enabled
+      - name: Verify tenant_id column on key tables
         env:
           PGPASSWORD: ci-test-password
         run: |
-          psql -h localhost -U cloudintel -d cloud_identity_intel -c "
-            SELECT relname, relrowsecurity, relforcerowsecurity
-            FROM pg_class
-            WHERE relname IN (
-              'person','aws_account','gcp_project',
-              'github_organisation','github_user','github_team'
-            ) AND relkind = 'r'
-            ORDER BY relname;" | tee /tmp/rls.txt
-
-          # All should show t | t
-          if grep -c "| f" /tmp/rls.txt > /dev/null 2>&1; then
-            echo "RLS not enabled on all tables!"
-            exit 1
-          fi
-          echo "RLS verified on all tables."
-
-      - name: Verify redaction views
-        env:
-          PGPASSWORD: ci-test-password
-        run: |
-          psql -h localhost -U cloudintel -d cloud_identity_intel -c "
-            SELECT viewname FROM pg_views
-            WHERE viewname LIKE 'v_%_redacted'
-            ORDER BY viewname;"
+          echo "Checking tenant_id column exists on all data tables..."
+          MISSING=0
+          for tbl in canonical_users google_workspace_users aws_identity_center_users \
+                     github_organisations github_users github_teams \
+                     aws_accounts gcp_projects; do
+            psql -h localhost -U cloudintel -d cloud_identity_intel -tAc "
+              SELECT COUNT(*) FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = '$tbl' AND column_name = 'tenant_id';" \
+            | grep -q '^1$' || { echo "MISSING tenant_id on: $tbl"; MISSING=1; }
+          done
+          if [ $MISSING -eq 1 ]; then exit 1; fi
+          echo "All key tables have tenant_id column."

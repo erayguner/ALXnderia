@@ -32,15 +32,42 @@ jobs:
           output_format: cli,sarif
           output_file_path: console,results.sarif
           soft_fail: true
-          skip_check: CKV_DOCKER_2,CKV_DOCKER_3,CKV_SECRET_6,CKV_AWS_130,CKV_AWS_382,CKV_AWS_354,CKV_AWS_327,CKV_AWS_162
-          # CKV_DOCKER_2: healthcheck — we have one
-          # CKV_DOCKER_3: user instruction — dev container
+          skip_check: >-
+            CKV_DOCKER_2,CKV_DOCKER_3,CKV_SECRET_6,
+            CKV_AWS_130,CKV_AWS_382,CKV_AWS_354,CKV_AWS_327,CKV_AWS_162,
+            CKV_AWS_149,CKV_AWS_272,CKV_AWS_173,CKV_AWS_355,CKV_AWS_41,
+            CKV_GCP_102,CKV_GCP_79,CKV_GCP_84
+          # ── Docker (local dev container) ──
+          # CKV_DOCKER_2: healthcheck — configured in resource
+          # CKV_DOCKER_3: user instruction — local dev container, not deployed
           # CKV_SECRET_6: false positive on password_encryption=scram-sha-256
-          # CKV_AWS_130: public subnets intentionally assign public IPs
-          # CKV_AWS_382: Aurora SG egress needed for outbound connectivity
-          # CKV_AWS_354: KMS CMK for Performance Insights — unnecessary cost for dev
-          # CKV_AWS_327: KMS CMK for RDS encryption — unnecessary cost for dev
-          # CKV_AWS_162: IAM auth for RDS — not required for this architecture
+          #
+          # ── AWS networking ──
+          # CKV_AWS_130: public subnets intentionally assign public IPs (NAT gateway lives here)
+          # CKV_AWS_382: Aurora SG egress needed for monitoring/logging connectivity
+          #
+          # ── AWS KMS / CMK (cost-optimised; provider-managed encryption used instead) ──
+          # CKV_AWS_354: KMS CMK for Performance Insights — Aurora uses AWS-managed key; cost ~$1/mo/key
+          # CKV_AWS_327: KMS CMK for RDS storage — Aurora storage_encrypted=true uses aws/rds default key
+          # CKV_AWS_149: KMS CMK for Secrets Manager — uses aws/secretsmanager default encryption
+          # CKV_AWS_173: KMS CMK for Lambda env vars — env vars reference secret ARNs, not secrets themselves
+          #   Review: 2026-08-22 — re-evaluate CMK if handling regulated data (PCI/HIPAA)
+          #
+          # ── AWS Lambda ──
+          # CKV_AWS_272: Lambda code-signing — container images from private ECR with scan-on-push; no code packages
+          # CKV_AWS_162: IAM auth for RDS — Lambda uses Secrets Manager for DB credentials, not IAM auth
+          #
+          # ── AWS IAM ──
+          # CKV_AWS_355: IAM policies with Resource "*" — Identity Store, SSO, and Organizations APIs
+          #   do not support resource-level permissions (ARN scoping not available)
+          # CKV_AWS_41: Hardcoded credentials in provider — false positive; provider uses env/profile auth
+          #
+          # ── GCP ──
+          # CKV_GCP_102: Cloud Run public access — intentional; app is a public-facing web service
+          # CKV_GCP_79: Cloud SQL latest major version — POSTGRES_18 is the latest supported version
+          # CKV_GCP_84: Artifact Registry CSEK — uses Google-managed encryption; CSEK adds key management
+          #   overhead without proportional security benefit for container images
+          #   Review: 2026-08-22 — re-evaluate CSEK if storing regulated artifacts
 
       - name: Upload Terraform SARIF
         if: always()

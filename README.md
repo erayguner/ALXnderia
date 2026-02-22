@@ -138,6 +138,7 @@ ALXnderia/
 | `schema/02_cloud_resources.sql` | AWS accounts, GCP orgs/projects, IAM bindings, `resource_access_grants` matrix |
 | `schema/02_seed_and_queries.sql` | Seed data for demo tenant `11111111-...`, example queries |
 | `schema/03_ingestion_runs.sql` | Ingestion run tracking table (`ingestion_runs`) |
+| `schema/04_audit_log.sql` | Audit log table DDL and indexes |
 | `schema/99-seed/010_mock_data.sql` | Extended identity mock dataset (~700 users, ~10K rows across all providers) |
 | `schema/99-seed/020_cloud_resources_seed.sql` | Cloud resource seed data (12 AWS accounts, 15 GCP projects, ~240 assignments, ~180 IAM bindings, 800+ access grants) |
 | `schema/99-seed/021_cloud_resources_validation.sql` | 10 validation queries for cloud resource data integrity |
@@ -154,14 +155,15 @@ ALXnderia/
 | **Canonical Identity** | `canonical_users`, `canonical_emails`, `canonical_user_provider_links`, `identity_reconciliation_queue` |
 | **Cross-Provider** | `resource_access_grants` (denormalised permissions matrix) |
 | **Ingestion Tracking** | `ingestion_runs` (execution history, status, record counts) |
+| **Audit** | `audit_log` (query audit trail with tenant/user/timing metadata) |
 
-All tables use composite primary keys `(id, tenant_id)` for partition-friendly multi-tenancy. **25 tables** across 8 domains.
+All tables use composite primary keys `(id, tenant_id)` for partition-friendly multi-tenancy. **26 tables** across 9 domains.
 
 ## Security
 
 - **SQL Validation** -- 7-layer pipeline: comment stripping, keyword blocklist, AST parsing (libpg-query WASM), SELECT-only enforcement, table allowlisting, function blocklisting, automatic LIMIT injection
 - **Tenant Isolation** -- All tables use composite PK `(id, tenant_id)`; app sets `SET LOCAL app.current_tenant_id` per transaction (RLS-ready)
-- **Audit Logging** -- All queries logged with metadata (question, SQL, row count, timing, status); database-backed audit planned
+- **Audit Logging** -- All queries logged to `audit_log` table with metadata (question, SQL, row count, timing, status); falls back to console on DB failure
 - **Identity Reconciliation** -- Unresolved cross-provider matches queued in `identity_reconciliation_queue` for review
 - **Denormalised Access Matrix** -- `resource_access_grants` provides pre-computed, group-expanded cross-provider access with canonical user resolution
 
@@ -179,21 +181,21 @@ All tables use composite primary keys `(id, tenant_id)` for partition-friendly m
 
 ### AWS
 
-App Runner + Aurora Serverless v2 (0.5--16 ACU) in a custom VPC with private subnets. ECR for images, Secrets Manager for credentials. Ingestion runs as Lambda functions (Identity Center + Organizations) triggered by EventBridge.
+App Runner + Aurora Serverless v2 (0.5--16 ACU) in a custom VPC with private subnets. ECR (immutable tags, scan-on-push) for images, Secrets Manager for credentials. Ingestion runs as Lambda functions (Identity Center + Organizations) with X-Ray tracing, SQS dead-letter queues, and EventBridge scheduling.
 
 ```bash
-./infra/scripts/build-and-push-aws.sh
-./infra/scripts/build-and-push-ingestion-aws.sh   # ingestion container
+./infra/scripts/build-and-push.sh --platform aws --target app
+./infra/scripts/build-and-push.sh --platform aws --target ingestion
 cd infra/deploy/aws && terraform apply
 ```
 
 ### GCP
 
-Cloud Run v2 + Cloud SQL (PostgreSQL 18, regional HA) with private IP. Artifact Registry for images, Secret Manager for credentials. Ingestion runs as Cloud Run Jobs (Google Workspace + GCP CRM + GitHub) triggered by Cloud Scheduler.
+Cloud Run v2 + Cloud SQL (PostgreSQL 18, regional HA) with private IP, SSL required, pgAudit enabled, VPC flow logs. Artifact Registry for images, Secret Manager for credentials. Ingestion runs as Cloud Run Jobs (Google Workspace + GCP CRM + GitHub) triggered by Cloud Scheduler.
 
 ```bash
-./infra/scripts/build-and-push-gcp.sh
-./infra/scripts/build-and-push-ingestion-gcp.sh   # ingestion container
+./infra/scripts/build-and-push.sh --platform gcp --target app
+./infra/scripts/build-and-push.sh --platform gcp --target ingestion
 cd infra/deploy/gcp && terraform apply
 ```
 
@@ -222,7 +224,7 @@ cd infra/deploy/gcp && terraform apply -var-file=../../environments/prod.tfvars
 | [SRE Operations Guide](docs/05_SRE_Operations_Guide.md) | Deployment, monitoring, runbooks |
 | [GitHub Identity Integration](docs/06_GitHub_Identity_Integration.md) | GitHub provider design and mapping |
 | [Target Architecture](docs/07_Target_Architecture_GraphQL_DLP.md) | GraphQL API and Export/DLP roadmap |
-| [Database Schema](docs/08_Database_Schema.md) | Complete schema reference (25 tables, indexes, constraints) |
+| [Database Schema](docs/08_Database_Schema.md) | Complete schema reference (26 tables, indexes, constraints) |
 | [Local Setup](docs/LOCAL_SETUP.md) | Complete local setup guide (native PG + Docker options, troubleshooting, reset procedures) |
 | [Performance Metrics](docs/performance-metrics.md) | Query benchmarks and index analysis |
 
