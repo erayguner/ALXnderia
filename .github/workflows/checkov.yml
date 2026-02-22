@@ -32,11 +32,7 @@ jobs:
           output_format: cli,sarif
           output_file_path: console,results.sarif
           soft_fail: true
-          skip_check: >-
-            CKV_DOCKER_2,CKV_DOCKER_3,CKV_SECRET_6,
-            CKV_AWS_130,CKV_AWS_382,CKV_AWS_354,CKV_AWS_327,CKV_AWS_162,
-            CKV_AWS_149,CKV_AWS_272,CKV_AWS_173,CKV_AWS_355,CKV_AWS_41,
-            CKV_GCP_102,CKV_GCP_79,CKV_GCP_84
+          skip_check: CKV_DOCKER_2,CKV_DOCKER_3,CKV_SECRET_6,CKV_AWS_130,CKV_AWS_382,CKV_AWS_354,CKV_AWS_327,CKV_AWS_162,CKV_AWS_149,CKV_AWS_272,CKV_AWS_173,CKV_AWS_355,CKV_AWS_41,CKV_GCP_102,CKV_GCP_79,CKV_GCP_84
           # ── Docker (local dev container) ──
           # CKV_DOCKER_2: healthcheck — configured in resource
           # CKV_DOCKER_3: user instruction — local dev container, not deployed
