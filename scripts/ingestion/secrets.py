@@ -29,9 +29,9 @@ def resolve_secret(value: str) -> str:
       - anything else                      -> returned as-is (env var / literal)
     """
     if value.startswith(_AWS_PREFIX):
-        return _resolve_aws_secret(value[len(_AWS_PREFIX):])
+        return _resolve_aws_secret(value[len(_AWS_PREFIX) :])
     if value.startswith(_GCP_PREFIX):
-        return _resolve_gcp_secret(value[len(_GCP_PREFIX):])
+        return _resolve_gcp_secret(value[len(_GCP_PREFIX) :])
     return value
 
 
@@ -84,6 +84,7 @@ def _resolve_gcp_secret(ref: str) -> str:
 def _gcp_project_from_metadata() -> str:
     """Fetch GCP project ID from the metadata server (available in Cloud Run/GCE)."""
     import requests
+
     try:
         resp = requests.get(
             "http://metadata.google.internal/computeMetadata/v1/project/project-id",

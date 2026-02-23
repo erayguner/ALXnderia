@@ -150,7 +150,9 @@ def load_config() -> IngestionConfig:
         github = GitHubConfig(
             token=gh_token,
             org_logins=logins,
-            api_base_url=os.environ.get("GITHUB_API_BASE_URL", "https://api.github.com"),
+            api_base_url=os.environ.get(
+                "GITHUB_API_BASE_URL", "https://api.github.com"
+            ),
         )
 
     # GCP (optional)

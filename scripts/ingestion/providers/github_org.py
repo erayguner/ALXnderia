@@ -28,11 +28,13 @@ class GitHubOrgProvider(BaseProvider):
         self._org_logins = gh.org_logins
         self._base = gh.api_base_url.rstrip("/")
         self._session = requests.Session()
-        self._session.headers.update({
-            "Authorization": f"token {self._token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        })
+        self._session.headers.update(
+            {
+                "Authorization": f"token {self._token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            }
+        )
 
     def _get_paginated(self, url: str, params: Optional[dict] = None) -> list[dict]:
         """Fetch all pages from a GitHub REST API endpoint."""
@@ -118,9 +120,7 @@ class GitHubOrgProvider(BaseProvider):
             full_name = repo.get("full_name", "")
             repo_node_id = repo.get("node_id", "")
 
-            repo_teams = self._get_paginated(
-                f"{self._base}/repos/{full_name}/teams"
-            )
+            repo_teams = self._get_paginated(f"{self._base}/repos/{full_name}/teams")
             rtp_total += self._upsert_repo_team_perms(repo_node_id, repo_teams)
 
             collabs = self._get_paginated(
@@ -137,22 +137,33 @@ class GitHubOrgProvider(BaseProvider):
         if not org:
             return 0
         columns = [
-            "tenant_id", "github_id", "node_id", "login", "name",
-            "email", "raw_response", "last_synced_at",
+            "tenant_id",
+            "github_id",
+            "node_id",
+            "login",
+            "name",
+            "email",
+            "raw_response",
+            "last_synced_at",
         ]
-        rows = [(
-            self.tenant_id,
-            org["id"],
-            org["node_id"],
-            org["login"],
-            org.get("name"),
-            org.get("email"),
-            json.dumps(org),
-            "NOW()",
-        )]
+        rows = [
+            (
+                self.tenant_id,
+                org["id"],
+                org["node_id"],
+                org["login"],
+                org.get("name"),
+                org.get("email"),
+                json.dumps(org),
+                "NOW()",
+            )
+        ]
         with self.db.transaction() as cur:
             return self.db.upsert_batch(
-                cur, "github_organisations", columns, rows,
+                cur,
+                "github_organisations",
+                columns,
+                rows,
                 ["tenant_id", "node_id"],
                 ["login", "name", "email", "raw_response"],
             )
@@ -160,32 +171,47 @@ class GitHubOrgProvider(BaseProvider):
     def _upsert_users(self, users: list[dict]) -> int:
         total = 0
         columns = [
-            "tenant_id", "github_id", "node_id", "login", "name",
-            "email", "type", "site_admin", "avatar_url",
-            "raw_response", "last_synced_at",
+            "tenant_id",
+            "github_id",
+            "node_id",
+            "login",
+            "name",
+            "email",
+            "type",
+            "site_admin",
+            "avatar_url",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "node_id"]
         update = [
-            "login", "name", "email", "type", "site_admin",
-            "avatar_url", "raw_response",
+            "login",
+            "name",
+            "email",
+            "type",
+            "site_admin",
+            "avatar_url",
+            "raw_response",
         ]
         for batch in self._batch_rows(users):
             rows = []
             for u in batch:
                 # Fetch full user to get name/email
-                rows.append((
-                    self.tenant_id,
-                    u["id"],
-                    u["node_id"],
-                    u["login"],
-                    u.get("name"),
-                    u.get("email"),
-                    u.get("type", "User"),
-                    u.get("site_admin", False),
-                    u.get("avatar_url"),
-                    json.dumps(u),
-                    "NOW()",
-                ))
+                rows.append(
+                    (
+                        self.tenant_id,
+                        u["id"],
+                        u["node_id"],
+                        u["login"],
+                        u.get("name"),
+                        u.get("email"),
+                        u.get("type", "User"),
+                        u.get("site_admin", False),
+                        u.get("avatar_url"),
+                        json.dumps(u),
+                        "NOW()",
+                    )
+                )
             with self.db.transaction() as cur:
                 total += self.db.upsert_batch(
                     cur, "github_users", columns, rows, conflict, update
@@ -195,23 +221,30 @@ class GitHubOrgProvider(BaseProvider):
     def _upsert_org_memberships(self, org_node_id: str, members: list[dict]) -> int:
         total = 0
         columns = [
-            "tenant_id", "org_node_id", "user_node_id", "role",
-            "state", "raw_response", "last_synced_at",
+            "tenant_id",
+            "org_node_id",
+            "user_node_id",
+            "role",
+            "state",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "org_node_id", "user_node_id"]
         update = ["role", "state", "raw_response"]
         for batch in self._batch_rows(members):
             rows = []
             for m in batch:
-                rows.append((
-                    self.tenant_id,
-                    org_node_id,
-                    m["node_id"],
-                    m.get("role", "member"),
-                    "active",
-                    json.dumps(m),
-                    "NOW()",
-                ))
+                rows.append(
+                    (
+                        self.tenant_id,
+                        org_node_id,
+                        m["node_id"],
+                        m.get("role", "member"),
+                        "active",
+                        json.dumps(m),
+                        "NOW()",
+                    )
+                )
             with self.db.transaction() as cur:
                 total += self.db.upsert_batch(
                     cur, "github_org_memberships", columns, rows, conflict, update
@@ -221,35 +254,53 @@ class GitHubOrgProvider(BaseProvider):
     def _upsert_teams(self, org_node_id: str, teams: list[dict]) -> int:
         total = 0
         columns = [
-            "tenant_id", "github_id", "node_id", "org_node_id",
-            "name", "slug", "description", "privacy", "permission",
-            "parent_team_id", "parent_team_node_id",
-            "raw_response", "last_synced_at",
+            "tenant_id",
+            "github_id",
+            "node_id",
+            "org_node_id",
+            "name",
+            "slug",
+            "description",
+            "privacy",
+            "permission",
+            "parent_team_id",
+            "parent_team_node_id",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "node_id"]
         update = [
-            "org_node_id", "name", "slug", "description", "privacy",
-            "permission", "parent_team_id", "parent_team_node_id", "raw_response",
+            "org_node_id",
+            "name",
+            "slug",
+            "description",
+            "privacy",
+            "permission",
+            "parent_team_id",
+            "parent_team_node_id",
+            "raw_response",
         ]
         for batch in self._batch_rows(teams):
             rows = []
             for t in batch:
                 parent = t.get("parent") or {}
-                rows.append((
-                    self.tenant_id,
-                    t["id"],
-                    t["node_id"],
-                    org_node_id,
-                    t["name"],
-                    t["slug"],
-                    t.get("description"),
-                    t.get("privacy"),
-                    t.get("permission"),
-                    parent.get("id"),
-                    parent.get("node_id"),
-                    json.dumps(t),
-                    "NOW()",
-                ))
+                rows.append(
+                    (
+                        self.tenant_id,
+                        t["id"],
+                        t["node_id"],
+                        org_node_id,
+                        t["name"],
+                        t["slug"],
+                        t.get("description"),
+                        t.get("privacy"),
+                        t.get("permission"),
+                        parent.get("id"),
+                        parent.get("node_id"),
+                        json.dumps(t),
+                        "NOW()",
+                    )
+                )
             with self.db.transaction() as cur:
                 total += self.db.upsert_batch(
                     cur, "github_teams", columns, rows, conflict, update
@@ -259,23 +310,30 @@ class GitHubOrgProvider(BaseProvider):
     def _upsert_team_memberships(self, team_node_id: str, members: list[dict]) -> int:
         total = 0
         columns = [
-            "tenant_id", "team_node_id", "user_node_id", "role",
-            "state", "raw_response", "last_synced_at",
+            "tenant_id",
+            "team_node_id",
+            "user_node_id",
+            "role",
+            "state",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "team_node_id", "user_node_id"]
         update = ["role", "state", "raw_response"]
         for batch in self._batch_rows(members):
             rows = []
             for m in batch:
-                rows.append((
-                    self.tenant_id,
-                    team_node_id,
-                    m["node_id"],
-                    m.get("role", "member"),
-                    "active",
-                    json.dumps(m),
-                    "NOW()",
-                ))
+                rows.append(
+                    (
+                        self.tenant_id,
+                        team_node_id,
+                        m["node_id"],
+                        m.get("role", "member"),
+                        "active",
+                        json.dumps(m),
+                        "NOW()",
+                    )
+                )
             with self.db.transaction() as cur:
                 total += self.db.upsert_batch(
                     cur, "github_team_memberships", columns, rows, conflict, update
@@ -285,38 +343,61 @@ class GitHubOrgProvider(BaseProvider):
     def _upsert_repos(self, org_node_id: str, repos: list[dict]) -> int:
         total = 0
         columns = [
-            "tenant_id", "github_id", "node_id", "org_node_id",
-            "name", "full_name", "private", "visibility", "archived",
-            "default_branch", "description", "fork", "language",
-            "pushed_at", "raw_response", "last_synced_at",
+            "tenant_id",
+            "github_id",
+            "node_id",
+            "org_node_id",
+            "name",
+            "full_name",
+            "private",
+            "visibility",
+            "archived",
+            "default_branch",
+            "description",
+            "fork",
+            "language",
+            "pushed_at",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "node_id"]
         update = [
-            "org_node_id", "name", "full_name", "private", "visibility",
-            "archived", "default_branch", "description", "fork",
-            "language", "pushed_at", "raw_response",
+            "org_node_id",
+            "name",
+            "full_name",
+            "private",
+            "visibility",
+            "archived",
+            "default_branch",
+            "description",
+            "fork",
+            "language",
+            "pushed_at",
+            "raw_response",
         ]
         for batch in self._batch_rows(repos):
             rows = []
             for r in batch:
-                rows.append((
-                    self.tenant_id,
-                    r["id"],
-                    r["node_id"],
-                    org_node_id,
-                    r["name"],
-                    r["full_name"],
-                    r.get("private", False),
-                    r.get("visibility"),
-                    r.get("archived", False),
-                    r.get("default_branch"),
-                    r.get("description"),
-                    r.get("fork", False),
-                    r.get("language"),
-                    r.get("pushed_at"),
-                    json.dumps(r),
-                    "NOW()",
-                ))
+                rows.append(
+                    (
+                        self.tenant_id,
+                        r["id"],
+                        r["node_id"],
+                        org_node_id,
+                        r["name"],
+                        r["full_name"],
+                        r.get("private", False),
+                        r.get("visibility"),
+                        r.get("archived", False),
+                        r.get("default_branch"),
+                        r.get("description"),
+                        r.get("fork", False),
+                        r.get("language"),
+                        r.get("pushed_at"),
+                        json.dumps(r),
+                        "NOW()",
+                    )
+                )
             with self.db.transaction() as cur:
                 total += self.db.upsert_batch(
                     cur, "github_repositories", columns, rows, conflict, update
@@ -326,34 +407,49 @@ class GitHubOrgProvider(BaseProvider):
     def _upsert_repo_team_perms(self, repo_node_id: str, teams: list[dict]) -> int:
         total = 0
         columns = [
-            "tenant_id", "repo_node_id", "team_node_id", "permission",
-            "raw_response", "last_synced_at",
+            "tenant_id",
+            "repo_node_id",
+            "team_node_id",
+            "permission",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "repo_node_id", "team_node_id"]
         update = ["permission", "raw_response"]
         for batch in self._batch_rows(teams):
             rows = []
             for t in batch:
-                rows.append((
-                    self.tenant_id,
-                    repo_node_id,
-                    t["node_id"],
-                    t.get("permission", "pull"),
-                    json.dumps(t),
-                    "NOW()",
-                ))
+                rows.append(
+                    (
+                        self.tenant_id,
+                        repo_node_id,
+                        t["node_id"],
+                        t.get("permission", "pull"),
+                        json.dumps(t),
+                        "NOW()",
+                    )
+                )
             with self.db.transaction() as cur:
                 total += self.db.upsert_batch(
-                    cur, "github_repo_team_permissions", columns, rows,
-                    conflict, update,
+                    cur,
+                    "github_repo_team_permissions",
+                    columns,
+                    rows,
+                    conflict,
+                    update,
                 )
         return total
 
     def _upsert_repo_collab_perms(self, repo_node_id: str, collabs: list[dict]) -> int:
         total = 0
         columns = [
-            "tenant_id", "repo_node_id", "user_node_id", "permission",
-            "is_outside_collaborator", "raw_response", "last_synced_at",
+            "tenant_id",
+            "repo_node_id",
+            "user_node_id",
+            "permission",
+            "is_outside_collaborator",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "repo_node_id", "user_node_id"]
         update = ["permission", "is_outside_collaborator", "raw_response"]
@@ -367,19 +463,25 @@ class GitHubOrgProvider(BaseProvider):
                     if perms.get(level):
                         permission = level
                         break
-                rows.append((
-                    self.tenant_id,
-                    repo_node_id,
-                    c["node_id"],
-                    permission,
-                    c.get("permissions", {}).get("admin", False) is False
-                    and c.get("type") != "User",
-                    json.dumps(c),
-                    "NOW()",
-                ))
+                rows.append(
+                    (
+                        self.tenant_id,
+                        repo_node_id,
+                        c["node_id"],
+                        permission,
+                        c.get("permissions", {}).get("admin", False) is False
+                        and c.get("type") != "User",
+                        json.dumps(c),
+                        "NOW()",
+                    )
+                )
             with self.db.transaction() as cur:
                 total += self.db.upsert_batch(
-                    cur, "github_repo_collaborator_permissions", columns, rows,
-                    conflict, update,
+                    cur,
+                    "github_repo_collaborator_permissions",
+                    columns,
+                    rows,
+                    conflict,
+                    update,
                 )
         return total

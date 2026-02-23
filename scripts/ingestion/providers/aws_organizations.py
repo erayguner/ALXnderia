@@ -55,14 +55,28 @@ class AwsOrganizationsProvider(BaseProvider):
 
         total = 0
         columns = [
-            "tenant_id", "account_id", "name", "email", "status",
-            "joined_method", "joined_at", "org_id", "parent_id",
-            "raw_response", "last_synced_at",
+            "tenant_id",
+            "account_id",
+            "name",
+            "email",
+            "status",
+            "joined_method",
+            "joined_at",
+            "org_id",
+            "parent_id",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "account_id"]
         update = [
-            "name", "email", "status", "joined_method", "joined_at",
-            "org_id", "parent_id", "raw_response",
+            "name",
+            "email",
+            "status",
+            "joined_method",
+            "joined_at",
+            "org_id",
+            "parent_id",
+            "raw_response",
         ]
 
         for batch in self._batch_rows(all_accounts):
@@ -70,20 +84,26 @@ class AwsOrganizationsProvider(BaseProvider):
             for a in batch:
                 joined_at = a.get("JoinedTimestamp")
                 if joined_at:
-                    joined_at = joined_at.isoformat() if hasattr(joined_at, "isoformat") else str(joined_at)
-                rows.append((
-                    self.tenant_id,
-                    a["Id"],
-                    a.get("Name", ""),
-                    a.get("Email"),
-                    a.get("Status", "ACTIVE"),
-                    a.get("JoinedMethod"),
-                    joined_at,
-                    a.get("_org_id"),
-                    a.get("_parent_id"),
-                    json.dumps(a, default=str),
-                    "NOW()",
-                ))
+                    joined_at = (
+                        joined_at.isoformat()
+                        if hasattr(joined_at, "isoformat")
+                        else str(joined_at)
+                    )
+                rows.append(
+                    (
+                        self.tenant_id,
+                        a["Id"],
+                        a.get("Name", ""),
+                        a.get("Email"),
+                        a.get("Status", "ACTIVE"),
+                        a.get("JoinedMethod"),
+                        joined_at,
+                        a.get("_org_id"),
+                        a.get("_parent_id"),
+                        json.dumps(a, default=str),
+                        "NOW()",
+                    )
+                )
             with self.db.transaction() as cur:
                 total += self.db.upsert_batch(
                     cur, "aws_accounts", columns, rows, conflict, update

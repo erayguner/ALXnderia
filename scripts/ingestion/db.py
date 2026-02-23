@@ -68,9 +68,7 @@ class Database:
 
         col_list = ", ".join(columns)
         conflict_list = ", ".join(conflict_columns)
-        set_clauses = ", ".join(
-            f"{c} = EXCLUDED.{c}" for c in update_columns
-        )
+        set_clauses = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_columns)
         # Always refresh timestamps on update
         set_clauses += ", updated_at = NOW(), last_synced_at = NOW()"
 

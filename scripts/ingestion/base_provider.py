@@ -75,7 +75,7 @@ class BaseProvider(ABC):
     @staticmethod
     def _rate_limit_sleep(attempt: int, base_seconds: float = 1.0) -> None:
         """Exponential backoff sleep for rate limiting."""
-        delay = base_seconds * (2 ** attempt)
+        delay = base_seconds * (2**attempt)
         delay = min(delay, 60.0)  # cap at 60s
         logger.warning("Rate limited, sleeping %.1fs (attempt %d)", delay, attempt)
         time.sleep(delay)

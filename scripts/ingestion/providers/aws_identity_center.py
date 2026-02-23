@@ -46,20 +46,37 @@ class AwsIdentityCenterProvider(BaseProvider):
     def _sync_users(self) -> int:
         logger.info("Syncing AWS Identity Center users")
         all_users = self._paginate(
-            self._ids_client, "list_users", "Users",
+            self._ids_client,
+            "list_users",
+            "Users",
             IdentityStoreId=self._identity_store_id,
         )
 
         total = 0
         columns = [
-            "tenant_id", "identity_store_id", "user_id", "user_name",
-            "display_name", "active", "user_status", "email",
-            "given_name", "family_name", "raw_response", "last_synced_at",
+            "tenant_id",
+            "identity_store_id",
+            "user_id",
+            "user_name",
+            "display_name",
+            "active",
+            "user_status",
+            "email",
+            "given_name",
+            "family_name",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "identity_store_id", "user_id"]
         update = [
-            "user_name", "display_name", "active", "user_status",
-            "email", "given_name", "family_name", "raw_response",
+            "user_name",
+            "display_name",
+            "active",
+            "user_status",
+            "email",
+            "given_name",
+            "family_name",
+            "raw_response",
         ]
 
         for batch in self._batch_rows(all_users):
@@ -75,20 +92,22 @@ class AwsIdentityCenterProvider(BaseProvider):
                     primary_email = emails[0].get("Value")
 
                 name = u.get("Name", {})
-                rows.append((
-                    self.tenant_id,
-                    self._identity_store_id,
-                    u["UserId"],
-                    u.get("UserName", ""),
-                    u.get("DisplayName"),
-                    u.get("Active", True),
-                    u.get("UserStatus"),
-                    primary_email,
-                    name.get("GivenName"),
-                    name.get("FamilyName"),
-                    json.dumps(u, default=str),
-                    "NOW()",
-                ))
+                rows.append(
+                    (
+                        self.tenant_id,
+                        self._identity_store_id,
+                        u["UserId"],
+                        u.get("UserName", ""),
+                        u.get("DisplayName"),
+                        u.get("Active", True),
+                        u.get("UserStatus"),
+                        primary_email,
+                        name.get("GivenName"),
+                        name.get("FamilyName"),
+                        json.dumps(u, default=str),
+                        "NOW()",
+                    )
+                )
             with self.db.transaction() as cur:
                 total += self.db.upsert_batch(
                     cur, "aws_identity_center_users", columns, rows, conflict, update
@@ -99,14 +118,21 @@ class AwsIdentityCenterProvider(BaseProvider):
     def _sync_groups(self) -> int:
         logger.info("Syncing AWS Identity Center groups")
         all_groups = self._paginate(
-            self._ids_client, "list_groups", "Groups",
+            self._ids_client,
+            "list_groups",
+            "Groups",
             IdentityStoreId=self._identity_store_id,
         )
 
         total = 0
         columns = [
-            "tenant_id", "identity_store_id", "group_id", "display_name",
-            "description", "raw_response", "last_synced_at",
+            "tenant_id",
+            "identity_store_id",
+            "group_id",
+            "display_name",
+            "description",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "identity_store_id", "group_id"]
         update = ["display_name", "description", "raw_response"]
@@ -114,15 +140,17 @@ class AwsIdentityCenterProvider(BaseProvider):
         for batch in self._batch_rows(all_groups):
             rows = []
             for g in batch:
-                rows.append((
-                    self.tenant_id,
-                    self._identity_store_id,
-                    g["GroupId"],
-                    g.get("DisplayName", ""),
-                    g.get("Description"),
-                    json.dumps(g, default=str),
-                    "NOW()",
-                ))
+                rows.append(
+                    (
+                        self.tenant_id,
+                        self._identity_store_id,
+                        g["GroupId"],
+                        g.get("DisplayName", ""),
+                        g.get("Description"),
+                        json.dumps(g, default=str),
+                        "NOW()",
+                    )
+                )
             with self.db.transaction() as cur:
                 total += self.db.upsert_batch(
                     cur, "aws_identity_center_groups", columns, rows, conflict, update
@@ -143,15 +171,22 @@ class AwsIdentityCenterProvider(BaseProvider):
 
         total = 0
         columns = [
-            "tenant_id", "membership_id", "identity_store_id",
-            "group_id", "member_user_id", "raw_response", "last_synced_at",
+            "tenant_id",
+            "membership_id",
+            "identity_store_id",
+            "group_id",
+            "member_user_id",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "identity_store_id", "membership_id"]
         update = ["group_id", "member_user_id", "raw_response"]
 
         for gid in group_ids:
             members = self._paginate(
-                self._ids_client, "list_group_memberships", "GroupMemberships",
+                self._ids_client,
+                "list_group_memberships",
+                "GroupMemberships",
                 IdentityStoreId=self._identity_store_id,
                 GroupId=gid,
             )
@@ -160,19 +195,25 @@ class AwsIdentityCenterProvider(BaseProvider):
                 for m in batch:
                     member_id_obj = m.get("MemberId", {})
                     user_id = member_id_obj.get("UserId", "")
-                    rows.append((
-                        self.tenant_id,
-                        m["MembershipId"],
-                        self._identity_store_id,
-                        gid,
-                        user_id,
-                        json.dumps(m, default=str),
-                        "NOW()",
-                    ))
+                    rows.append(
+                        (
+                            self.tenant_id,
+                            m["MembershipId"],
+                            self._identity_store_id,
+                            gid,
+                            user_id,
+                            json.dumps(m, default=str),
+                            "NOW()",
+                        )
+                    )
                 with self.db.transaction() as cur:
                     total += self.db.upsert_batch(
-                        cur, "aws_identity_center_memberships", columns, rows,
-                        conflict, update,
+                        cur,
+                        "aws_identity_center_memberships",
+                        columns,
+                        rows,
+                        conflict,
+                        update,
                     )
         logger.info("Synced %d AWS Identity Center memberships", total)
         return total
@@ -200,16 +241,27 @@ class AwsIdentityCenterProvider(BaseProvider):
         # Get provisioned accounts per permission set
         total = 0
         columns = [
-            "tenant_id", "identity_store_id", "account_id",
-            "permission_set_arn", "permission_set_name",
-            "principal_type", "principal_id", "raw_response", "last_synced_at",
+            "tenant_id",
+            "identity_store_id",
+            "account_id",
+            "permission_set_arn",
+            "permission_set_name",
+            "principal_type",
+            "principal_id",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = [
-            "tenant_id", "account_id", "permission_set_arn",
-            "principal_type", "principal_id",
+            "tenant_id",
+            "account_id",
+            "permission_set_arn",
+            "principal_type",
+            "principal_id",
         ]
         update = [
-            "identity_store_id", "permission_set_name", "raw_response",
+            "identity_store_id",
+            "permission_set_name",
+            "raw_response",
         ]
 
         for ps_arn in ps_arns:
@@ -236,21 +288,27 @@ class AwsIdentityCenterProvider(BaseProvider):
                 for batch in self._batch_rows(assignments):
                     rows = []
                     for a in batch:
-                        rows.append((
-                            self.tenant_id,
-                            self._identity_store_id,
-                            a["AccountId"],
-                            a["PermissionSetArn"],
-                            ps_names.get(a["PermissionSetArn"], ""),
-                            a["PrincipalType"],
-                            a["PrincipalId"],
-                            json.dumps(a, default=str),
-                            "NOW()",
-                        ))
+                        rows.append(
+                            (
+                                self.tenant_id,
+                                self._identity_store_id,
+                                a["AccountId"],
+                                a["PermissionSetArn"],
+                                ps_names.get(a["PermissionSetArn"], ""),
+                                a["PrincipalType"],
+                                a["PrincipalId"],
+                                json.dumps(a, default=str),
+                                "NOW()",
+                            )
+                        )
                     with self.db.transaction() as cur:
                         total += self.db.upsert_batch(
-                            cur, "aws_account_assignments", columns, rows,
-                            conflict, update,
+                            cur,
+                            "aws_account_assignments",
+                            columns,
+                            rows,
+                            conflict,
+                            update,
                         )
         logger.info("Synced %d AWS account assignments", total)
         return total

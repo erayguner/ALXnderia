@@ -38,6 +38,7 @@ IDC_STORE = "d-demo0001"
 SYNC_TS = "2026-02-14T00:00:00+00:00"
 NOW = datetime.now(timezone.utc).isoformat()
 
+
 # Deterministic UUID from a seed string
 def duuid(seed: str) -> str:
     return str(uuid.UUID(hashlib.md5(seed.encode()).hexdigest()))
@@ -47,67 +48,225 @@ def duuid(seed: str) -> str:
 # AWS Accounts
 # ---------------------------------------------------------------------------
 AWS_ACCOUNTS = [
-    ("111222333001", "demo-management",     "aws-mgmt@demo-example.co.uk",     "ACTIVE",    "CREATED", "r-root001"),
-    ("111222333002", "demo-security",       "aws-security@demo-example.co.uk", "ACTIVE",    "CREATED", "ou-security"),
-    ("111222333003", "demo-log-archive",    "aws-logs@demo-example.co.uk",     "ACTIVE",    "CREATED", "ou-security"),
-    ("111222333004", "demo-networking",     "aws-network@demo-example.co.uk",  "ACTIVE",    "CREATED", "ou-infrastructure"),
-    ("111222333005", "demo-shared-services","aws-shared@demo-example.co.uk",   "ACTIVE",    "CREATED", "ou-infrastructure"),
-    ("111222333006", "demo-dev",            "aws-dev@demo-example.co.uk",      "ACTIVE",    "CREATED", "ou-workloads-dev"),
-    ("111222333007", "demo-staging",        "aws-staging@demo-example.co.uk",  "ACTIVE",    "CREATED", "ou-workloads-staging"),
-    ("111222333008", "demo-production",     "aws-prod@demo-example.co.uk",     "ACTIVE",    "CREATED", "ou-workloads-prod"),
-    ("111222333009", "demo-data-dev",       "aws-data-dev@demo-example.co.uk", "ACTIVE",    "CREATED", "ou-workloads-dev"),
-    ("111222333010", "demo-data-prod",      "aws-data-prod@demo-example.co.uk","ACTIVE",    "CREATED", "ou-workloads-prod"),
-    ("111222333011", "demo-ml-sandbox",     "aws-ml@demo-example.co.uk",       "ACTIVE",    "INVITED", "ou-sandbox"),
-    ("111222333012", "demo-deprecated",     "aws-old@demo-example.co.uk",      "SUSPENDED", "CREATED", "ou-suspended"),
+    (
+        "111222333001",
+        "demo-management",
+        "aws-mgmt@demo-example.co.uk",
+        "ACTIVE",
+        "CREATED",
+        "r-root001",
+    ),
+    (
+        "111222333002",
+        "demo-security",
+        "aws-security@demo-example.co.uk",
+        "ACTIVE",
+        "CREATED",
+        "ou-security",
+    ),
+    (
+        "111222333003",
+        "demo-log-archive",
+        "aws-logs@demo-example.co.uk",
+        "ACTIVE",
+        "CREATED",
+        "ou-security",
+    ),
+    (
+        "111222333004",
+        "demo-networking",
+        "aws-network@demo-example.co.uk",
+        "ACTIVE",
+        "CREATED",
+        "ou-infrastructure",
+    ),
+    (
+        "111222333005",
+        "demo-shared-services",
+        "aws-shared@demo-example.co.uk",
+        "ACTIVE",
+        "CREATED",
+        "ou-infrastructure",
+    ),
+    (
+        "111222333006",
+        "demo-dev",
+        "aws-dev@demo-example.co.uk",
+        "ACTIVE",
+        "CREATED",
+        "ou-workloads-dev",
+    ),
+    (
+        "111222333007",
+        "demo-staging",
+        "aws-staging@demo-example.co.uk",
+        "ACTIVE",
+        "CREATED",
+        "ou-workloads-staging",
+    ),
+    (
+        "111222333008",
+        "demo-production",
+        "aws-prod@demo-example.co.uk",
+        "ACTIVE",
+        "CREATED",
+        "ou-workloads-prod",
+    ),
+    (
+        "111222333009",
+        "demo-data-dev",
+        "aws-data-dev@demo-example.co.uk",
+        "ACTIVE",
+        "CREATED",
+        "ou-workloads-dev",
+    ),
+    (
+        "111222333010",
+        "demo-data-prod",
+        "aws-data-prod@demo-example.co.uk",
+        "ACTIVE",
+        "CREATED",
+        "ou-workloads-prod",
+    ),
+    (
+        "111222333011",
+        "demo-ml-sandbox",
+        "aws-ml@demo-example.co.uk",
+        "ACTIVE",
+        "INVITED",
+        "ou-sandbox",
+    ),
+    (
+        "111222333012",
+        "demo-deprecated",
+        "aws-old@demo-example.co.uk",
+        "SUSPENDED",
+        "CREATED",
+        "ou-suspended",
+    ),
 ]
 
 # ---------------------------------------------------------------------------
 # Permission Sets
 # ---------------------------------------------------------------------------
 PERMISSION_SETS = [
-    ("AdministratorAccess",   "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-admin"),
-    ("PowerUserAccess",       "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-poweruser"),
-    ("ReadOnlyAccess",        "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-readonly"),
-    ("ViewOnlyAccess",        "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-viewonly"),
-    ("DatabaseAdminAccess",   "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-dba"),
-    ("NetworkAdminAccess",    "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-netadmin"),
-    ("SecurityAuditAccess",   "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-secaudit"),
-    ("BillingAccess",         "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-billing"),
+    ("AdministratorAccess", "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-admin"),
+    ("PowerUserAccess", "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-poweruser"),
+    ("ReadOnlyAccess", "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-readonly"),
+    ("ViewOnlyAccess", "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-viewonly"),
+    ("DatabaseAdminAccess", "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-dba"),
+    ("NetworkAdminAccess", "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-netadmin"),
+    ("SecurityAuditAccess", "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-secaudit"),
+    ("BillingAccess", "arn:aws:sso:::permissionSet/ssoins-demo0001/ps-billing"),
 ]
 
 # ---------------------------------------------------------------------------
 # GCP Projects
 # ---------------------------------------------------------------------------
 GCP_PROJECTS = [
-    ("demo-platform-prod",    "100000000001", "Platform Production",       "ACTIVE",           "folders/prod"),
-    ("demo-platform-dev",     "100000000002", "Platform Development",      "ACTIVE",           "folders/dev"),
-    ("demo-data-analytics",   "100000000003", "Data Analytics",            "ACTIVE",           "folders/prod"),
-    ("demo-data-warehouse",   "100000000004", "Data Warehouse",            "ACTIVE",           "folders/prod"),
-    ("demo-ml-training",      "100000000005", "ML Training",               "ACTIVE",           "folders/prod"),
-    ("demo-ml-sandbox",       "100000000006", "ML Sandbox",                "ACTIVE",           "folders/sandbox"),
-    ("demo-security-ops",     "100000000007", "Security Operations",       "ACTIVE",           "folders/security"),
-    ("demo-networking-hub",   "100000000008", "Networking Hub",            "ACTIVE",           "folders/infrastructure"),
-    ("demo-frontend-prod",    "100000000009", "Frontend Production",       "ACTIVE",           "folders/prod"),
-    ("demo-frontend-dev",     "100000000010", "Frontend Development",      "ACTIVE",           "folders/dev"),
-    ("demo-billing-prod",     "100000000011", "Billing Production",        "ACTIVE",           "folders/prod"),
-    ("demo-ci-cd",            "100000000012", "CI/CD Pipelines",           "ACTIVE",           "folders/infrastructure"),
-    ("demo-monitoring",       "100000000013", "Monitoring & Observability","ACTIVE",           "folders/infrastructure"),
-    ("demo-api-gateway-prod", "100000000014", "API Gateway Production",    "ACTIVE",           "folders/prod"),
-    ("demo-decommissioned",   "100000000015", "Decommissioned Project",    "DELETE_REQUESTED", None),
+    (
+        "demo-platform-prod",
+        "100000000001",
+        "Platform Production",
+        "ACTIVE",
+        "folders/prod",
+    ),
+    (
+        "demo-platform-dev",
+        "100000000002",
+        "Platform Development",
+        "ACTIVE",
+        "folders/dev",
+    ),
+    ("demo-data-analytics", "100000000003", "Data Analytics", "ACTIVE", "folders/prod"),
+    ("demo-data-warehouse", "100000000004", "Data Warehouse", "ACTIVE", "folders/prod"),
+    ("demo-ml-training", "100000000005", "ML Training", "ACTIVE", "folders/prod"),
+    ("demo-ml-sandbox", "100000000006", "ML Sandbox", "ACTIVE", "folders/sandbox"),
+    (
+        "demo-security-ops",
+        "100000000007",
+        "Security Operations",
+        "ACTIVE",
+        "folders/security",
+    ),
+    (
+        "demo-networking-hub",
+        "100000000008",
+        "Networking Hub",
+        "ACTIVE",
+        "folders/infrastructure",
+    ),
+    (
+        "demo-frontend-prod",
+        "100000000009",
+        "Frontend Production",
+        "ACTIVE",
+        "folders/prod",
+    ),
+    (
+        "demo-frontend-dev",
+        "100000000010",
+        "Frontend Development",
+        "ACTIVE",
+        "folders/dev",
+    ),
+    (
+        "demo-billing-prod",
+        "100000000011",
+        "Billing Production",
+        "ACTIVE",
+        "folders/prod",
+    ),
+    (
+        "demo-ci-cd",
+        "100000000012",
+        "CI/CD Pipelines",
+        "ACTIVE",
+        "folders/infrastructure",
+    ),
+    (
+        "demo-monitoring",
+        "100000000013",
+        "Monitoring & Observability",
+        "ACTIVE",
+        "folders/infrastructure",
+    ),
+    (
+        "demo-api-gateway-prod",
+        "100000000014",
+        "API Gateway Production",
+        "ACTIVE",
+        "folders/prod",
+    ),
+    (
+        "demo-decommissioned",
+        "100000000015",
+        "Decommissioned Project",
+        "DELETE_REQUESTED",
+        None,
+    ),
 ]
 
 GCP_ROLES = [
-    "roles/viewer", "roles/editor", "roles/owner",
-    "roles/bigquery.dataViewer", "roles/bigquery.dataEditor",
-    "roles/storage.objectViewer", "roles/storage.admin",
-    "roles/compute.viewer", "roles/compute.admin",
-    "roles/iam.securityReviewer", "roles/logging.viewer", "roles/monitoring.viewer",
+    "roles/viewer",
+    "roles/editor",
+    "roles/owner",
+    "roles/bigquery.dataViewer",
+    "roles/bigquery.dataEditor",
+    "roles/storage.objectViewer",
+    "roles/storage.admin",
+    "roles/compute.viewer",
+    "roles/compute.admin",
+    "roles/iam.securityReviewer",
+    "roles/logging.viewer",
+    "roles/monitoring.viewer",
 ]
 
 
 # ---------------------------------------------------------------------------
 # SQL generation helpers
 # ---------------------------------------------------------------------------
+
 
 def sql_truncate() -> str:
     return """
@@ -416,12 +575,18 @@ def generate_full_sql() -> str:
         "COMMIT;",
         "",
         "-- Verification counts",
-        "SELECT 'aws_accounts' AS tbl, COUNT(*) FROM aws_accounts WHERE tenant_id = '%s'" % TENANT_ID,
-        "UNION ALL SELECT 'aws_account_assignments', COUNT(*) FROM aws_account_assignments WHERE tenant_id = '%s'" % TENANT_ID,
-        "UNION ALL SELECT 'gcp_organisations', COUNT(*) FROM gcp_organisations WHERE tenant_id = '%s'" % TENANT_ID,
-        "UNION ALL SELECT 'gcp_projects', COUNT(*) FROM gcp_projects WHERE tenant_id = '%s'" % TENANT_ID,
-        "UNION ALL SELECT 'gcp_project_iam_bindings', COUNT(*) FROM gcp_project_iam_bindings WHERE tenant_id = '%s'" % TENANT_ID,
-        "UNION ALL SELECT 'resource_access_grants', COUNT(*) FROM resource_access_grants WHERE tenant_id = '%s'" % TENANT_ID,
+        "SELECT 'aws_accounts' AS tbl, COUNT(*) FROM aws_accounts WHERE tenant_id = '%s'"
+        % TENANT_ID,
+        "UNION ALL SELECT 'aws_account_assignments', COUNT(*) FROM aws_account_assignments WHERE tenant_id = '%s'"
+        % TENANT_ID,
+        "UNION ALL SELECT 'gcp_organisations', COUNT(*) FROM gcp_organisations WHERE tenant_id = '%s'"
+        % TENANT_ID,
+        "UNION ALL SELECT 'gcp_projects', COUNT(*) FROM gcp_projects WHERE tenant_id = '%s'"
+        % TENANT_ID,
+        "UNION ALL SELECT 'gcp_project_iam_bindings', COUNT(*) FROM gcp_project_iam_bindings WHERE tenant_id = '%s'"
+        % TENANT_ID,
+        "UNION ALL SELECT 'resource_access_grants', COUNT(*) FROM resource_access_grants WHERE tenant_id = '%s'"
+        % TENANT_ID,
         "ORDER BY tbl;",
     ]
     return "\n".join(parts)
@@ -431,14 +596,22 @@ def generate_full_sql() -> str:
 # Execution
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(description="Seed cloud resources into PostgreSQL")
-    parser.add_argument("--dsn", default=os.environ.get("DATABASE_URL", ""),
-                        help="PostgreSQL DSN (default: $DATABASE_URL)")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Print generated SQL instead of executing")
-    parser.add_argument("--output", "-o", default=None,
-                        help="Write SQL to file instead of executing")
+    parser.add_argument(
+        "--dsn",
+        default=os.environ.get("DATABASE_URL", ""),
+        help="PostgreSQL DSN (default: $DATABASE_URL)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print generated SQL instead of executing",
+    )
+    parser.add_argument(
+        "--output", "-o", default=None, help="Write SQL to file instead of executing"
+    )
     args = parser.parse_args()
 
     sql = generate_full_sql()
@@ -453,14 +626,20 @@ def main():
         return
 
     if not args.dsn:
-        print("ERROR: No database connection. Set DATABASE_URL or use --dsn.", file=sys.stderr)
+        print(
+            "ERROR: No database connection. Set DATABASE_URL or use --dsn.",
+            file=sys.stderr,
+        )
         print("       Use --dry-run to print SQL without executing.", file=sys.stderr)
         sys.exit(1)
 
     try:
         import psycopg2
     except ImportError:
-        print("ERROR: psycopg2 not installed. Run: pip install psycopg2-binary", file=sys.stderr)
+        print(
+            "ERROR: psycopg2 not installed. Run: pip install psycopg2-binary",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     conn = psycopg2.connect(args.dsn)
@@ -468,7 +647,8 @@ def main():
         with conn.cursor() as cur:
             cur.execute(sql)
             # Fetch verification results
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT 'aws_accounts', COUNT(*) FROM aws_accounts WHERE tenant_id = %s
                 UNION ALL SELECT 'aws_account_assignments', COUNT(*) FROM aws_account_assignments WHERE tenant_id = %s
                 UNION ALL SELECT 'gcp_organisations', COUNT(*) FROM gcp_organisations WHERE tenant_id = %s
@@ -476,7 +656,9 @@ def main():
                 UNION ALL SELECT 'gcp_project_iam_bindings', COUNT(*) FROM gcp_project_iam_bindings WHERE tenant_id = %s
                 UNION ALL SELECT 'resource_access_grants', COUNT(*) FROM resource_access_grants WHERE tenant_id = %s
                 ORDER BY 1
-            """, (TENANT_ID,) * 6)
+            """,
+                (TENANT_ID,) * 6,
+            )
             print("Seed complete. Row counts:")
             for table, count in cur.fetchall():
                 print(f"  {table:40s} {count:>6}")

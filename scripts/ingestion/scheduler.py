@@ -30,22 +30,29 @@ def _sync_provider(provider_name: str, config: IngestionConfig, db: Database) ->
             return
         except Exception as exc:
             if attempt < max_retries:
-                delay = backoff_base * (2 ** attempt)
+                delay = backoff_base * (2**attempt)
                 logger.warning(
                     "Sync %s failed (attempt %d/%d), retrying in %ds: %s",
-                    provider_name, attempt + 1, max_retries, delay, exc,
+                    provider_name,
+                    attempt + 1,
+                    max_retries,
+                    delay,
+                    exc,
                 )
                 time.sleep(delay)
             else:
                 logger.error(
                     "Sync %s failed after %d retries: %s",
-                    provider_name, max_retries, exc,
+                    provider_name,
+                    max_retries,
+                    exc,
                 )
 
 
 def _run_post_process(config: IngestionConfig, db: Database) -> None:
     """Run identity resolution and grants backfill."""
     from scripts.ingestion.cli import _run_post_process as pp
+
     try:
         results = pp(config, db)
         logger.info("Post-processing complete: %s", results)
@@ -139,6 +146,7 @@ def start_scheduler(config: IngestionConfig, db: Database) -> None:
         misfire_grace_time=sched.misfire_grace_time,
     )
 
-    logger.info("Starting scheduler with jobs: %s",
-                [j.id for j in scheduler.get_jobs()])
+    logger.info(
+        "Starting scheduler with jobs: %s", [j.id for j in scheduler.get_jobs()]
+    )
     scheduler.start()

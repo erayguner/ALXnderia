@@ -61,8 +61,13 @@ class GcpResourceManagerProvider(BaseProvider):
             org = orgs[0]
 
         columns = [
-            "tenant_id", "org_id", "display_name", "domain",
-            "lifecycle_state", "raw_response", "last_synced_at",
+            "tenant_id",
+            "org_id",
+            "display_name",
+            "domain",
+            "lifecycle_state",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "org_id"]
         update = ["display_name", "domain", "lifecycle_state", "raw_response"]
@@ -72,15 +77,17 @@ class GcpResourceManagerProvider(BaseProvider):
             "displayName": org.display_name,
             "state": org.state.name if org.state else "ACTIVE",
         }
-        rows = [(
-            self.tenant_id,
-            org.name,
-            org.display_name,
-            getattr(org, "directory_customer_id", None),
-            org.state.name if org.state else "ACTIVE",
-            json.dumps(raw),
-            "NOW()",
-        )]
+        rows = [
+            (
+                self.tenant_id,
+                org.name,
+                org.display_name,
+                getattr(org, "directory_customer_id", None),
+                org.state.name if org.state else "ACTIVE",
+                json.dumps(raw),
+                "NOW()",
+            )
+        ]
 
         with self.db.transaction() as cur:
             return self.db.upsert_batch(
@@ -94,22 +101,32 @@ class GcpResourceManagerProvider(BaseProvider):
             org_name = f"organizations/{org_name}"
 
         all_projects: list = []
-        request = resourcemanager_v3.SearchProjectsRequest(
-            query=f"parent:{org_name}"
-        )
+        request = resourcemanager_v3.SearchProjectsRequest(query=f"parent:{org_name}")
         for project in self._proj_client.search_projects(request=request):
             all_projects.append(project)
 
         total = 0
         columns = [
-            "tenant_id", "project_id", "project_number", "display_name",
-            "lifecycle_state", "org_id", "folder_id", "labels",
-            "raw_response", "last_synced_at",
+            "tenant_id",
+            "project_id",
+            "project_number",
+            "display_name",
+            "lifecycle_state",
+            "org_id",
+            "folder_id",
+            "labels",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "project_id"]
         update = [
-            "project_number", "display_name", "lifecycle_state",
-            "org_id", "folder_id", "labels", "raw_response",
+            "project_number",
+            "display_name",
+            "lifecycle_state",
+            "org_id",
+            "folder_id",
+            "labels",
+            "raw_response",
         ]
 
         for batch in self._batch_rows(all_projects):
@@ -127,18 +144,20 @@ class GcpResourceManagerProvider(BaseProvider):
                     "state": p.state.name if p.state else "ACTIVE",
                     "parent": parent,
                 }
-                rows.append((
-                    self.tenant_id,
-                    p.project_id,
-                    p.name.split("/")[-1] if p.name else "",
-                    p.display_name,
-                    p.state.name if p.state else "ACTIVE",
-                    org_id_val,
-                    folder_id_val,
-                    json.dumps(labels),
-                    json.dumps(raw),
-                    "NOW()",
-                ))
+                rows.append(
+                    (
+                        self.tenant_id,
+                        p.project_id,
+                        p.name.split("/")[-1] if p.name else "",
+                        p.display_name,
+                        p.state.name if p.state else "ACTIVE",
+                        org_id_val,
+                        folder_id_val,
+                        json.dumps(labels),
+                        json.dumps(raw),
+                        "NOW()",
+                    )
+                )
             with self.db.transaction() as cur:
                 total += self.db.upsert_batch(
                     cur, "gcp_projects", columns, rows, conflict, update
@@ -159,20 +178,26 @@ class GcpResourceManagerProvider(BaseProvider):
 
         total = 0
         columns = [
-            "tenant_id", "project_id", "role", "member_type",
-            "member_id", "condition_expression", "condition_title",
-            "raw_response", "last_synced_at",
+            "tenant_id",
+            "project_id",
+            "role",
+            "member_type",
+            "member_id",
+            "condition_expression",
+            "condition_title",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "project_id", "role", "member_type", "member_id"]
         update = [
-            "condition_expression", "condition_title", "raw_response",
+            "condition_expression",
+            "condition_title",
+            "raw_response",
         ]
 
         for pid in project_ids:
             try:
-                request = iam_policy_pb2.GetIamPolicyRequest(
-                    resource=f"projects/{pid}"
-                )
+                request = iam_policy_pb2.GetIamPolicyRequest(resource=f"projects/{pid}")
                 policy = self._proj_client.get_iam_policy(request=request)
             except Exception as e:
                 logger.warning("Could not get IAM policy for project %s: %s", pid, e)
@@ -194,23 +219,29 @@ class GcpResourceManagerProvider(BaseProvider):
                         member_id = member
 
                     raw = {"role": role, "member": member}
-                    bindings_rows.append((
-                        self.tenant_id,
-                        pid,
-                        role,
-                        member_type,
-                        member_id,
-                        cond_expr,
-                        cond_title,
-                        json.dumps(raw),
-                        "NOW()",
-                    ))
+                    bindings_rows.append(
+                        (
+                            self.tenant_id,
+                            pid,
+                            role,
+                            member_type,
+                            member_id,
+                            cond_expr,
+                            cond_title,
+                            json.dumps(raw),
+                            "NOW()",
+                        )
+                    )
 
             for batch in self._batch_rows(bindings_rows):
                 with self.db.transaction() as cur:
                     total += self.db.upsert_batch(
-                        cur, "gcp_project_iam_bindings", columns, batch,
-                        conflict, update,
+                        cur,
+                        "gcp_project_iam_bindings",
+                        columns,
+                        batch,
+                        conflict,
+                        update,
                     )
         logger.info("Synced %d GCP IAM bindings", total)
         return total

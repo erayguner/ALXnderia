@@ -42,14 +42,18 @@ def handler(event: dict, context) -> dict:
     try:
         if provider == "post-process":
             from scripts.ingestion.cli import _run_post_process
+
             results = _run_post_process(config, db)
         else:
             from scripts.ingestion.cli import _get_provider
+
             p = _get_provider(provider, config, db)
             if p is None:
                 return {
                     "statusCode": 200,
-                    "body": json.dumps({"skipped": True, "reason": f"{provider} not configured"}),
+                    "body": json.dumps(
+                        {"skipped": True, "reason": f"{provider} not configured"}
+                    ),
                 }
             results = p.sync_with_tracking()
 

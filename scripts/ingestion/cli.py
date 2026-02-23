@@ -25,11 +25,27 @@ PROVIDER_CHOICES = [
 
 PROVIDER_REGISTRY: dict[str, tuple[str, str, str]] = {
     # name -> (config_attr, module_path, class_name)
-    "google_workspace": ("google_workspace", "scripts.ingestion.providers.google_workspace", "GoogleWorkspaceProvider"),
-    "aws_identity_center": ("aws_identity_center", "scripts.ingestion.providers.aws_identity_center", "AwsIdentityCenterProvider"),
+    "google_workspace": (
+        "google_workspace",
+        "scripts.ingestion.providers.google_workspace",
+        "GoogleWorkspaceProvider",
+    ),
+    "aws_identity_center": (
+        "aws_identity_center",
+        "scripts.ingestion.providers.aws_identity_center",
+        "AwsIdentityCenterProvider",
+    ),
     "github": ("github", "scripts.ingestion.providers.github_org", "GitHubOrgProvider"),
-    "aws_organizations": ("aws_organizations", "scripts.ingestion.providers.aws_organizations", "AwsOrganizationsProvider"),
-    "gcp_resource_manager": ("gcp", "scripts.ingestion.providers.gcp_resource_manager", "GcpResourceManagerProvider"),
+    "aws_organizations": (
+        "aws_organizations",
+        "scripts.ingestion.providers.aws_organizations",
+        "AwsOrganizationsProvider",
+    ),
+    "gcp_resource_manager": (
+        "gcp",
+        "scripts.ingestion.providers.gcp_resource_manager",
+        "GcpResourceManagerProvider",
+    ),
 }
 
 
@@ -101,7 +117,9 @@ def cmd_sync(args: argparse.Namespace) -> None:
 
         # Run post-processing after all providers
         if args.provider == "all":
-            logger.info("Running post-processing (identity resolution + grants backfill)")
+            logger.info(
+                "Running post-processing (identity resolution + grants backfill)"
+            )
             pp_results = _run_post_process(config, db)
             logger.info("Post-processing complete: %s", pp_results)
 
@@ -137,25 +155,35 @@ def cmd_status(args: argparse.Namespace) -> None:
             return
 
         fmt = "{:<36}  {:<22}  {:<10}  {:<8}  {:<20}  {:<20}  {:>8}  {}"
-        print(fmt.format(
-            "RUN ID", "PROVIDER", "ENTITY", "STATUS",
-            "STARTED", "FINISHED", "UPSERTED", "ERROR",
-        ))
+        print(
+            fmt.format(
+                "RUN ID",
+                "PROVIDER",
+                "ENTITY",
+                "STATUS",
+                "STARTED",
+                "FINISHED",
+                "UPSERTED",
+                "ERROR",
+            )
+        )
         print("-" * 160)
         for r in runs:
             started = str(r["started_at"])[:19] if r["started_at"] else ""
             finished = str(r["finished_at"])[:19] if r["finished_at"] else ""
             error = (r.get("error_message") or "")[:40]
-            print(fmt.format(
-                str(r["id"])[:36],
-                r["provider"],
-                r.get("entity_type") or "",
-                r["status"],
-                started,
-                finished,
-                r.get("records_upserted", 0),
-                error,
-            ))
+            print(
+                fmt.format(
+                    str(r["id"])[:36],
+                    r["provider"],
+                    r.get("entity_type") or "",
+                    r["status"],
+                    started,
+                    finished,
+                    r.get("records_upserted", 0),
+                    error,
+                )
+            )
     finally:
         db.close()
 
@@ -173,7 +201,8 @@ def main() -> None:
     # sync command
     sync_parser = subparsers.add_parser("sync", help="Run one-shot sync")
     sync_parser.add_argument(
-        "--provider", "-p",
+        "--provider",
+        "-p",
         choices=PROVIDER_CHOICES,
         default="all",
         help="Provider to sync (default: all)",
@@ -187,13 +216,15 @@ def main() -> None:
     # status command
     status_parser = subparsers.add_parser("status", help="Show recent ingestion runs")
     status_parser.add_argument(
-        "--provider", "-p",
+        "--provider",
+        "-p",
         choices=PROVIDER_CHOICES,
         default="all",
         help="Filter by provider",
     )
     status_parser.add_argument(
-        "--limit", "-l",
+        "--limit",
+        "-l",
         type=int,
         default=10,
         help="Number of runs to show (default: 10)",

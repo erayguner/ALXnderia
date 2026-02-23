@@ -39,6 +39,7 @@ class GoogleWorkspaceProvider(BaseProvider):
         else:
             # Cloud Run / Workload Identity: use Application Default Credentials
             import google.auth
+
             creds, _ = google.auth.default(scopes=SCOPES)
 
         self._creds = creds.with_subject(gw.admin_email)
@@ -74,43 +75,67 @@ class GoogleWorkspaceProvider(BaseProvider):
 
         total = 0
         columns = [
-            "tenant_id", "google_id", "primary_email", "name_full",
-            "suspended", "archived", "is_admin", "is_delegated_admin",
-            "is_enrolled_in_2sv", "is_enforced_in_2sv", "customer_id",
-            "suspension_reason", "creation_time", "last_login_time",
-            "org_unit_path", "raw_response", "last_synced_at",
+            "tenant_id",
+            "google_id",
+            "primary_email",
+            "name_full",
+            "suspended",
+            "archived",
+            "is_admin",
+            "is_delegated_admin",
+            "is_enrolled_in_2sv",
+            "is_enforced_in_2sv",
+            "customer_id",
+            "suspension_reason",
+            "creation_time",
+            "last_login_time",
+            "org_unit_path",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "google_id"]
         update = [
-            "primary_email", "name_full", "suspended", "archived",
-            "is_admin", "is_delegated_admin", "is_enrolled_in_2sv",
-            "is_enforced_in_2sv", "customer_id", "suspension_reason",
-            "creation_time", "last_login_time", "org_unit_path", "raw_response",
+            "primary_email",
+            "name_full",
+            "suspended",
+            "archived",
+            "is_admin",
+            "is_delegated_admin",
+            "is_enrolled_in_2sv",
+            "is_enforced_in_2sv",
+            "customer_id",
+            "suspension_reason",
+            "creation_time",
+            "last_login_time",
+            "org_unit_path",
+            "raw_response",
         ]
 
         for batch in self._batch_rows(all_users):
             rows = []
             for u in batch:
                 name = u.get("name", {})
-                rows.append((
-                    self.tenant_id,
-                    u["id"],
-                    u["primaryEmail"],
-                    name.get("fullName"),
-                    u.get("suspended", False),
-                    u.get("archived", False),
-                    u.get("isAdmin", False),
-                    u.get("isDelegatedAdmin", False),
-                    u.get("isEnrolledIn2Sv", False),
-                    u.get("isEnforcedIn2Sv", False),
-                    u.get("customerId"),
-                    u.get("suspensionReason"),
-                    u.get("creationTime"),
-                    u.get("lastLoginTime"),
-                    u.get("orgUnitPath"),
-                    json.dumps(u),
-                    "NOW()",
-                ))
+                rows.append(
+                    (
+                        self.tenant_id,
+                        u["id"],
+                        u["primaryEmail"],
+                        name.get("fullName"),
+                        u.get("suspended", False),
+                        u.get("archived", False),
+                        u.get("isAdmin", False),
+                        u.get("isDelegatedAdmin", False),
+                        u.get("isEnrolledIn2Sv", False),
+                        u.get("isEnforcedIn2Sv", False),
+                        u.get("customerId"),
+                        u.get("suspensionReason"),
+                        u.get("creationTime"),
+                        u.get("lastLoginTime"),
+                        u.get("orgUnitPath"),
+                        json.dumps(u),
+                        "NOW()",
+                    )
+                )
             with self.db.transaction() as cur:
                 total += self.db.upsert_batch(
                     cur, "google_workspace_users", columns, rows, conflict, update
@@ -137,30 +162,42 @@ class GoogleWorkspaceProvider(BaseProvider):
 
         total = 0
         columns = [
-            "tenant_id", "google_id", "email", "name", "description",
-            "admin_created", "direct_members_count", "raw_response",
+            "tenant_id",
+            "google_id",
+            "email",
+            "name",
+            "description",
+            "admin_created",
+            "direct_members_count",
+            "raw_response",
             "last_synced_at",
         ]
         conflict = ["tenant_id", "google_id"]
         update = [
-            "email", "name", "description", "admin_created",
-            "direct_members_count", "raw_response",
+            "email",
+            "name",
+            "description",
+            "admin_created",
+            "direct_members_count",
+            "raw_response",
         ]
 
         for batch in self._batch_rows(all_groups):
             rows = []
             for g in batch:
-                rows.append((
-                    self.tenant_id,
-                    g["id"],
-                    g["email"],
-                    g.get("name"),
-                    g.get("description"),
-                    g.get("adminCreated", True),
-                    g.get("directMembersCount"),
-                    json.dumps(g),
-                    "NOW()",
-                ))
+                rows.append(
+                    (
+                        self.tenant_id,
+                        g["id"],
+                        g["email"],
+                        g.get("name"),
+                        g.get("description"),
+                        g.get("adminCreated", True),
+                        g.get("directMembersCount"),
+                        json.dumps(g),
+                        "NOW()",
+                    )
+                )
             with self.db.transaction() as cur:
                 total += self.db.upsert_batch(
                     cur, "google_workspace_groups", columns, rows, conflict, update
@@ -180,12 +217,23 @@ class GoogleWorkspaceProvider(BaseProvider):
 
         total = 0
         columns = [
-            "tenant_id", "group_id", "member_id", "member_type",
-            "member_email", "role", "status", "raw_response", "last_synced_at",
+            "tenant_id",
+            "group_id",
+            "member_id",
+            "member_type",
+            "member_email",
+            "role",
+            "status",
+            "raw_response",
+            "last_synced_at",
         ]
         conflict = ["tenant_id", "group_id", "member_id"]
         update = [
-            "member_type", "member_email", "role", "status", "raw_response",
+            "member_type",
+            "member_email",
+            "role",
+            "status",
+            "raw_response",
         ]
 
         for gid in group_ids:
@@ -207,21 +255,27 @@ class GoogleWorkspaceProvider(BaseProvider):
             for batch in self._batch_rows(members):
                 rows = []
                 for m in batch:
-                    rows.append((
-                        self.tenant_id,
-                        gid,
-                        m["id"],
-                        m.get("type", "USER"),
-                        m.get("email"),
-                        m.get("role", "MEMBER"),
-                        m.get("status", "ACTIVE"),
-                        json.dumps(m),
-                        "NOW()",
-                    ))
+                    rows.append(
+                        (
+                            self.tenant_id,
+                            gid,
+                            m["id"],
+                            m.get("type", "USER"),
+                            m.get("email"),
+                            m.get("role", "MEMBER"),
+                            m.get("status", "ACTIVE"),
+                            json.dumps(m),
+                            "NOW()",
+                        )
+                    )
                 with self.db.transaction() as cur:
                     total += self.db.upsert_batch(
-                        cur, "google_workspace_memberships", columns, rows,
-                        conflict, update,
+                        cur,
+                        "google_workspace_memberships",
+                        columns,
+                        rows,
+                        conflict,
+                        update,
                     )
         logger.info("Synced %d Google Workspace memberships", total)
         return total
