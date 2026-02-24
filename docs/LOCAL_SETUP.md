@@ -74,6 +74,9 @@ psql -U $(whoami) -d cloud_identity_intel -f schema/03_ingestion_runs.sql
 # DDL: audit log table
 psql -U $(whoami) -d cloud_identity_intel -f schema/04_audit_log.sql
 
+# PG18 enhancements: RLS policies, virtual columns, temporal constraints, GIN indexes
+psql -U $(whoami) -d cloud_identity_intel -f schema/05_pg18_migration.sql
+
 # Seed data and example queries
 psql -U $(whoami) -d cloud_identity_intel -f schema/02_seed_and_queries.sql
 ```
@@ -202,7 +205,7 @@ curl -s http://localhost:3000/api/audit     # audit log entries
 
 ```bash
 npm test        # 14 test suites
-npm run lint    # ESLint 9 with eslint-config-next
+npm run lint    # ESLint 10 with eslint-config-next
 ```
 
 ---
@@ -278,7 +281,7 @@ Validation queries: `schema/99-seed/021_cloud_resources_validation.sql` (10 quer
 
 | File | Contents |
 |------|----------|
-| `schema/01_schema.sql` | Extensions (`uuid-ossp`), identity table DDL, indexes, `provider_type_enum` |
+| `schema/01_schema.sql` | Identity table DDL, indexes, `provider_type_enum`, PG18 native `uuidv7()` |
 | `schema/02_cloud_resources.sql` | AWS accounts, GCP orgs/projects, IAM bindings, `resource_access_grants` matrix |
 | `schema/02_seed_and_queries.sql` | Seed data for demo tenant, 4 example queries |
 | `schema/03_ingestion_runs.sql` | Ingestion run tracking table |
@@ -307,8 +310,8 @@ Validation queries: `schema/99-seed/021_cloud_resources_validation.sql` (10 quer
 - GitHub tables use `node_id` (TEXT) as the cross-reference key (mirrors GitHub GraphQL API)
 - All provider tables include `raw_response JSONB` for full API response storage
 - All tables include `deleted_at` for soft-delete support
-- `provider_type_enum` classifies links: `GOOGLE_WORKSPACE`, `AWS_IDENTITY_CENTER`, `GITHUB`
-- The application sets `SET LOCAL app.current_tenant_id` per transaction (RLS-ready for future)
+- `provider_type_enum` classifies links: `GOOGLE_WORKSPACE`, `AWS_IDENTITY_CENTER`, `GITHUB`, `GCP`
+- The application sets `SET LOCAL app.current_tenant_id` per transaction; RLS is enabled on all 26 tables
 
 ---
 

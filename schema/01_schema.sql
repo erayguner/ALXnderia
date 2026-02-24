@@ -7,14 +7,15 @@
 -- 3. No Cross-Pollination: Separate schemas/tables per provider.
 -- 4. Immutability: Provider IDs are stored as-is.
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- PG18: native uuidv7() is used for time-ordered, k-sortable primary keys.
+-- No extension required (uuid-ossp is no longer needed).
 
 -- =================================================================================================
 -- 1. Google Workspace Schema
 -- =================================================================================================
 
 CREATE TABLE google_workspace_users (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     google_id TEXT NOT NULL,              -- Stable 'id' from Admin SDK
     primary_email TEXT NOT NULL,          -- Mutable 'primaryEmail'
@@ -44,7 +45,7 @@ CREATE TABLE google_workspace_users (
 CREATE INDEX idx_gw_users_email ON google_workspace_users(tenant_id, primary_email);
 
 CREATE TABLE google_workspace_groups (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     google_id TEXT NOT NULL,
     email TEXT NOT NULL,
@@ -66,7 +67,7 @@ CREATE TABLE google_workspace_groups (
 CREATE INDEX idx_gw_groups_email ON google_workspace_groups(tenant_id, email);
 
 CREATE TABLE google_workspace_memberships (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     group_id TEXT NOT NULL, -- references google_workspace_groups(google_id) within tenant
     member_id TEXT NOT NULL,
@@ -92,7 +93,7 @@ CREATE INDEX idx_gw_memberships_member ON google_workspace_memberships(tenant_id
 -- =================================================================================================
 
 CREATE TABLE aws_identity_center_users (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     identity_store_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
@@ -118,7 +119,7 @@ CREATE INDEX idx_aws_users_username ON aws_identity_center_users(tenant_id, user
 CREATE INDEX idx_aws_users_email ON aws_identity_center_users(tenant_id, email);
 
 CREATE TABLE aws_identity_center_groups (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     identity_store_id TEXT NOT NULL,
     group_id TEXT NOT NULL,
@@ -138,7 +139,7 @@ CREATE TABLE aws_identity_center_groups (
 CREATE INDEX idx_aws_groups_name ON aws_identity_center_groups(tenant_id, display_name);
 
 CREATE TABLE aws_identity_center_memberships (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     membership_id TEXT NOT NULL,
     identity_store_id TEXT NOT NULL,
@@ -161,7 +162,7 @@ CREATE TABLE aws_identity_center_memberships (
 -- =================================================================================================
 
 CREATE TABLE github_organisations (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     github_id BIGINT NOT NULL,
     node_id TEXT NOT NULL, -- Unique per tenant (technically global, but we scope per tenant)
@@ -182,7 +183,7 @@ CREATE TABLE github_organisations (
 );
 
 CREATE TABLE github_users (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     github_id BIGINT NOT NULL,
     node_id TEXT NOT NULL,
@@ -206,7 +207,7 @@ CREATE TABLE github_users (
 CREATE INDEX idx_github_users_login ON github_users(tenant_id, login);
 
 CREATE TABLE github_teams (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     github_id BIGINT NOT NULL,
     node_id TEXT NOT NULL,
@@ -233,7 +234,7 @@ CREATE INDEX idx_github_teams_org ON github_teams(tenant_id, org_node_id);
 
 -- Org Members (User <-> Org)
 CREATE TABLE github_org_memberships (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     org_node_id TEXT NOT NULL,
     user_node_id TEXT NOT NULL,
@@ -254,7 +255,7 @@ CREATE INDEX idx_github_org_memberships_user ON github_org_memberships(tenant_id
 
 -- Team Memberships (User <-> Team)
 CREATE TABLE github_team_memberships (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     team_node_id TEXT NOT NULL,
     user_node_id TEXT NOT NULL,
@@ -274,7 +275,7 @@ CREATE TABLE github_team_memberships (
 CREATE INDEX idx_github_team_memberships_user ON github_team_memberships(tenant_id, user_node_id);
 
 CREATE TABLE github_repositories (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     github_id BIGINT NOT NULL,
     node_id TEXT NOT NULL,
@@ -303,7 +304,7 @@ CREATE TABLE github_repositories (
 CREATE INDEX idx_github_repos_org ON github_repositories(tenant_id, org_node_id);
 
 CREATE TABLE github_repo_team_permissions (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     repo_node_id TEXT NOT NULL,
     team_node_id TEXT NOT NULL,
@@ -322,7 +323,7 @@ CREATE TABLE github_repo_team_permissions (
 CREATE INDEX idx_github_repo_team_perms_team ON github_repo_team_permissions(tenant_id, team_node_id);
 
 CREATE TABLE github_repo_collaborator_permissions (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     repo_node_id TEXT NOT NULL,
     user_node_id TEXT NOT NULL,
@@ -346,7 +347,7 @@ CREATE INDEX idx_github_repo_collab_perms_user ON github_repo_collaborator_permi
 -- =================================================================================================
 
 CREATE TABLE canonical_users (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     full_name TEXT,
     primary_email TEXT,
@@ -359,7 +360,7 @@ CREATE TABLE canonical_users (
 );
 
 CREATE TABLE canonical_emails (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     canonical_user_id UUID NOT NULL,
     email TEXT NOT NULL,
@@ -378,7 +379,7 @@ CREATE INDEX idx_canonical_emails_email ON canonical_emails(tenant_id, email);
 CREATE TYPE provider_type_enum AS ENUM ('GOOGLE_WORKSPACE', 'AWS_IDENTITY_CENTER', 'GITHUB');
 
 CREATE TABLE canonical_user_provider_links (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     canonical_user_id UUID NOT NULL,
     provider_type provider_type_enum NOT NULL,
@@ -397,7 +398,7 @@ CREATE TABLE canonical_user_provider_links (
 CREATE INDEX idx_canonical_links_user ON canonical_user_provider_links(tenant_id, canonical_user_id);
 
 CREATE TABLE identity_reconciliation_queue (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     provider_type provider_type_enum NOT NULL,
     provider_user_id TEXT NOT NULL,

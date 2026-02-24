@@ -40,7 +40,7 @@ Thank you for your interest in contributing. This guide covers the conventions, 
 
 ```bash
 cd app
-npm run lint          # ESLint 9
+npm run lint          # ESLint 10
 npx tsc --noEmit     # Type check
 npm test             # Vitest (14 suites)
 npm run build        # Next.js production build

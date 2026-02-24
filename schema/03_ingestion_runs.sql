@@ -5,7 +5,7 @@
 -- =================================================================================================
 
 CREATE TABLE IF NOT EXISTS ingestion_runs (
-    id               UUID DEFAULT uuid_generate_v4(),
+    id               UUID DEFAULT uuidv7(),
     tenant_id        UUID NOT NULL,
     provider         TEXT NOT NULL,
     entity_type      TEXT,

@@ -35,7 +35,7 @@ The vision is straightforward: every organisation should be able to answer any i
 
 **Audit Logging.** All queries are logged with metadata (question, SQL, row count, timing, status) for forensic review and compliance. Database-backed, tamper-evident audit logging with hash chaining is planned for a future iteration.
 
-**Multi-Tenant Data Model.** All tables use composite primary keys `(id, tenant_id)` for partition-friendly multi-tenancy. The application sets tenant context per transaction for forward-compatible isolation.
+**Multi-Tenant Data Model.** All tables use composite primary keys `(id, tenant_id)` for partition-friendly multi-tenancy. Row-Level Security is enabled on all 26 tables, and the application sets tenant context per transaction.
 
 **Continuous Integration and Security Scanning.** Five GitHub Actions pipelines enforce code quality, security, and compliance on every push and pull request: CI (lint, type-check, test, build, schema validation), CodeQL (SAST with security-extended queries), Checkov (Terraform IaC and secrets scanning), Security Audit (npm audit, SQL safety, TruffleHog, license compliance), and Next.js Bundle Analysis.
 
@@ -58,8 +58,8 @@ The vision is straightforward: every organisation should be able to answer any i
 Security is treated as a structural property of the platform rather than an afterthought. The following measures are built into the architecture:
 
 - **Query Safety.** A seven-layer validation pipeline prevents the AI agent from executing destructive, unauthorised, or malformed SQL. This includes comment stripping, keyword blocking, abstract syntax tree parsing, statement type enforcement, table allowlisting, function blocking, and automatic result-set limiting.
-- **Tenant Isolation.** All tables include `tenant_id` with composite primary keys. The application sets `app.current_tenant_id` per transaction. RLS policies can be added without application changes.
-- **Audit Logging.** Query metadata is logged (question, SQL, row count, timing, status) for compliance review. Database-backed audit with hash chaining is planned.
+- **Tenant Isolation.** All tables include `tenant_id` with composite primary keys. Row-Level Security (RLS) is enabled on all 26 tables with a uniform `tenant_isolation` policy. The application sets `app.current_tenant_id` per transaction.
+- **Audit Logging.** Query metadata is written to the `audit_log` table (question, SQL, row count, timing, status) for compliance review, with console fallback on DB failure. Hash-chained audit entries are planned for a future iteration.
 - **Data Protection.** PII-containing tables are tracked in the application's `PII_TABLES` configuration. PII redaction views, retention policies, and legal-hold capabilities are planned for future iterations.
 
 ## 5. Operational Model

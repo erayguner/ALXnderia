@@ -30,7 +30,7 @@
 | Frontend | Next.js 15 / React 19 / Tailwind | Working chat UI + access explorer |
 | API | Next.js API routes (REST) | 11 endpoints: `/api/chat`, `/api/access`, `/api/accounts`, `/api/accounts/[id]`, `/api/people`, `/api/people/[id]`, `/api/groups`, `/api/groups/[id]`, `/api/resources`, `/api/audit`, `/api/health` |
 | AI | NL2SQL agent with 7-layer SQL validator | Anthropic / OpenAI / Gemini, provider-agnostic |
-| Database | PostgreSQL (18 Cloud SQL / 16 Aurora) | 25 tables across 4 providers + canonical identity layer + cloud resources (AWS accounts, GCP projects, access grants) + ingestion tracking, composite PK `(id, tenant_id)`, no RLS yet |
+| Database | PostgreSQL (18 Cloud SQL / 16 Aurora) | 26 tables across 4 providers + canonical identity layer + cloud resources (AWS accounts, GCP projects, access grants) + ingestion tracking + audit log, composite PK `(id, tenant_id)`, RLS enabled on all tables |
 | Auth | **Mock** — hardcoded session in route handlers | No real AuthN/AuthZ |
 | Ingestion | Python service (`scripts/ingestion/`) | 5 providers (Google Workspace, AWS IDC, AWS Orgs, GitHub, GCP CRM) with identity resolution, grants backfill, scheduler, and run tracking. Cloud deployment via Lambda (AWS) and Cloud Run Jobs (GCP). |
 | Export/DLP | Not implemented | Planned for future iteration |
@@ -43,17 +43,17 @@
 2. **No GraphQL.** API is bespoke REST endpoints with inline SQL.
 3. **Ingestion service is CLI/scheduled only.** A modular Python ingestion service exists (`scripts/ingestion/`) with 5 providers, identity resolution, and grants backfill. Cloud deployment is wired (Lambda for AWS, Cloud Run Jobs for GCP). No REST/GraphQL ingestion API yet.
 4. **No export/backup jobs.** No export schema or execution layer.
-5. **No RLS policies.** App sets `SET LOCAL app.current_tenant_id` per transaction (forward-compatible) but no RLS policies defined yet.
-6. **No database-backed audit.** Audit middleware logs to console only; database audit table planned.
+5. **RLS policies active.** RLS is enabled on all 26 tables with `tenant_isolation` policies. App sets `SET LOCAL app.current_tenant_id` per transaction.
+6. **Database-backed audit.** `audit_log` table records query metadata (question, SQL, row count, timing, status) with console fallback.
 7. **No database roles.** Single `cloudintel` role; role separation planned for production.
 
 ### What works well (keep)
 
-- Forward-compatible tenant scoping with `SET LOCAL app.current_tenant_id`.
+- Tenant scoping with `SET LOCAL app.current_tenant_id` and RLS policies on all 26 tables.
 - Composite PK `(id, tenant_id)` on all tables — partition-friendly multi-tenancy.
 - SQL validator (7-layer, AST-based) — robust defence-in-depth for NL2SQL path.
 - Canonical identity model with `canonical_users` + `canonical_user_provider_links` — sound cross-provider design.
-- `provider_type_enum` (GOOGLE_WORKSPACE, AWS_IDENTITY_CENTER, GITHUB) — typed provider classification.
+- `provider_type_enum` (GOOGLE_WORKSPACE, AWS_IDENTITY_CENTER, GITHUB, GCP) — typed provider classification.
 - `identity_reconciliation_queue` — explicit handling for unmatched identities.
 - 5 CI/CD pipelines (CI, CodeQL, Checkov, Security Audit, Bundle Analysis).
 - 14 test suites covering SQL validator, route handlers, middleware, LLM providers, and shared constants.
@@ -246,11 +246,11 @@ CREATE INDEX IF NOT EXISTS idx_github_users_cursor
     ON github_users (tenant_id, id);
 ```
 
-**4. Add audit_log table** (for database-backed audit, currently console-only):
+**4. Extend audit_log table** (the `audit_log` table already exists in `04_audit_log.sql`; extend for GraphQL):
 
 ```sql
 CREATE TABLE audit_log (
-    id UUID DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuidv7(),
     tenant_id UUID NOT NULL,
     query_text TEXT NOT NULL,
     question TEXT,
@@ -933,11 +933,11 @@ t.string({
 
 **Layer 3 — Tenant-scoped queries (database):**
 - Every query runs through `executeWithTenant()` which sets the tenant context via `SET LOCAL app.current_tenant_id`
-- RLS policies (planned) will provide an additional layer of isolation at the database level
+- RLS policies are enabled on all 26 tables, providing database-level tenant isolation
 
 **Layer 4 — Audit logging:**
-- Every GraphQL operation logged to console (current) with query hash, variables, user, and tenant
-- Database-backed audit table planned for production
+- Every NL2SQL query is logged to the `audit_log` table (DB-backed with console fallback)
+- GraphQL operations should extend the same audit infrastructure
 
 ---
 

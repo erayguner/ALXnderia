@@ -95,7 +95,7 @@ The **SQL Validator** enforces a seven-layer defence-in-depth pipeline before an
 | **GitHub tables** (github_organisations, github_users, github_teams, github_org_memberships, github_team_memberships, github_repositories, github_repo_team_permissions, github_repo_collaborator_permissions) | GitHub organisation, user, team, and repository access data. |
 | **Cross-provider permissions matrix** (resource_access_grants) | Denormalised, pre-computed effective access across all providers. Group-expanded to individual users with canonical user resolution. |
 
-The schema is defined in flat SQL files: `schema/01_schema.sql` (identity DDL), `schema/02_cloud_resources.sql` (cloud resource DDL: AWS accounts, GCP projects, access grants), `schema/02_seed_and_queries.sql` (seed data), `schema/99-seed/010_mock_data.sql` (extended identity mock with ~700 users), and `schema/99-seed/020_cloud_resources_seed.sql` (cloud resource mock with 12 AWS accounts, 15 GCP projects, 800+ access grants). All tables use composite primary keys `(id, tenant_id)` for partition-friendliness. A `provider_type_enum` (GOOGLE_WORKSPACE, AWS_IDENTITY_CENTER, GITHUB) classifies provider links.
+The schema is defined in flat SQL files: `schema/01_schema.sql` (identity DDL), `schema/02_cloud_resources.sql` (cloud resource DDL: AWS accounts, GCP projects, access grants), `schema/03_ingestion_runs.sql` (ingestion tracking), `schema/04_audit_log.sql` (audit log), `schema/05_pg18_migration.sql` (RLS policies, virtual columns, temporal constraints, GIN indexes), `schema/02_seed_and_queries.sql` (seed data), `schema/99-seed/010_mock_data.sql` (extended identity mock with ~700 users), and `schema/99-seed/020_cloud_resources_seed.sql` (cloud resource mock with 12 AWS accounts, 15 GCP projects, 800+ access grants). All tables use composite primary keys `(id, tenant_id)` for partition-friendliness. A `provider_type_enum` (GOOGLE_WORKSPACE, AWS_IDENTITY_CENTER, GITHUB, GCP) classifies provider links.
 
 ### 2.4 Infrastructure Layer
 
@@ -238,11 +238,11 @@ Generated SQL passes through seven sequential validation layers before execution
 
 ### 7.3 Tenant Isolation
 
-All tables include a `tenant_id` column with composite primary keys `(id, tenant_id)`. The application sets `SET LOCAL app.current_tenant_id` in every transaction for forward-compatible tenant scoping. RLS policies are not yet defined in the schema but can be added without application changes. The NL2SQL agent's generated queries are constrained by the SQL Validator's table allowlist, providing an additional isolation layer.
+All tables include a `tenant_id` column with composite primary keys `(id, tenant_id)`. The application sets `SET LOCAL app.current_tenant_id` in every transaction. Row-Level Security (RLS) is enabled on all 26 tables with a uniform `tenant_isolation` policy that enforces `tenant_id = current_setting('app.current_tenant_id')::uuid`. The NL2SQL agent's generated queries are additionally constrained by the SQL Validator's table allowlist, providing defence-in-depth isolation.
 
 ### 7.4 Audit Logging
 
-Audit entries (question, SQL executed, row count, timing, status) are logged to the console in a fire-and-forget pattern. Database-backed audit logging with partitioning and integrity hashing is planned for a future iteration. Result data is never stored — only metadata.
+Audit entries (question, SQL executed, row count, timing, status) are written to the `audit_log` table in a fire-and-forget pattern, with console fallback if the DB write fails. Result data is never stored — only metadata. Partitioned audit tables and integrity hashing are planned for a future iteration.
 
 ---
 
@@ -252,6 +252,6 @@ Audit entries (question, SQL executed, row count, timing, status) are logged to 
 2. **Trusted ingestion sources.** Data loaded via the `ingest` role is assumed to originate from authenticated and authorised cloud identity providers.
 3. **LLM API availability.** The NL2SQL pipeline depends on the configured LLM provider API (Anthropic Claude, OpenAI GPT, or Google Gemini). Degraded availability of the selected external service will directly affect query capabilities.
 4. **Schema stability.** The SQL Validator's table allowlist and the NL2SQL Agent's schema metadata are assumed to be kept in sync with the deployed database schema.
-5. **Tenant isolation via session variable.** The security model assumes that the application layer correctly sets `app.current_tenant_id` for every database transaction. No bypass path should exist outside the `executeWithTenant()` function. RLS policies are not yet defined but the session variable is set for forward compatibility.
+5. **Tenant isolation via RLS.** The security model assumes that the application layer correctly sets `app.current_tenant_id` for every database transaction. No bypass path should exist outside the `executeWithTenant()` function. RLS policies are enabled on all 26 tables and enforce tenant isolation at the database level.
 7. **Container image immutability.** Deployed images in ECR and Artifact Registry are treated as immutable artefacts. Rollback is achieved by redeploying a prior image tag.
 8. **Secret rotation.** Credentials stored in AWS Secrets Manager and GCP Secret Manager are assumed to be rotated according to organisational policy; the application retrieves secrets at startup or on rotation events.

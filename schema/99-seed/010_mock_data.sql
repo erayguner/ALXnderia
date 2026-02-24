@@ -91,7 +91,7 @@ surnames AS (
 )
 INSERT INTO canonical_users (id, tenant_id, full_name, primary_email, created_at, updated_at, deleted_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   '11111111-1111-1111-1111-111111111111'::uuid,
   fn.arr[1 + abs(hashint4(i + 42)) % array_length(fn.arr, 1)] || ' ' ||
     sn.arr[1 + abs(hashint4(i * 7 + 42)) % array_length(sn.arr, 1)],
@@ -111,7 +111,7 @@ FROM generate_series(1, 700) AS i,
 
 INSERT INTO canonical_emails (id, tenant_id, canonical_user_id, email, is_primary, verified_at, created_at, updated_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   cu.tenant_id,
   cu.id,
   cu.primary_email,
@@ -134,7 +134,7 @@ WITH ordered_cu AS (
 )
 INSERT INTO google_workspace_users (id, tenant_id, google_id, primary_email, name_full, suspended, archived, is_admin, is_delegated_admin, is_enrolled_in_2sv, is_enforced_in_2sv, customer_id, creation_time, last_login_time, org_unit_path, raw_response, created_at, updated_at, last_synced_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   p.tenant_id,
   'gw-' || md5(p.id::text || 'gw'),
   p.primary_email,
@@ -162,7 +162,7 @@ WHERE p.rn <= 370;
 
 INSERT INTO google_workspace_groups (id, tenant_id, google_id, email, name, description, admin_created, direct_members_count, raw_response, created_at, updated_at, last_synced_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   '11111111-1111-1111-1111-111111111111'::uuid,
   'gw-grp-' || lpad(i::text, 4, '0'),
   (ARRAY['eng','platform','sec','data','devops','sre','frontend','backend','qa','analytics',
@@ -212,7 +212,7 @@ memberships AS (
 )
 INSERT INTO google_workspace_memberships (id, tenant_id, group_id, member_id, member_type, role, status, raw_response, created_at, updated_at, last_synced_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   m.tenant_id,
   m.group_google_id,
   m.member_google_id,
@@ -240,7 +240,7 @@ WITH ordered_cu AS (
 )
 INSERT INTO aws_identity_center_users (id, tenant_id, identity_store_id, user_id, user_name, display_name, active, user_status, email, given_name, family_name, raw_response, created_at, updated_at, last_synced_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   p.tenant_id,
   'd-demo0001',
   'idc-user-' || md5(p.id::text || 'idc'),
@@ -264,7 +264,7 @@ WHERE p.rn <= 410;
 
 INSERT INTO aws_identity_center_groups (id, tenant_id, identity_store_id, group_id, display_name, description, raw_response, created_at, updated_at, last_synced_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   '11111111-1111-1111-1111-111111111111'::uuid,
   'd-demo0001',
   'idc-grp-' || lpad(i::text, 4, '0'),
@@ -311,7 +311,7 @@ memberships AS (
 )
 INSERT INTO aws_identity_center_memberships (id, tenant_id, membership_id, identity_store_id, group_id, member_user_id, raw_response, created_at, updated_at, last_synced_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   m.tenant_id,
   m.membership_id,
   m.identity_store_id,
@@ -329,11 +329,11 @@ FROM memberships m;
 
 INSERT INTO github_organisations (id, tenant_id, github_id, node_id, login, name, email, raw_response, created_at, updated_at, last_synced_at)
 VALUES
-  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111'::uuid,
+  (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    10001, 'O_kgDOAAAncQ', 'demo-eng', 'Demo Engineering', 'eng@demo-example.co.uk',
    '{"type": "Organization", "plan": {"name": "enterprise"}}'::jsonb,
    '2025-01-15T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
-  (gen_random_uuid(), '11111111-1111-1111-1111-111111111111'::uuid,
+  (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    10002, 'O_kgDOAAAncR', 'demo-labs', 'Demo Labs', 'labs@demo-example.co.uk',
    '{"type": "Organization", "plan": {"name": "team"}}'::jsonb,
    '2025-03-01T10:30:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z');
@@ -351,7 +351,7 @@ WITH ordered_cu AS (
 )
 INSERT INTO github_users (id, tenant_id, github_id, node_id, login, name, email, type, site_admin, avatar_url, raw_response, created_at, updated_at, last_synced_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   p.tenant_id,
   20000 + p.rn,
   'MDQ6VXNlcj' || md5(p.id::text || 'gh'),
@@ -383,7 +383,7 @@ WITH org AS (
 )
 INSERT INTO github_teams (id, tenant_id, github_id, node_id, org_node_id, name, slug, description, privacy, permission, parent_team_id, parent_team_node_id, raw_response, created_at, updated_at, last_synced_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   '11111111-1111-1111-1111-111111111111'::uuid,
   30000 + i,
   'T_kgDOAAA' || lpad(i::text, 3, '0'),
@@ -419,7 +419,7 @@ WITH org AS (
 )
 INSERT INTO github_org_memberships (id, tenant_id, org_node_id, user_node_id, role, state, raw_response, created_at, updated_at, last_synced_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   gu.tenant_id,
   org.node_id,
   gu.node_id,
@@ -463,7 +463,7 @@ memberships AS (
 )
 INSERT INTO github_team_memberships (id, tenant_id, team_node_id, user_node_id, role, state, raw_response, created_at, updated_at, last_synced_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   m.tenant_id,
   m.team_node_id,
   m.user_node_id,
@@ -491,7 +491,7 @@ WITH org AS (
 )
 INSERT INTO github_repositories (id, tenant_id, github_id, node_id, org_node_id, name, full_name, private, visibility, archived, default_branch, description, fork, language, pushed_at, raw_response, created_at, updated_at, last_synced_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   '11111111-1111-1111-1111-111111111111'::uuid,
   40000 + i,
   'R_kgDOAAA' || lpad(i::text, 3, '0'),
@@ -570,7 +570,7 @@ perms AS (
 )
 INSERT INTO github_repo_team_permissions (id, tenant_id, repo_node_id, team_node_id, permission, raw_response, created_at, updated_at, last_synced_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   '11111111-1111-1111-1111-111111111111'::uuid,
   p.repo_node_id,
   p.team_node_id,
@@ -614,7 +614,7 @@ collabs AS (
 )
 INSERT INTO github_repo_collaborator_permissions (id, tenant_id, repo_node_id, user_node_id, permission, is_outside_collaborator, raw_response, created_at, updated_at, last_synced_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   '11111111-1111-1111-1111-111111111111'::uuid,
   c.repo_node_id,
   c.user_node_id,
@@ -644,7 +644,7 @@ gw_users AS (
 )
 INSERT INTO canonical_user_provider_links (id, tenant_id, canonical_user_id, provider_type, provider_user_id, confidence_score, match_method, created_at, updated_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   cu.tenant_id,
   cu.id,
   'GOOGLE_WORKSPACE'::provider_type_enum,
@@ -673,7 +673,7 @@ idc_users AS (
 )
 INSERT INTO canonical_user_provider_links (id, tenant_id, canonical_user_id, provider_type, provider_user_id, confidence_score, match_method, created_at, updated_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   cu.tenant_id,
   cu.id,
   'AWS_IDENTITY_CENTER'::provider_type_enum,
@@ -701,7 +701,7 @@ gh_users AS (
 )
 INSERT INTO canonical_user_provider_links (id, tenant_id, canonical_user_id, provider_type, provider_user_id, confidence_score, match_method, created_at, updated_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   cu.tenant_id,
   cu.id,
   'GITHUB'::provider_type_enum,
@@ -720,7 +720,7 @@ WHERE cu.rn <= 260;
 
 INSERT INTO identity_reconciliation_queue (id, tenant_id, provider_type, provider_user_id, suggested_canonical_user_id, conflict_reason, status, created_at, updated_at)
 SELECT
-  gen_random_uuid(),
+  uuidv7(),
   gu.tenant_id,
   'GITHUB'::provider_type_enum,
   gu.node_id,

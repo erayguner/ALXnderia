@@ -84,7 +84,7 @@ The application uses Next.js 15 with the App Router convention. All pages reside
 
 **`pool.ts`** -- Wraps `pg.Pool`. On creation, sets connection defaults including `statement_timeout` and `idle_in_transaction_session_timeout`. Exposes a `withTenant(tenantId, callback)` helper that acquires a connection, issues `SET app.current_tenant_id = $1`, invokes the callback, and releases the connection in a `finally` block. Also exposes a `healthCheck()` method that runs `SELECT 1`.
 
-**`audit.ts`** -- Middleware that logs every API request to the console. Records tenant_id, actor identity, action name, question, status, and timing. Currently console-only; production should write to a dedicated audit table.
+**`audit.ts`** -- Middleware that writes query audit entries to the `audit_log` table. Records tenant_id, actor identity, question, SQL, row count, timing, and status. Falls back to console logging if the DB write fails.
 
 **`sql-validator.ts`** -- Seven-layer validation pipeline. Described in full in section 5.2.
 
@@ -192,7 +192,7 @@ The `canonical_users` table is the hub of the identity graph. Provider-specific 
 
 ### 3.8 Provider Type Enum
 
-A PostgreSQL enum `provider_type_enum` with values: `GOOGLE_WORKSPACE`, `AWS_IDENTITY_CENTER`, `GITHUB`. Used by `canonical_user_provider_links` and `identity_reconciliation_queue`.
+A PostgreSQL enum `provider_type_enum` with values: `GOOGLE_WORKSPACE`, `AWS_IDENTITY_CENTER`, `GITHUB`, `GCP`. Used by `canonical_user_provider_links` and `identity_reconciliation_queue`.
 
 ### 3.9 Multi-Tenancy Model
 
@@ -432,9 +432,9 @@ app/api/health/route.ts
 
 5. **No write operations through the API.** The application's API surface is read-only.
 
-6. **No RLS policies in current schema.** The schema defines tables with `tenant_id` columns but does not define RLS policies. The application sets `app.current_tenant_id` via SET LOCAL for forward compatibility. Manual tenant filtering is not applied in routes; RLS policies should be added for production.
+6. **RLS policies are active.** Row-Level Security is enabled on all 26 tables via `05_pg18_migration.sql` with a uniform `tenant_isolation` policy enforcing `tenant_id = current_setting('app.current_tenant_id')::uuid`. The application sets this session variable per transaction via `executeWithTenant()`.
 
-7. **No audit table.** The current schema does not include an `audit_log` table. Audit entries are logged to the console. A dedicated audit table should be added for production.
+7. **Audit table exists.** The `audit_log` table (defined in `04_audit_log.sql`) records query metadata (question, SQL, row count, timing, status). The middleware writes audit entries to the database with console fallback on DB failure.
 
 8. **No materialised views.** The schema does not include pre-computed views like `mv_effective_access`. Access data is queried via a dynamic UNION ALL across GitHub collaborator/team permissions, Google Workspace group memberships, and AWS Identity Center group memberships. However, the `resource_access_grants` table provides a denormalised, pre-computed cross-provider permissions matrix that can be populated by sync jobs for fast lookups.
 

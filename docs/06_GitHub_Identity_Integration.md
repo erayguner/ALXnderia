@@ -253,5 +253,5 @@ All tables include a `deleted_at` column for soft-delete support, allowing histo
 ## Security Considerations
 
 - **PII**: `github_users.email` and `name` are PII. These tables are listed in the application's `PII_TABLES` configuration. PII redaction views are planned for a future iteration.
-- **Tenant isolation**: All tables include `tenant_id` in the primary key and unique constraints. The application sets `app.current_tenant_id` per transaction for forward-compatible RLS.
+- **Tenant isolation**: All tables include `tenant_id` in the primary key and unique constraints. RLS is enabled with `tenant_isolation` policies. The application sets `app.current_tenant_id` per transaction.
 - **Repository permissions**: `github_repo_collaborator_permissions.is_outside_collaborator` flags external access, enabling compliance queries for outside collaborator auditing.

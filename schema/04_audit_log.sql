@@ -5,7 +5,7 @@
 -- Data-minimised: logs metadata only (question, SQL, timing), never result data.
 
 CREATE TABLE IF NOT EXISTS audit_log (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id              UUID PRIMARY KEY DEFAULT uuidv7(),
     tenant_id       UUID NOT NULL,
     user_id         TEXT NOT NULL,
     question        TEXT NOT NULL,

@@ -97,7 +97,7 @@ API route files under `app/app/api/` are thin wrappers that delegate to the corr
 
 ## 2. Key Modules and Responsibilities
 
-**`src/server/db/pool.ts`** -- Database connection pool. Exports `executeWithTenant()` which wraps every query in a transaction with parameterised `set_config()` calls for `statement_timeout` and `app.current_tenant_id` (avoiding SQL string interpolation). Also exports `executeReadOnly()` for system-level queries (e.g. schema introspection), `getSchemaMetadata()` for live catalogue introspection, and `healthCheck()` for readiness probes. Note: the current schema does not define RLS policies, but the application sets the tenant session variable in preparation for future RLS enablement.
+**`src/server/db/pool.ts`** -- Database connection pool. Exports `executeWithTenant()` which wraps every query in a transaction with parameterised `set_config()` calls for `statement_timeout` and `app.current_tenant_id` (avoiding SQL string interpolation). Also exports `executeReadOnly()` for system-level queries (e.g. schema introspection), `getSchemaMetadata()` for live catalogue introspection, and `healthCheck()` for readiness probes. Row-Level Security (RLS) is enabled on all 26 tables via `05_pg18_migration.sql` with a uniform `tenant_isolation` policy. The application sets the tenant session variable per transaction, which the RLS policies enforce.
 
 **`src/server/llm/`** -- LLM provider abstraction layer. Defines an `LLMProvider` interface in `types.ts` with a `complete()` method. All three providers (Anthropic Claude, OpenAI GPT, Google Gemini) are implemented as classes in `index.ts` using lazy-loaded SDK imports. The `getLLMProvider()` factory reads the `LLM_PROVIDER` environment variable and returns a cached singleton. Call `resetProvider()` to switch providers at runtime (e.g. in tests).
 
@@ -212,7 +212,7 @@ cd app
 npm run lint
 ```
 
-Uses ESLint 9 with the `eslint-config-next` flat config (`eslint.config.mjs`). The lint script runs `eslint src/` directly (the deprecated `next lint` wrapper was replaced).
+Uses ESLint 10 with the `eslint-config-next` flat config (`eslint.config.mjs`). The lint script runs `eslint src/` directly (the deprecated `next lint` wrapper was replaced).
 
 ### 4.5 CI/CD Pipelines
 
@@ -263,7 +263,7 @@ Every user-facing database query must go through `executeWithTenant(tenantId, sq
 5. Commits (or rolls back on error).
 6. Releases the client.
 
-The `set_config(..., true)` ensures the tenant context is scoped to the transaction and automatically cleared on commit or rollback. Using parameterised calls instead of `SET LOCAL` string interpolation eliminates any SQL injection risk in the session variable setting. The current schema does not define RLS policies, but the application sets `app.current_tenant_id` for forward compatibility. All tables include a `tenant_id` column with composite primary keys `(id, tenant_id)` to support future partition-based or RLS-based isolation.
+The `set_config(..., true)` ensures the tenant context is scoped to the transaction and automatically cleared on commit or rollback. Using parameterised calls instead of `SET LOCAL` string interpolation eliminates any SQL injection risk in the session variable setting. RLS is enabled on all 26 tables via `05_pg18_migration.sql` with a uniform `tenant_isolation` policy that enforces `tenant_id = current_setting('app.current_tenant_id')::uuid`. All tables include composite primary keys `(id, tenant_id)` to support future partition-based scaling.
 
 ### 5.5 Audit pattern
 
@@ -434,4 +434,4 @@ Never commit `.env` files or hardcode credentials in source. Use the infrastruct
 
 6. **The `source_ip` field in audit entries is hardcoded to `127.0.0.1`.** Production must extract the real client IP from the request headers (respecting proxy configuration).
 
-7. **The schema is defined in flat SQL files.** `schema/01_schema.sql` contains identity DDL (extensions, tables, indexes, enums), `schema/02_cloud_resources.sql` contains cloud resource DDL (AWS accounts, GCP projects, `resource_access_grants`), `schema/02_seed_and_queries.sql` contains seed data, `schema/03_ingestion_runs.sql` contains ingestion tracking, `schema/04_audit_log.sql` contains the audit log table, `schema/99-seed/010_mock_data.sql` contains the extended identity mock (~700 users, ~10K rows), and `schema/99-seed/020_cloud_resources_seed.sql` contains the cloud resource mock (12 AWS accounts, 15 GCP projects, 800+ access grants). They are applied in sort order. Terraform re-applies the schema when files change; there is no incremental migration tracking. A Python seed script (`scripts/seed_cloud_resources.py`) is also available for repeatable cloud resource seeding. The schema does not define database roles, RLS policies, or PII redaction views — these are planned for a future iteration.
+7. **The schema is defined in flat SQL files.** `schema/01_schema.sql` contains identity DDL (extensions, tables, indexes, enums), `schema/02_cloud_resources.sql` contains cloud resource DDL (AWS accounts, GCP projects, `resource_access_grants`), `schema/02_seed_and_queries.sql` contains seed data, `schema/03_ingestion_runs.sql` contains ingestion tracking, `schema/04_audit_log.sql` contains the audit log table, `schema/99-seed/010_mock_data.sql` contains the extended identity mock (~700 users, ~10K rows), and `schema/99-seed/020_cloud_resources_seed.sql` contains the cloud resource mock (12 AWS accounts, 15 GCP projects, 800+ access grants). They are applied in sort order. Terraform re-applies the schema when files change; there is no incremental migration tracking. A Python seed script (`scripts/seed_cloud_resources.py`) is also available for repeatable cloud resource seeding. `schema/05_pg18_migration.sql` enables RLS on all 26 tables, adds virtual generated columns, temporal constraints, and GIN indexes. The schema does not define database roles or PII redaction views — these are planned for a future iteration.

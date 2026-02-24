@@ -62,6 +62,13 @@ class Database:
         """Bulk upsert using execute_values with ON CONFLICT DO UPDATE.
 
         Returns the number of rows affected.
+
+        PG18 note: PostgreSQL 18 supports RETURNING OLD/NEW on DML statements,
+        enabling change-detection (did the row actually change?) in a single
+        round-trip.  This is not yet used here because psycopg2's
+        execute_values does not support RETURNING with batch operations.
+        Consider migrating to psycopg3's executemany + RETURNING OLD/NEW for
+        per-row change tracking in a future iteration.
         """
         if not rows:
             return 0

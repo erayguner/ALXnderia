@@ -177,7 +177,7 @@ The application writes structured logs to stdout/stderr. App Runner forwards the
 
 ### 5.2 Application Audit Trail
 
-Audit entries are currently logged to the console via `src/server/middleware/audit.ts`. Each entry records the question, SQL executed, row count, timing, and status. Database-backed audit logging with partitioning and integrity hashing is planned for a future schema iteration.
+Audit entries are written to the `audit_log` table via `src/server/middleware/audit.ts`, with console fallback if the DB write fails. Each entry records the question, SQL executed, row count, timing, and status. Partitioned audit tables and integrity hashing are planned for a future iteration.
 
 ### 5.3 pgaudit
 
@@ -416,7 +416,7 @@ Verify the new image tag in ECR / Artifact Registry before applying Terraform. C
 4. Log retention periods and SIEM integration are not yet configured. These should be defined per organisational policy.
 5. The CI/CD pipeline is implemented as five GitHub Actions workflows in `.github/workflows/`: CI (lint, type-check, test, build, schema validation), CodeQL (SAST), Checkov (IaC + secrets), Security Audit (npm audit, SQL safety, TruffleHog, license check), and Bundle Analysis.
 6. Secret rotation is a manual process. Automated rotation (e.g. via AWS Secrets Manager rotation lambdas) is not yet configured.
-7. The current schema does not use table partitioning, RLS policies, or database roles beyond the default `cloudintel` login role. These features are planned for a future iteration.
+7. The current schema does not use table partitioning or database roles beyond the default `cloudintel` login role. These features are planned for a future iteration. RLS policies are enabled on all 26 tables via `05_pg18_migration.sql`.
 8. The connection pool configuration (min 2, max 10) is shared across all environments. Production may require tuning based on observed load.
 9. RTO and RPO targets are indicative. Formal DR testing has not been conducted.
 10. The Docker image uses `node:22-alpine` as the base. Security patching of the base image is the responsibility of the team maintaining the Dockerfile.

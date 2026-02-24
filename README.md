@@ -115,7 +115,7 @@ Open [http://localhost:3000](http://localhost:3000) and try a question like *"Sh
 ```bash
 cd app
 npm test        # 14 test suites
-npm run lint    # ESLint 9 with eslint-config-next
+npm run lint    # ESLint 10 with eslint-config-next
 ```
 
 ## Project Structure
@@ -134,11 +134,12 @@ ALXnderia/
 
 | File | Contents |
 |------|----------|
-| `schema/01_schema.sql` | Extensions (`uuid-ossp`), identity table DDL, indexes, enums (`provider_type_enum`) |
+| `schema/01_schema.sql` | Identity table DDL, indexes, enums (`provider_type_enum`), PG18 native `uuidv7()` |
 | `schema/02_cloud_resources.sql` | AWS accounts, GCP orgs/projects, IAM bindings, `resource_access_grants` matrix |
 | `schema/02_seed_and_queries.sql` | Seed data for demo tenant `11111111-...`, example queries |
 | `schema/03_ingestion_runs.sql` | Ingestion run tracking table (`ingestion_runs`) |
 | `schema/04_audit_log.sql` | Audit log table DDL and indexes |
+| `schema/05_pg18_migration.sql` | PG18 enhancements: RLS policies (all 26 tables), virtual columns, temporal constraints, GIN indexes |
 | `schema/99-seed/010_mock_data.sql` | Extended identity mock dataset (~700 users, ~10K rows across all providers) |
 | `schema/99-seed/020_cloud_resources_seed.sql` | Cloud resource seed data (12 AWS accounts, 15 GCP projects, ~240 assignments, ~180 IAM bindings, 800+ access grants) |
 | `schema/99-seed/021_cloud_resources_validation.sql` | 10 validation queries for cloud resource data integrity |
@@ -162,7 +163,7 @@ All tables use composite primary keys `(id, tenant_id)` for partition-friendly m
 ## Security
 
 - **SQL Validation** -- 7-layer pipeline: comment stripping, keyword blocklist, AST parsing (libpg-query WASM), SELECT-only enforcement, table allowlisting, function blocklisting, automatic LIMIT injection
-- **Tenant Isolation** -- All tables use composite PK `(id, tenant_id)`; app sets `SET LOCAL app.current_tenant_id` per transaction (RLS-ready)
+- **Tenant Isolation** -- All tables use composite PK `(id, tenant_id)`; RLS enabled on all 26 tables with `tenant_isolation` policy; app sets `SET LOCAL app.current_tenant_id` per transaction
 - **Audit Logging** -- All queries logged to `audit_log` table with metadata (question, SQL, row count, timing, status); falls back to console on DB failure
 - **Identity Reconciliation** -- Unresolved cross-provider matches queued in `identity_reconciliation_queue` for review
 - **Denormalised Access Matrix** -- `resource_access_grants` provides pre-computed, group-expanded cross-provider access with canonical user resolution
@@ -241,7 +242,7 @@ cd infra/deploy/gcp && terraform apply -var-file=../../environments/prod.tfvars
 | Compute | AWS App Runner / GCP Cloud Run v2, Lambda (ingestion), Cloud Run Jobs (ingestion) |
 | CI/CD | GitHub Actions (5 workflows) |
 | Testing | Vitest 4.x (14 test suites) |
-| Linting | ESLint 9 with eslint-config-next |
+| Linting | ESLint 10 with eslint-config-next |
 
 ## License
 

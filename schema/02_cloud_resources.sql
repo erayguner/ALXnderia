@@ -13,7 +13,7 @@
 
 -- AWS Accounts (Organisation member accounts)
 CREATE TABLE aws_accounts (
-    id              UUID DEFAULT uuid_generate_v4(),
+    id              UUID DEFAULT uuidv7(),
     tenant_id       UUID NOT NULL,
     account_id      TEXT NOT NULL,           -- 12-digit AWS account ID, e.g. '123456789012'
     name            TEXT NOT NULL,
@@ -40,7 +40,7 @@ CREATE INDEX idx_aws_accounts_status  ON aws_accounts(tenant_id, status) WHERE d
 
 -- IAM Identity Center account assignments (user or group → account via permission set)
 CREATE TABLE aws_account_assignments (
-    id                  UUID DEFAULT uuid_generate_v4(),
+    id                  UUID DEFAULT uuidv7(),
     tenant_id           UUID NOT NULL,
     identity_store_id   TEXT NOT NULL,
     account_id          TEXT NOT NULL,           -- references aws_accounts.account_id
@@ -68,7 +68,7 @@ CREATE INDEX idx_aws_aa_pset      ON aws_account_assignments(tenant_id, permissi
 -- =================================================================================================
 
 CREATE TABLE gcp_organisations (
-    id              UUID DEFAULT uuid_generate_v4(),
+    id              UUID DEFAULT uuidv7(),
     tenant_id       UUID NOT NULL,
     org_id          TEXT NOT NULL,           -- 'organizations/123456789012'
     display_name    TEXT,
@@ -88,7 +88,7 @@ CREATE TABLE gcp_organisations (
 CREATE INDEX idx_gcp_orgs_domain ON gcp_organisations(tenant_id, domain);
 
 CREATE TABLE gcp_projects (
-    id              UUID DEFAULT uuid_generate_v4(),
+    id              UUID DEFAULT uuidv7(),
     tenant_id       UUID NOT NULL,
     project_id      TEXT NOT NULL,           -- globally unique slug, e.g. 'my-project-123'
     project_number  TEXT NOT NULL,           -- numeric identifier, e.g. '314159265358'
@@ -118,7 +118,7 @@ CREATE INDEX idx_gcp_projects_state  ON gcp_projects(tenant_id, lifecycle_state)
 --                   | 'serviceAccount:sa@proj.iam.gserviceaccount.com'
 --                   | 'allUsers' | 'allAuthenticatedUsers' | 'domain:example.com'
 CREATE TABLE gcp_project_iam_bindings (
-    id                   UUID DEFAULT uuid_generate_v4(),
+    id                   UUID DEFAULT uuidv7(),
     tenant_id            UUID NOT NULL,
     project_id           TEXT NOT NULL,           -- references gcp_projects.project_id
     role                 TEXT NOT NULL,            -- 'roles/viewer' | 'roles/editor' | custom role ARN
@@ -150,7 +150,7 @@ CREATE INDEX idx_gcp_iam_role    ON gcp_project_iam_bindings(tenant_id, role);
 -- =================================================================================================
 
 CREATE TABLE resource_access_grants (
-    id                      UUID DEFAULT uuid_generate_v4(),
+    id                      UUID DEFAULT uuidv7(),
     tenant_id               UUID NOT NULL,
 
     -- Resource (what is being accessed)
