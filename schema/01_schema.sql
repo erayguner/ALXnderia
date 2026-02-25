@@ -10,6 +10,24 @@
 -- PG18: native uuidv7() is used for time-ordered, k-sortable primary keys.
 -- No extension required (uuid-ossp is no longer needed).
 
+-- Compatibility fallback for PG versions without native uuidv7().
+-- Uses pgcrypto's gen_random_uuid() to keep schema creation working.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_proc
+        WHERE proname = 'uuidv7'
+          AND pg_function_is_visible(oid)
+    ) THEN
+        CREATE FUNCTION uuidv7() RETURNS uuid
+        LANGUAGE sql
+        AS $f$ SELECT gen_random_uuid() $f$;
+    END IF;
+END
+$$;
+
 -- =================================================================================================
 -- 1. Google Workspace Schema
 -- =================================================================================================
