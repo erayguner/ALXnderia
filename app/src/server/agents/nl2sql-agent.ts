@@ -492,13 +492,68 @@ export async function processQuestion(
     }
   }
 
-  const sqlToExecute = validation.sanitisedSql || agentResponse.sql;
+  let sqlToExecute = validation.sanitisedSql || agentResponse.sql;
 
   // Execute the validated query within a tenant-scoped transaction
-  const { rows, rowCount, durationMs } = await executeWithTenant(
-    tenantId,
-    sqlToExecute,
-  );
+  // If execution fails (e.g. wrong column name), retry once with error feedback
+  let rows: Record<string, unknown>[];
+  let rowCount: number;
+  let durationMs: number;
+
+  try {
+    const result = await executeWithTenant(tenantId, sqlToExecute);
+    rows = result.rows;
+    rowCount = result.rowCount;
+    durationMs = result.durationMs;
+  } catch (execError: unknown) {
+    const execMsg = execError instanceof Error ? execError.message : String(execError);
+
+    // Retry once: send the DB error back to the LLM for correction
+    const retryMessage =
+      `Your SQL query failed with a database error:\n${execMsg}\n\n` +
+      `Original question: "${request.question}"\n` +
+      `Failed SQL: ${agentResponse.sql}\n\n` +
+      `Please fix the SQL. Common issues:\n` +
+      `- google_workspace_groups uses "name" not "display_name"\n` +
+      `- aws_accounts uses "name" not "account_name" and "email" not "account_email"\n` +
+      `- resource_access_grants uses "subject_display_name", "resource_display_name", "role_or_permission", "via_group_display_name", "provider"\n` +
+      `- gcp_project_iam_bindings uses "member_type" and "member_id" not "member"\n` +
+      `- audit_log uses "user_id", "question", "sql_executed" not "action_type", "actor_email", "query_text"\n` +
+      `Check the DATABASE SCHEMA section for exact column names.`;
+
+    const retryCompletion = await llm.complete({
+      system: systemPrompt,
+      userMessage: retryMessage,
+      maxTokens: 4096,
+    });
+
+    let retryText = retryCompletion.text.trim();
+    if (retryText.startsWith('```')) {
+      retryText = retryText
+        .replace(/^```(?:json)?\n?/, '')
+        .replace(/\n?```$/, '');
+    }
+
+    let retryResponse: AgentResponse;
+    try {
+      retryResponse = JSON.parse(retryText);
+    } catch {
+      throw new Error(`Query execution failed: ${execMsg}`);
+    }
+
+    const retryValidation = await validateSql(retryResponse.sql);
+    if (!retryValidation.valid) {
+      throw new Error(`Query execution failed: ${execMsg}`);
+    }
+
+    const retrySql = retryValidation.sanitisedSql || retryResponse.sql;
+    const retryResult = await executeWithTenant(tenantId, retrySql);
+    rows = retryResult.rows;
+    rowCount = retryResult.rowCount;
+    durationMs = retryResult.durationMs;
+    agentResponse = retryResponse;
+    validation = retryValidation;
+  }
 
   // Generate a human-readable narrative from the results
   const narrative = generateNarrative(

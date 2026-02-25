@@ -61,6 +61,7 @@ export async function handleChat(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json(response);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal server error';
+    console.error('[chat] Error processing question:', message);
 
     // Audit the failure too
     recordAuditEntry({
@@ -79,7 +80,7 @@ export async function handleChat(req: NextRequest): Promise<NextResponse> {
     let safeMessage: string;
     let suggestions: string[] = [];
 
-    if (message.includes('validation')) {
+    if (message.includes('validation') || message.includes('execution failed')) {
       safeMessage = 'The generated query could not be validated. Please try rephrasing your question.';
       suggestions = [
         'Try being more specific, e.g. "Who has access to demo-data-prod?"',
