@@ -75,11 +75,34 @@ export async function handleChat(req: NextRequest): Promise<NextResponse> {
       rejectionReason: message,
     }).catch(() => {});
 
-    // Don't leak internal errors to client
-    const safeMessage = message.includes('validation')
-      ? message
-      : 'Failed to process your question. Please try rephrasing.';
+    // Provide helpful error messages without leaking internals
+    let safeMessage: string;
+    let suggestions: string[] = [];
 
-    return NextResponse.json({ error: safeMessage }, { status: 500 });
+    if (message.includes('validation')) {
+      safeMessage = 'The generated query could not be validated. Please try rephrasing your question.';
+      suggestions = [
+        'Try being more specific, e.g. "Who has access to demo-data-prod?"',
+        'Specify the provider: "Show all AWS accounts" or "List GCP projects"',
+        'Ask about a specific person: "What can Alice access?"',
+      ];
+    } else if (message.includes('parse') || message.includes('JSON')) {
+      safeMessage = 'Failed to interpret the response. Please try rephrasing your question.';
+      suggestions = ['Try a simpler question first, then drill down'];
+    } else if (message.includes('timeout') || message.includes('connect')) {
+      safeMessage = 'Database connection issue. Please try again in a moment.';
+    } else {
+      safeMessage = 'Failed to process your question. Please try rephrasing.';
+      suggestions = [
+        'Try "Show all AWS accounts"',
+        'Try "Who has access to demo-data-prod?"',
+        'Try "List GCP projects"',
+      ];
+    }
+
+    return NextResponse.json(
+      { error: safeMessage, suggestions },
+      { status: 500 },
+    );
   }
 }

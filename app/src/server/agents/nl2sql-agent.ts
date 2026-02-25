@@ -152,6 +152,60 @@ Question: "Show pending identity reconciliation items"
 Query Plan: List items in the reconciliation queue that need manual review.
 SQL: SELECT irq.provider_type, irq.provider_user_id, irq.conflict_reason, irq.status, irq.created_at FROM identity_reconciliation_queue irq WHERE irq.status = 'PENDING' ORDER BY irq.created_at
 Explanation: The identity_reconciliation_queue tracks provider identities that could not be automatically matched to canonical users and need manual review.
+
+Example 7:
+Question: "Who has access to demo-data-prod?"
+Query Plan: Find all users with access to a specific project or account using the resource_access_grants matrix.
+SQL: SELECT rag.subject_display_name, rag.provider, rag.resource_display_name, rag.role_or_permission, rag.access_path, rag.via_group_display_name FROM resource_access_grants rag WHERE (rag.resource_display_name ILIKE '%demo-data-prod%' OR rag.resource_id ILIKE '%demo-data-prod%') AND rag.deleted_at IS NULL ORDER BY rag.provider, rag.subject_display_name LIMIT 500
+Explanation: The resource_access_grants table is a denormalised cross-provider access matrix. subject_display_name is the person, resource_display_name is the account/project, role_or_permission is the permission level, and via_group_display_name shows which group grants access (if access_path = 'group').
+
+Example 8:
+Question: "How many users have access to demo-data-prod?"
+Query Plan: Count distinct users with access to a specific project or account.
+SQL: SELECT COUNT(DISTINCT rag.canonical_user_id) AS user_count FROM resource_access_grants rag WHERE (rag.resource_display_name ILIKE '%demo-data-prod%' OR rag.resource_id ILIKE '%demo-data-prod%') AND rag.deleted_at IS NULL
+Explanation: Count queries should use COUNT(DISTINCT canonical_user_id) since one person can have multiple access paths to the same resource.
+
+Example 9:
+Question: "Which groups grant access to demo-data-prod?"
+Query Plan: List groups that provide access to a specific account or project.
+SQL: SELECT DISTINCT rag.via_group_display_name, rag.provider, rag.role_or_permission, COUNT(*) AS member_count FROM resource_access_grants rag WHERE (rag.resource_display_name ILIKE '%demo-data-prod%' OR rag.resource_id ILIKE '%demo-data-prod%') AND rag.access_path = 'group' AND rag.via_group_display_name IS NOT NULL AND rag.deleted_at IS NULL GROUP BY rag.via_group_display_name, rag.provider, rag.role_or_permission ORDER BY rag.provider, rag.via_group_display_name
+Explanation: Filter resource_access_grants by access_path = 'group' to find group-based access, then aggregate by via_group_display_name.
+
+Example 10:
+Question: "Through which role does user X access AWS account Y?"
+Query Plan: Trace a specific user's access path to an AWS account.
+SQL: SELECT rag.subject_display_name, rag.resource_display_name, rag.role_or_permission, rag.access_path, rag.via_group_display_name FROM resource_access_grants rag WHERE rag.subject_display_name ILIKE '%X%' AND (rag.resource_display_name ILIKE '%Y%' OR rag.resource_id ILIKE '%Y%') AND rag.provider = 'aws' AND rag.deleted_at IS NULL ORDER BY rag.role_or_permission
+Explanation: The resource_access_grants table shows the full access chain: subject_display_name (user), resource_display_name (account), role_or_permission, and via_group_display_name (if group-based).
+
+Example 11:
+Question: "List all AWS accounts"
+Query Plan: List all AWS accounts with their status and assignment counts.
+SQL: SELECT aa.account_id, aa.name AS account_name, aa.email AS account_email, aa.status, aa.joined_method, COUNT(asg.id) AS assignment_count FROM aws_accounts aa LEFT JOIN aws_account_assignments asg ON asg.account_id = aa.account_id AND asg.tenant_id = aa.tenant_id AND asg.deleted_at IS NULL WHERE aa.deleted_at IS NULL GROUP BY aa.id, aa.account_id, aa.name, aa.email, aa.status, aa.joined_method ORDER BY aa.name
+Explanation: aws_accounts stores AWS Organization member accounts (columns: name, email, status). aws_account_assignments links via account_id.
+
+Example 12:
+Question: "Show all GCP projects and their IAM bindings"
+Query Plan: List GCP projects with IAM binding counts.
+SQL: SELECT gp.project_id, gp.display_name, gp.lifecycle_state, COUNT(pib.id) AS binding_count FROM gcp_projects gp LEFT JOIN gcp_project_iam_bindings pib ON pib.project_id = gp.project_id AND pib.tenant_id = gp.tenant_id AND pib.deleted_at IS NULL WHERE gp.deleted_at IS NULL GROUP BY gp.id, gp.project_id, gp.display_name, gp.lifecycle_state ORDER BY gp.display_name
+Explanation: gcp_projects stores Google Cloud projects. gcp_project_iam_bindings maps principals (member_type, member_id) to projects with IAM roles.
+
+Example 13:
+Question: "List all external collaborators with access to production resources"
+Query Plan: Find external collaborators on production repositories.
+SQL: SELECT DISTINCT u.login AS github_user, r.full_name AS repo_name, perm.permission FROM github_repo_collaborator_permissions perm JOIN github_repositories r ON perm.repo_node_id = r.node_id AND perm.tenant_id = r.tenant_id JOIN github_users u ON perm.user_node_id = u.node_id AND perm.tenant_id = u.tenant_id WHERE perm.is_outside_collaborator = TRUE AND (r.full_name ILIKE '%prod%' OR r.full_name ILIKE '%production%') AND perm.deleted_at IS NULL ORDER BY r.full_name, u.login
+Explanation: External collaborators are identified by is_outside_collaborator = TRUE. Production resources are matched by name pattern.
+
+Example 14:
+Question: "Show the latest ingestion runs"
+Query Plan: Display recent data sync operations with their status.
+SQL: SELECT provider, entity_type, status, records_upserted, records_deleted, error_message, started_at, finished_at FROM ingestion_runs ORDER BY started_at DESC LIMIT 20
+Explanation: The ingestion_runs table tracks provider data synchronisation operations.
+
+Example 15:
+Question: "Show the audit log"
+Query Plan: Display recent query audit trail entries.
+SQL: SELECT user_id, question, sql_executed, row_count, execution_time_ms, status, created_at FROM audit_log ORDER BY created_at DESC LIMIT 50
+Explanation: The audit_log table records all NL2SQL query executions with user_id, question text, SQL executed, and performance metrics.
 `;
 
 // ---------------------------------------------------------------------------
@@ -198,6 +252,28 @@ IMPORTANT TABLE RELATIONSHIPS:
 - GitHub: github_repo_collaborator_permissions links repos (by repo_node_id) to users (by user_node_id) with permission level
 - GitHub: github_repo_team_permissions links repos to teams with permission level
 
+CLOUD RESOURCE TABLE RELATIONSHIPS:
+- aws_accounts: AWS Organization member accounts. Columns: account_id, name, email, status, joined_method, joined_at, org_id
+- aws_account_assignments: Maps IDC groups/users to AWS accounts via permission sets
+  - Columns: identity_store_id, account_id, permission_set_arn, permission_set_name, principal_type (USER/GROUP), principal_id
+  - Links: account_id -> aws_accounts.account_id, principal_id -> aws_identity_center_groups.group_id or aws_identity_center_users.user_id
+- gcp_organisations: Google Cloud org node (org_id like "organizations/NNNN")
+- gcp_projects: Google Cloud projects. Columns: project_id, project_number, display_name, lifecycle_state (ACTIVE/DELETE_REQUESTED), org_id
+- gcp_project_iam_bindings: Maps principals to GCP projects with IAM roles
+  - Columns: project_id, role, member_type, member_id, condition_expression, condition_title
+  - Links: project_id -> gcp_projects.project_id
+- resource_access_grants: DENORMALISED cross-provider access matrix (THE PRIMARY TABLE FOR ACCESS QUERIES)
+  - Columns: provider (text: aws/gcp/github), resource_type, resource_id, resource_display_name,
+    subject_type, subject_provider_id, subject_display_name, canonical_user_id (uuid FK to canonical_users),
+    role_or_permission, access_path (direct/group), via_group_id, via_group_display_name
+  - USE THIS TABLE FIRST for questions about "who has access to X", "what can user Y access",
+    "which groups grant access", etc.
+  - To search by resource name: WHERE resource_display_name ILIKE '%name%' OR resource_id ILIKE '%name%'
+  - To search by user: WHERE subject_display_name ILIKE '%name%'
+  - To find group-based access: WHERE access_path = 'group' AND via_group_display_name IS NOT NULL
+- ingestion_runs: Tracks provider data sync operations. Columns: provider, entity_type, status, started_at, finished_at, records_upserted, records_deleted, error_message
+- audit_log: Query execution audit trail. Columns: user_id, question, sql_executed, row_count, execution_time_ms, status (success/error/rejected), rejection_reason, created_at
+
 KEY PATTERNS:
 - "Who is person X?" -> query canonical_users with canonical_user_provider_links
 - "Show identities for X" -> join canonical_users to provider tables via canonical_user_provider_links
@@ -208,6 +284,25 @@ KEY PATTERNS:
 - "Unmapped users" -> find provider users not in canonical_user_provider_links
 - "Pending review" -> query identity_reconciliation_queue WHERE status = 'PENDING'
 - "External collaborators" -> query github_repo_collaborator_permissions WHERE is_outside_collaborator = TRUE
+- "Who has access to X?" -> query resource_access_grants WHERE resource_display_name ILIKE '%X%' OR resource_id ILIKE '%X%'
+- "How many users access X?" -> SELECT COUNT(DISTINCT canonical_user_id) FROM resource_access_grants WHERE resource_display_name ILIKE '%X%'
+- "Which groups grant access to X?" -> query resource_access_grants WHERE access_path = 'group' AND via_group_display_name IS NOT NULL
+- "Through which role does user X access Y?" -> query resource_access_grants filtered by subject_display_name and resource_display_name
+- "List all AWS accounts" -> query aws_accounts (columns: account_id, name, email, status), optionally LEFT JOIN aws_account_assignments for counts
+- "Show GCP projects" -> query gcp_projects (columns: project_id, display_name, lifecycle_state), optionally LEFT JOIN gcp_project_iam_bindings for counts
+- "GCP IAM bindings for project X" -> query gcp_project_iam_bindings WHERE project_id ILIKE '%X%'
+- "AWS account assignments" -> query aws_account_assignments with JOINs to aws_accounts (on account_id) and aws_identity_center_groups (on principal_id = group_id)
+- "Show audit log" -> query audit_log (columns: user_id, question, sql_executed, status, created_at) ORDER BY created_at DESC
+- "Ingestion status" -> query ingestion_runs (columns: provider, status, records_upserted, started_at, finished_at) ORDER BY started_at DESC
+- "Cross-provider access for user X" -> query resource_access_grants WHERE subject_display_name ILIKE '%X%'
+
+ENTITY RECOGNITION HINTS:
+- Account/project names often contain patterns like "demo-*", "prod-*", "dev-*", "sandbox-*"
+- When the user mentions a specific name (e.g. "demo-data-prod"), search using ILIKE '%name%' on relevant name columns
+- AWS accounts: search aws_accounts.name or resource_access_grants.resource_display_name
+- GCP projects: search gcp_projects.project_id or gcp_projects.display_name or resource_access_grants.resource_display_name
+- GitHub entities: org logins, repo full_names (e.g. "techco/backend"), team names, user logins
+- For "production" or "prod" resources, search name columns with ILIKE '%prod%'
 
 ${FEW_SHOT_EXAMPLES}
 
@@ -355,11 +450,46 @@ export async function processQuestion(
   }
 
   // Validate the generated SQL through the security layer
-  const validation = await validateSql(agentResponse.sql);
+  let validation = await validateSql(agentResponse.sql);
+
+  // If validation fails, retry once with the error feedback
   if (!validation.valid) {
-    throw new Error(
-      `Generated SQL failed validation: ${validation.errors.join('; ')}`,
-    );
+    const retryMessage =
+      `Your previous SQL was rejected by the validator:\n${validation.errors.join('\n')}\n\n` +
+      `Original question: "${request.question}"\n` +
+      `Previous SQL: ${agentResponse.sql}\n\n` +
+      `Please generate a corrected SQL query that only uses tables from the allowed list. ` +
+      `For access-related queries, prefer the resource_access_grants table. ` +
+      `For AWS accounts, use aws_accounts. For GCP projects, use gcp_projects. ` +
+      `For GCP IAM, use gcp_project_iam_bindings. For AWS assignments, use aws_account_assignments.`;
+
+    const retryCompletion = await llm.complete({
+      system: systemPrompt,
+      userMessage: retryMessage,
+      maxTokens: 4096,
+    });
+
+    let retryText = retryCompletion.text.trim();
+    if (retryText.startsWith('```')) {
+      retryText = retryText
+        .replace(/^```(?:json)?\n?/, '')
+        .replace(/\n?```$/, '');
+    }
+
+    try {
+      agentResponse = JSON.parse(retryText);
+    } catch {
+      throw new Error(
+        `Generated SQL failed validation: ${validation.errors.join('; ')}`,
+      );
+    }
+
+    validation = await validateSql(agentResponse.sql);
+    if (!validation.valid) {
+      throw new Error(
+        `Generated SQL failed validation: ${validation.errors.join('; ')}`,
+      );
+    }
   }
 
   const sqlToExecute = validation.sanitisedSql || agentResponse.sql;
