@@ -33,6 +33,18 @@ export const ALLOWED_TABLES = new Set([
   'github_repositories',
   'github_repo_team_permissions',
   'github_repo_collaborator_permissions',
+  // AWS Accounts & Assignments
+  'aws_accounts',
+  'aws_account_assignments',
+  // GCP Cloud
+  'gcp_organisations',
+  'gcp_projects',
+  'gcp_project_iam_bindings',
+  // Cross-provider access
+  'resource_access_grants',
+  // Operational
+  'ingestion_runs',
+  'audit_log',
 ]);
 
 // ---------------------------------------------------------------------------
@@ -127,4 +139,12 @@ export const SCHEMA_SYNONYMS: Record<string, string[]> = {
   'github_repositories': ['repo', 'repository', 'repos', 'github repo'],
   'github_repo_team_permissions': ['repo team permission', 'team access'],
   'github_repo_collaborator_permissions': ['repo collaborator', 'collaborator', 'outside collaborator', 'repo access'],
+  'aws_accounts': ['aws account', 'account', 'aws accounts', 'management account', 'workload account'],
+  'aws_account_assignments': ['account assignment', 'permission set assignment', 'aws assignment', 'sso assignment'],
+  'gcp_organisations': ['gcp org', 'gcp organisation', 'gcp organization', 'google cloud org'],
+  'gcp_projects': ['gcp project', 'google cloud project', 'gcp projects', 'project'],
+  'gcp_project_iam_bindings': ['gcp iam', 'iam binding', 'gcp binding', 'gcp permission', 'gcp role'],
+  'resource_access_grants': ['access grant', 'effective access', 'cross-provider access', 'permission', 'access matrix'],
+  'ingestion_runs': ['ingestion', 'sync run', 'sync status', 'ingestion run', 'data sync'],
+  'audit_log': ['audit', 'audit log', 'query log', 'audit trail'],
 };
