@@ -36,15 +36,15 @@ interface GroupDetails {
 }
 
 const PERMISSION_COLOR: Record<string, string> = {
-  admin: 'bg-red-50 text-red-700 border-red-100',
-  maintain: 'bg-orange-50 text-orange-700 border-orange-100',
-  push: 'bg-amber-50 text-amber-700 border-amber-100',
-  triage: 'bg-blue-50 text-blue-700 border-blue-100',
-  pull: 'bg-slate-100 text-slate-600 border-slate-200',
+  admin: 'bg-ons-ruby-red/15 text-ons-ruby-red border-ons-ruby-red/20',
+  maintain: 'bg-ons-jaffa-orange/15 text-ons-jaffa-orange border-ons-jaffa-orange/20',
+  push: 'bg-ons-sun-yellow/15 text-ons-sun-yellow border-ons-sun-yellow/20',
+  triage: 'bg-ons-sky-blue/15 text-ons-sky-blue border-ons-sky-blue/20',
+  pull: 'bg-ons-grey-100 text-ons-grey-35 border-ons-grey-100',
 };
 
 function PermissionBadge({ permission }: { permission: string }) {
-  const cls = PERMISSION_COLOR[permission.toLowerCase()] || 'bg-slate-100 text-slate-600 border-slate-200';
+  const cls = PERMISSION_COLOR[permission.toLowerCase()] || 'bg-ons-grey-100 text-ons-grey-35 border-ons-grey-100';
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${cls}`}>
       {permission}
@@ -93,12 +93,12 @@ export default function GroupDetailsPage({ params }: { params: Promise<{ id: str
     return (
       <div className="p-6">
         <div className="animate-pulse">
-          <div className="h-8 bg-slate-200 rounded w-1/4 mb-4"></div>
-          <div className="h-4 bg-slate-200 rounded w-1/2 mb-8"></div>
+          <div className="h-8 bg-ons-grey-100 rounded w-1/4 mb-4"></div>
+          <div className="h-4 bg-ons-grey-100 rounded w-1/2 mb-8"></div>
           <div className="space-y-3">
-            <div className="h-4 bg-slate-200 rounded w-full"></div>
-            <div className="h-4 bg-slate-200 rounded w-full"></div>
-            <div className="h-4 bg-slate-200 rounded w-full"></div>
+            <div className="h-4 bg-ons-grey-100 rounded w-full"></div>
+            <div className="h-4 bg-ons-grey-100 rounded w-full"></div>
+            <div className="h-4 bg-ons-grey-100 rounded w-full"></div>
           </div>
         </div>
       </div>
@@ -110,11 +110,11 @@ export default function GroupDetailsPage({ params }: { params: Promise<{ id: str
       <div className="p-6">
         <button
           onClick={() => router.back()}
-          className="text-sm text-slate-500 hover:text-slate-900 mb-4 flex items-center gap-1"
+          className="text-sm text-ons-grey-35 hover:text-ons-grey-5 mb-4 flex items-center gap-1"
         >
           &larr; Back
         </button>
-        <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-100">
+        <div className="p-4 bg-ons-ruby-red/10 text-ons-ruby-red rounded-lg border border-ons-ruby-red/20">
           {error || 'Group not found'}
         </div>
       </div>
@@ -122,45 +122,45 @@ export default function GroupDetailsPage({ params }: { params: Promise<{ id: str
   }
 
   const providerColor: Record<string, string> = {
-    google: 'bg-blue-50 text-blue-700 border-blue-100',
-    aws: 'bg-amber-50 text-amber-700 border-amber-100',
-    github: 'bg-slate-100 text-slate-700 border-slate-200',
+    google: 'bg-ons-ruby-red/15 text-ons-ruby-red border-ons-ruby-red/20',
+    aws: 'bg-ons-jaffa-orange/15 text-ons-jaffa-orange border-ons-jaffa-orange/20',
+    github: 'bg-ons-grey-100 text-ons-grey-15 border-ons-grey-100',
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <button
         onClick={() => router.back()}
-        className="text-sm text-slate-500 hover:text-slate-900 flex items-center gap-1 transition-colors"
+        className="text-sm text-ons-grey-35 hover:text-ons-grey-5 flex items-center gap-1 transition-colors"
       >
         &larr; Back to Groups
       </button>
 
       {/* Header */}
-      <div className="bg-white shadow-sm border border-slate-200 rounded-xl overflow-hidden">
-        <div className="p-6 border-b border-slate-100">
+      <div className="bg-ons-grey-100/50 shadow-sm border border-ons-grey-100 rounded-xl overflow-hidden">
+        <div className="p-6 border-b border-ons-grey-100/50">
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 mb-2">{group.name}</h1>
+              <h1 className="text-2xl font-bold text-ons-grey-5 mb-2">{group.name}</h1>
               {group.description && (
-                <p className="text-slate-600 mb-4">{group.description}</p>
+                <p className="text-ons-grey-35 mb-4">{group.description}</p>
               )}
-              <div className="flex flex-wrap gap-4 text-sm text-slate-500">
+              <div className="flex flex-wrap gap-4 text-sm text-ons-grey-35">
                 {group.email && (
                   <div className="flex items-center gap-2">
                     <span className="font-medium">Email:</span>
-                    <span className="font-mono bg-slate-50 px-2 py-0.5 rounded">{group.email}</span>
+                    <span className="font-mono bg-ons-grey-100 px-2 py-0.5 rounded">{group.email}</span>
                   </div>
                 )}
                 {group.slug && (
                   <div className="flex items-center gap-2">
                     <span className="font-medium">Slug:</span>
-                    <span className="font-mono bg-slate-50 px-2 py-0.5 rounded">{group.slug}</span>
+                    <span className="font-mono bg-ons-grey-100 px-2 py-0.5 rounded">{group.slug}</span>
                   </div>
                 )}
                 <div className="flex items-center gap-2">
                   <span className="font-medium">Provider:</span>
-                  <span className={`uppercase text-xs font-bold px-2 py-0.5 rounded border ${providerColor[group.provider] || 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                  <span className={`uppercase text-xs font-bold px-2 py-0.5 rounded border ${providerColor[group.provider] || 'bg-ons-grey-100 text-ons-grey-15 border-ons-grey-100'}`}>
                     {group.provider}
                   </span>
                 </div>
@@ -172,7 +172,7 @@ export default function GroupDetailsPage({ params }: { params: Promise<{ id: str
                 )}
               </div>
             </div>
-            <div className="flex flex-col items-end gap-2 text-sm text-slate-400">
+            <div className="flex flex-col items-end gap-2 text-sm text-ons-grey-75">
               <span>{members.length} {members.length === 1 ? 'member' : 'members'}</span>
               {repositories.length > 0 && (
                 <span>{repositories.length} {repositories.length === 1 ? 'repository' : 'repositories'}</span>
@@ -183,19 +183,19 @@ export default function GroupDetailsPage({ params }: { params: Promise<{ id: str
       </div>
 
       {/* Members */}
-      <div className="bg-white shadow-sm border border-slate-200 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
-          <h2 className="font-semibold text-slate-900">Members ({members.length})</h2>
+      <div className="bg-ons-grey-100/50 shadow-sm border border-ons-grey-100 rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-ons-grey-100/50 bg-ons-night-blue/50">
+          <h2 className="font-semibold text-ons-grey-5">Members ({members.length})</h2>
         </div>
 
         {members.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 italic">
+          <div className="p-8 text-center text-ons-grey-35 italic">
             No members found in this group.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 text-xs uppercase tracking-wider">
+              <thead className="bg-ons-night-blue/50 text-ons-grey-35 font-semibold border-b border-ons-grey-100 text-xs uppercase tracking-wider">
                 <tr>
                   <th className="px-6 py-3">Name</th>
                   <th className="px-6 py-3">{group.provider === 'github' ? 'Login' : 'Email / ID'}</th>
@@ -203,7 +203,7 @@ export default function GroupDetailsPage({ params }: { params: Promise<{ id: str
                   <th className="px-6 py-3">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ons-grey-100/50">
                 {members.map((member) => {
                   const personHref = member.canonical_user_id ? `/people/${member.canonical_user_id}` : null;
                   return (
@@ -216,26 +216,26 @@ export default function GroupDetailsPage({ params }: { params: Promise<{ id: str
                       }}
                       role={personHref ? 'link' : undefined}
                       tabIndex={personHref ? 0 : undefined}
-                      className={`transition-colors ${personHref ? 'cursor-pointer hover:bg-indigo-50/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500' : 'hover:bg-slate-50'}`}
+                      className={`transition-colors ${personHref ? 'cursor-pointer hover:bg-ons-ocean-blue/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ons-sky-blue' : 'hover:bg-ons-grey-100/30'}`}
                     >
-                      <td className="px-6 py-3 font-medium text-slate-900">
+                      <td className="px-6 py-3 font-medium text-ons-grey-5">
                         {personHref ? (
                           <a
                             href={personHref}
-                            className="text-indigo-600 hover:text-indigo-800 hover:underline"
+                            className="text-ons-sky-blue hover:text-ons-aqua-teal hover:underline"
                             onClick={e => e.stopPropagation()}
                           >
-                            {member.name || <span className="italic font-normal text-slate-400">Unknown</span>}
+                            {member.name || <span className="italic font-normal text-ons-grey-75">Unknown</span>}
                           </a>
                         ) : (
-                          member.name || <span className="text-slate-400 italic">Unknown</span>
+                          member.name || <span className="text-ons-grey-75 italic">Unknown</span>
                         )}
                       </td>
-                      <td className="px-6 py-3 text-slate-600 font-mono text-xs">
+                      <td className="px-6 py-3 text-ons-grey-35 font-mono text-xs">
                         {member.login || member.email || member.user_id || member.id}
                       </td>
                       <td className="px-6 py-3">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-ons-grey-100 text-ons-grey-15">
                           {member.role}
                         </span>
                       </td>
@@ -243,13 +243,13 @@ export default function GroupDetailsPage({ params }: { params: Promise<{ id: str
                         {(member.status || member.state) ? (
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                             (member.status || member.state) === 'ACTIVE' || (member.status || member.state) === 'active'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                              : 'bg-amber-50 text-amber-700 border border-amber-100'
+                              ? 'bg-ons-leaf-green/15 text-ons-spring-green border border-ons-leaf-green/20'
+                              : 'bg-ons-jaffa-orange/15 text-ons-jaffa-orange border border-ons-jaffa-orange/20'
                           }`}>
                             {member.status || member.state}
                           </span>
                         ) : (
-                          <span className="text-slate-400">-</span>
+                          <span className="text-ons-grey-75">-</span>
                         )}
                       </td>
                     </tr>
@@ -263,13 +263,13 @@ export default function GroupDetailsPage({ params }: { params: Promise<{ id: str
 
       {/* Repository permissions — GitHub teams only */}
       {repositories.length > 0 && (
-        <div className="bg-white shadow-sm border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
-            <h2 className="font-semibold text-slate-900">Repository Access ({repositories.length})</h2>
+        <div className="bg-ons-grey-100/50 shadow-sm border border-ons-grey-100 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-ons-grey-100/50 bg-ons-night-blue/50">
+            <h2 className="font-semibold text-ons-grey-5">Repository Access ({repositories.length})</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 text-xs uppercase tracking-wider">
+              <thead className="bg-ons-night-blue/50 text-ons-grey-35 font-semibold border-b border-ons-grey-100 text-xs uppercase tracking-wider">
                 <tr>
                   <th className="px-6 py-3">Repository</th>
                   <th className="px-6 py-3">Visibility</th>
@@ -277,18 +277,18 @@ export default function GroupDetailsPage({ params }: { params: Promise<{ id: str
                   <th className="px-6 py-3">Permission</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ons-grey-100/50">
                 {repositories.map((repo) => (
-                  <tr key={repo.repo_id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-3 font-mono text-xs text-slate-700">
+                  <tr key={repo.repo_id} className="hover:bg-ons-grey-100/30 transition-colors">
+                    <td className="px-6 py-3 font-mono text-xs text-ons-grey-15">
                       {repo.full_name}
                     </td>
                     <td className="px-6 py-3">
                       {repo.visibility ? (
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
                           repo.visibility === 'private'
-                            ? 'bg-slate-100 text-slate-600 border-slate-200'
-                            : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                            ? 'bg-ons-grey-100 text-ons-grey-35 border-ons-grey-100'
+                            : 'bg-ons-leaf-green/15 text-ons-spring-green border-ons-leaf-green/20'
                         }`}>
                           {repo.visibility}
                         </span>
@@ -296,11 +296,11 @@ export default function GroupDetailsPage({ params }: { params: Promise<{ id: str
                     </td>
                     <td className="px-6 py-3">
                       {repo.archived ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-amber-50 text-amber-700 border-amber-100">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-ons-jaffa-orange/15 text-ons-jaffa-orange border-ons-jaffa-orange/20">
                           Archived
                         </span>
                       ) : (
-                        <span className="text-slate-400 text-xs">Active</span>
+                        <span className="text-ons-grey-75 text-xs">Active</span>
                       )}
                     </td>
                     <td className="px-6 py-3">

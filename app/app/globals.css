@@ -4,10 +4,24 @@
 
 @layer base {
   body {
-    @apply text-slate-800;
+    @apply text-ons-grey-15 bg-ons-black;
   }
 
   ::selection {
-    @apply bg-indigo-100 text-indigo-900;
+    @apply bg-ons-ocean-blue text-white;
+  }
+
+  /* Scrollbar styling for dark theme */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-ons-grey-100 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-ons-grey-75;
   }
 }

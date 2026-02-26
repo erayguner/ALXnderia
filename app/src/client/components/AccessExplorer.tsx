@@ -59,8 +59,8 @@ export function AccessExplorer() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Access Explorer</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <h1 className="text-2xl font-bold text-ons-grey-5">Access Explorer</h1>
+          <p className="text-sm text-ons-grey-35 mt-1">
             Explore effective access across all cloud providers
           </p>
         </div>
@@ -77,7 +77,7 @@ export function AccessExplorer() {
             a.download = 'access-export.csv';
             a.click();
           }}
-          className="px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition text-slate-700"
+          className="px-3 py-2 text-sm bg-ons-grey-100 border border-ons-grey-100 rounded-lg hover:bg-ons-grey-75/30 transition text-ons-grey-15"
           disabled={data.length === 0}
         >
           Export CSV
@@ -91,12 +91,12 @@ export function AccessExplorer() {
           placeholder="Search by name, email, or resource..."
           value={search}
           onChange={e => { setSearch(e.target.value); setPage(1); }}
-          className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-72 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="px-3 py-2 border border-ons-grey-100 bg-ons-black rounded-lg text-sm w-72 text-ons-grey-15 placeholder:text-ons-grey-75 focus:outline-none focus:ring-2 focus:ring-ons-sky-blue focus:border-transparent"
         />
         <select
           value={provider}
           onChange={e => { setProvider(e.target.value as typeof provider); setPage(1); }}
-          className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="px-3 py-2 border border-ons-grey-100 bg-ons-black rounded-lg text-sm text-ons-grey-15 focus:outline-none focus:ring-2 focus:ring-ons-sky-blue focus:border-transparent"
         >
           <option value="all">All Providers</option>
           <option value="github">GitHub</option>
@@ -107,7 +107,7 @@ export function AccessExplorer() {
         <select
           value={accessPath}
           onChange={e => { setAccessPath(e.target.value as typeof accessPath); setPage(1); }}
-          className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="px-3 py-2 border border-ons-grey-100 bg-ons-black rounded-lg text-sm text-ons-grey-15 focus:outline-none focus:ring-2 focus:ring-ons-sky-blue focus:border-transparent"
         >
           <option value="all">All Access Paths</option>
           <option value="direct">Direct Only</option>
@@ -116,13 +116,13 @@ export function AccessExplorer() {
       </div>
 
       {/* Status */}
-      {loading && <p className="text-sm text-slate-500">Loading...</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {loading && <p className="text-sm text-ons-grey-35">Loading...</p>}
+      {error && <p className="text-sm text-ons-ruby-red">{error}</p>}
 
       {/* Results */}
       {!loading && !error && (
         <>
-          <div className="text-xs text-slate-500 mb-2">
+          <div className="text-xs text-ons-grey-35 mb-2">
             {total.toLocaleString()} total entitlement{total === 1 ? '' : 's'}
           </div>
           <ResultsTable data={data as unknown as Record<string, unknown>[]} pageSize={limit} />
@@ -133,17 +133,17 @@ export function AccessExplorer() {
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-40 transition"
+                className="px-3 py-1.5 text-sm border border-ons-grey-100 rounded-lg hover:bg-ons-grey-100 disabled:opacity-40 transition"
               >
                 Previous
               </button>
-              <span className="text-sm text-slate-600">
+              <span className="text-sm text-ons-grey-35">
                 Page {page} of {totalPages}
               </span>
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-40 transition"
+                className="px-3 py-1.5 text-sm border border-ons-grey-100 rounded-lg hover:bg-ons-grey-100 disabled:opacity-40 transition"
               >
                 Next
               </button>

@@ -51,8 +51,8 @@ export function GroupsList() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Groups</h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <h1 className="text-2xl font-bold text-ons-grey-5">Groups</h1>
+        <p className="text-sm text-ons-grey-35 mt-1">
           Identity groups across all cloud providers with membership counts
         </p>
       </div>
@@ -63,25 +63,25 @@ export function GroupsList() {
           placeholder="Search by group name..."
           value={search}
           onChange={e => { setSearch(e.target.value); setPage(1); }}
-          className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-72 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="px-3 py-2 border border-ons-grey-100 bg-ons-black rounded-lg text-sm w-72 text-ons-grey-15 placeholder:text-ons-grey-75 focus:outline-none focus:ring-2 focus:ring-ons-sky-blue focus:border-transparent"
         />
         <select
           value={provider}
           onChange={e => { setProvider(e.target.value as typeof provider); setPage(1); }}
-          className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="px-3 py-2 border border-ons-grey-100 bg-ons-black rounded-lg text-sm text-ons-grey-15 focus:outline-none focus:ring-2 focus:ring-ons-sky-blue focus:border-transparent"
         >
           <option value="all">All Providers</option>
           <option value="google">Google Workspace</option>
           <option value="aws">AWS Identity Center</option>
           <option value="github">GitHub</option>
         </select>
-        <span className="self-center text-xs text-slate-500">
+        <span className="self-center text-xs text-ons-grey-35">
           {total.toLocaleString()} {total === 1 ? 'group' : 'groups'}
         </span>
       </div>
 
-      {loading && <p className="text-sm text-slate-500">Loading...</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {loading && <p className="text-sm text-ons-grey-35">Loading...</p>}
+      {error && <p className="text-sm text-ons-ruby-red">{error}</p>}
 
       {!loading && !error && (
         <>
@@ -100,15 +100,15 @@ export function GroupsList() {
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-40 transition"
+                className="px-3 py-1.5 text-sm border border-ons-grey-100 rounded-lg hover:bg-ons-grey-100 disabled:opacity-40 transition"
               >
                 Previous
               </button>
-              <span className="text-sm text-slate-600">Page {page} of {totalPages}</span>
+              <span className="text-sm text-ons-grey-35">Page {page} of {totalPages}</span>
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-40 transition"
+                className="px-3 py-1.5 text-sm border border-ons-grey-100 rounded-lg hover:bg-ons-grey-100 disabled:opacity-40 transition"
               >
                 Next
               </button>

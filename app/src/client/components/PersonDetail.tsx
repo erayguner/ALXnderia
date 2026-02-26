@@ -154,22 +154,22 @@ function buildAccountAccessRows(person: PersonRecord): AccountAccessRow[] {
 }
 
 const PERMISSION_COLOR: Record<string, string> = {
-  admin: 'bg-red-50 text-red-700 border-red-100',
-  maintain: 'bg-orange-50 text-orange-700 border-orange-100',
-  push: 'bg-amber-50 text-amber-700 border-amber-100',
-  triage: 'bg-blue-50 text-blue-700 border-blue-100',
-  pull: 'bg-slate-100 text-slate-600 border-slate-200',
+  admin: 'bg-ons-ruby-red/15 text-ons-ruby-red border-ons-ruby-red/20',
+  maintain: 'bg-ons-jaffa-orange/15 text-ons-jaffa-orange border-ons-jaffa-orange/20',
+  push: 'bg-ons-sun-yellow/15 text-ons-sun-yellow border-ons-sun-yellow/20',
+  triage: 'bg-ons-sky-blue/15 text-ons-sky-blue border-ons-sky-blue/20',
+  pull: 'bg-ons-grey-100 text-ons-grey-35 border-ons-grey-100',
 };
 
 const ROLE_COLOR: Record<string, string> = {
-  owner: 'bg-purple-50 text-purple-700 border-purple-100',
-  admin: 'bg-red-50 text-red-700 border-red-100',
-  maintainer: 'bg-orange-50 text-orange-700 border-orange-100',
-  member: 'bg-slate-100 text-slate-600 border-slate-200',
+  owner: 'bg-ons-ocean-blue/20 text-ons-sky-blue border-ons-ocean-blue/30',
+  admin: 'bg-ons-ruby-red/15 text-ons-ruby-red border-ons-ruby-red/20',
+  maintainer: 'bg-ons-jaffa-orange/15 text-ons-jaffa-orange border-ons-jaffa-orange/20',
+  member: 'bg-ons-grey-100 text-ons-grey-35 border-ons-grey-100',
 };
 
 function Badge({ label, colorMap }: { label: string; colorMap: Record<string, string> }) {
-  const cls = colorMap[label.toLowerCase()] || 'bg-slate-100 text-slate-600 border-slate-200';
+  const cls = colorMap[label.toLowerCase()] || 'bg-ons-grey-100 text-ons-grey-35 border-ons-grey-100';
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${cls}`}>
       {label}
@@ -207,15 +207,15 @@ export function PersonDetail({ personId }: PersonDetailProps) {
   }, [person]);
 
   if (loading) {
-    return <p className="text-sm text-slate-500">Loading...</p>;
+    return <p className="text-sm text-ons-grey-35">Loading...</p>;
   }
 
   if (error) {
-    return <p className="text-sm text-red-600">{error}</p>;
+    return <p className="text-sm text-ons-ruby-red">{error}</p>;
   }
 
   if (!person) {
-    return <p className="text-sm text-slate-500">No person found.</p>;
+    return <p className="text-sm text-ons-grey-35">No person found.</p>;
   }
 
   const linkedIdentities = normalizeArray(person.linked_identities);
@@ -227,19 +227,19 @@ export function PersonDetail({ personId }: PersonDetailProps) {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">
+        <h1 className="text-2xl font-bold text-ons-grey-5">
           {person.full_name || 'Unnamed person'}
         </h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-ons-grey-35 mt-1">
           {person.primary_email || 'No primary email'}
         </p>
-        <div className="text-xs text-slate-400 mt-2">
+        <div className="text-xs text-ons-grey-75 mt-2">
           Status: {person.status || '-'}
         </div>
       </div>
 
       <section>
-        <h2 className="text-lg font-semibold text-slate-900 mb-2">
+        <h2 className="text-lg font-semibold text-ons-grey-5 mb-2">
           Accounts and access
         </h2>
         <ResultsTable data={accountRows as unknown as Record<string, unknown>[]} pageSize={10} />
@@ -247,29 +247,29 @@ export function PersonDetail({ personId }: PersonDetailProps) {
 
       {orgMemberships.length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold text-slate-900 mb-2">
+          <h2 className="text-lg font-semibold text-ons-grey-5 mb-2">
             GitHub Organisation Memberships
           </h2>
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="overflow-x-auto rounded-lg border border-ons-grey-100 bg-ons-grey-100/30">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Organisation</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Role</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">State</th>
+                <tr className="bg-ons-night-blue/50 border-b border-ons-grey-100">
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-ons-grey-35 uppercase tracking-wider">Organisation</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-ons-grey-35 uppercase tracking-wider">Role</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-ons-grey-35 uppercase tracking-wider">State</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ons-grey-100/50">
                 {orgMemberships.map((om, i) => (
-                  <tr key={i} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-3 py-2.5 text-slate-700 font-medium">
+                  <tr key={i} className="hover:bg-ons-grey-100/30 transition-colors">
+                    <td className="px-3 py-2.5 text-ons-grey-15 font-medium">
                       {om.org_name || om.org_login}
-                      <span className="ml-1.5 text-xs text-slate-400 font-mono">{om.org_login}</span>
+                      <span className="ml-1.5 text-xs text-ons-grey-75 font-mono">{om.org_login}</span>
                     </td>
                     <td className="px-3 py-2.5">
                       <Badge label={om.role} colorMap={ROLE_COLOR} />
                     </td>
-                    <td className="px-3 py-2.5 text-slate-500 text-xs">{om.state}</td>
+                    <td className="px-3 py-2.5 text-ons-grey-35 text-xs">{om.state}</td>
                   </tr>
                 ))}
               </tbody>
@@ -280,36 +280,36 @@ export function PersonDetail({ personId }: PersonDetailProps) {
 
       {teamMemberships.length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold text-slate-900 mb-2">
+          <h2 className="text-lg font-semibold text-ons-grey-5 mb-2">
             GitHub Team Memberships
           </h2>
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="overflow-x-auto rounded-lg border border-ons-grey-100 bg-ons-grey-100/30">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Organisation</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Team</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Role</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">State</th>
+                <tr className="bg-ons-night-blue/50 border-b border-ons-grey-100">
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-ons-grey-35 uppercase tracking-wider">Organisation</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-ons-grey-35 uppercase tracking-wider">Team</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-ons-grey-35 uppercase tracking-wider">Role</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-ons-grey-35 uppercase tracking-wider">State</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ons-grey-100/50">
                 {teamMemberships.map((tm, i) => (
-                  <tr key={i} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-3 py-2.5 text-slate-500 text-xs font-mono">{tm.org_login}</td>
+                  <tr key={i} className="hover:bg-ons-grey-100/30 transition-colors">
+                    <td className="px-3 py-2.5 text-ons-grey-35 text-xs font-mono">{tm.org_login}</td>
                     <td className="px-3 py-2.5">
                       <a
                         href={`/groups/${tm.team_id}?provider=github`}
-                        className="text-indigo-600 hover:text-indigo-800 hover:underline font-medium"
+                        className="text-ons-sky-blue hover:text-ons-aqua-teal hover:underline font-medium"
                       >
                         {tm.team_name}
                       </a>
-                      <span className="ml-1.5 text-xs text-slate-400 font-mono">{tm.team_slug}</span>
+                      <span className="ml-1.5 text-xs text-ons-grey-75 font-mono">{tm.team_slug}</span>
                     </td>
                     <td className="px-3 py-2.5">
                       <Badge label={tm.role} colorMap={ROLE_COLOR} />
                     </td>
-                    <td className="px-3 py-2.5 text-slate-500 text-xs">{tm.state}</td>
+                    <td className="px-3 py-2.5 text-ons-grey-35 text-xs">{tm.state}</td>
                   </tr>
                 ))}
               </tbody>
@@ -320,32 +320,32 @@ export function PersonDetail({ personId }: PersonDetailProps) {
 
       {repoAccess.length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold text-slate-900 mb-2">
+          <h2 className="text-lg font-semibold text-ons-grey-5 mb-2">
             GitHub Direct Repository Access
           </h2>
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <div className="overflow-x-auto rounded-lg border border-ons-grey-100 bg-ons-grey-100/30">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Repository</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Permission</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Type</th>
+                <tr className="bg-ons-night-blue/50 border-b border-ons-grey-100">
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-ons-grey-35 uppercase tracking-wider">Repository</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-ons-grey-35 uppercase tracking-wider">Permission</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-ons-grey-35 uppercase tracking-wider">Type</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ons-grey-100/50">
                 {repoAccess.map((ra, i) => (
-                  <tr key={i} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-3 py-2.5 font-mono text-xs text-slate-700">{ra.repo_full_name}</td>
+                  <tr key={i} className="hover:bg-ons-grey-100/30 transition-colors">
+                    <td className="px-3 py-2.5 font-mono text-xs text-ons-grey-15">{ra.repo_full_name}</td>
                     <td className="px-3 py-2.5">
                       <Badge label={ra.permission} colorMap={PERMISSION_COLOR} />
                     </td>
                     <td className="px-3 py-2.5">
                       {ra.is_outside_collaborator ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-amber-50 text-amber-700 border-amber-100">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-ons-jaffa-orange/15 text-ons-jaffa-orange border-ons-jaffa-orange/20">
                           Outside Collaborator
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-slate-100 text-slate-600 border-slate-200">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border bg-ons-grey-100 text-ons-grey-35 border-ons-grey-100">
                           Member
                         </span>
                       )}
@@ -359,14 +359,14 @@ export function PersonDetail({ personId }: PersonDetailProps) {
       )}
 
       <section>
-        <h2 className="text-lg font-semibold text-slate-900 mb-2">
+        <h2 className="text-lg font-semibold text-ons-grey-5 mb-2">
           Linked identities
         </h2>
         <ResultsTable data={linkedIdentities as unknown as Record<string, unknown>[]} pageSize={10} />
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold text-slate-900 mb-2">Emails</h2>
+        <h2 className="text-lg font-semibold text-ons-grey-5 mb-2">Emails</h2>
         <ResultsTable data={emails as unknown as Record<string, unknown>[]} pageSize={10} />
       </section>
     </div>
