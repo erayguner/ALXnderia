@@ -34,7 +34,7 @@ All AI-generated SQL passes through a **7-layer validation pipeline** before exe
 ### Tenant Isolation
 
 - All tables use composite primary keys `(id, tenant_id)`.
-- The application sets `SET LOCAL app.current_tenant_id` per transaction.
+- The application sets `app.current_tenant_id` via parameterised `set_config()` per transaction.
 - Row-Level Security (RLS) is enabled on all 26 tables with a uniform `tenant_isolation` policy enforcing `tenant_id = current_setting('app.current_tenant_id')::uuid`.
 
 ### Data Protection

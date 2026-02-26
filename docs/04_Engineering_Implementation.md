@@ -38,11 +38,11 @@ app/src/
     llm/            LLM provider abstraction (Anthropic, OpenAI, Gemini in index.ts + types.ts)
     middleware/     Audit logging (DB-backed with console fallback)
     routes/         Handler functions for each API endpoint
-                    (access.ts, accounts.ts, audit.ts, chat.ts, groups.ts, people.ts, resources.ts)
+                    (access.ts, accounts.ts, analytics.ts, audit.ts, chat.ts, groups.ts, people.ts, resources.ts)
     validators/     SQL security validator (libpg-query WASM parser)
   client/
     components/     React client components
-                    (AccessExplorer, AccountsList, AuditLog, ChatInterface, GroupsList,
+                    (AccessExplorer, AccountsList, AnalyticsDashboard, AuditLog, ChatInterface, GroupsList,
                      PeopleList, PersonDetail, ResourcesList, ResultsTable, Sidebar, UserBadge)
   shared/
     types/          TypeScript interfaces shared across client and server
@@ -62,7 +62,8 @@ app/app/
   accounts/page.tsx   Accounts (AWS accounts + GCP projects)
   access/page.tsx     Access Explorer
   audit/page.tsx      Audit Log
-  api/                API route handlers (11 endpoints)
+  analytics/page.tsx  Analytics dashboard
+  api/                API route handlers (12 endpoints)
 ```
 
 The ingestion service lives in `scripts/ingestion/`:
@@ -212,7 +213,7 @@ cd app
 npm run lint
 ```
 
-Uses ESLint 10 with the `eslint-config-next` flat config (`eslint.config.mjs`). The lint script runs `eslint src/` directly (the deprecated `next lint` wrapper was replaced).
+Uses ESLint 9 with the `eslint-config-next` flat config (`eslint.config.mjs`). The lint script runs `eslint src/` directly (the deprecated `next lint` wrapper was replaced).
 
 ### 4.5 CI/CD Pipelines
 

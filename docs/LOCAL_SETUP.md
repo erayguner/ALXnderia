@@ -199,6 +199,7 @@ curl -s http://localhost:3000/api/groups    # groups across all 3 providers
 curl -s http://localhost:3000/api/resources # resources (repos, groups) by provider
 curl -s http://localhost:3000/api/accounts  # AWS accounts + GCP projects
 curl -s http://localhost:3000/api/access    # cross-provider effective access
+curl -s http://localhost:3000/api/analytics # identity analytics
 curl -s http://localhost:3000/api/audit     # audit log entries
 ```
 
@@ -206,7 +207,7 @@ curl -s http://localhost:3000/api/audit     # audit log entries
 
 ```bash
 npm test        # 14 test suites
-npm run lint    # ESLint 10 with eslint-config-next
+npm run lint    # ESLint 9 with eslint-config-next
 ```
 
 ---
@@ -223,6 +224,7 @@ npm run lint    # ESLint 10 with eslint-config-next
 | Groups | `/groups` | Google Workspace, AWS Identity Center, and GitHub groups with member counts |
 | Group Detail | `/groups/[id]` | Group metadata and resolved member list with names, emails, roles, and status |
 | Access Explorer | `/access` | Cross-provider effective access: GitHub (direct + team-derived), Google Workspace groups, AWS Identity Center groups. Supports provider, access path, and search filters with CSV export. |
+| Analytics | `/analytics` | Identity analytics dashboard with provider distribution, access metrics, and ingestion status |
 | Audit Log | `/audit` | Query execution audit trail with action type filter |
 
 ---
@@ -287,6 +289,7 @@ Validation queries: `schema/99-seed/021_cloud_resources_validation.sql` (10 quer
 | `schema/02_seed_and_queries.sql` | Seed data for demo tenant, 4 example queries |
 | `schema/03_ingestion_runs.sql` | Ingestion run tracking table |
 | `schema/04_audit_log.sql` | Audit log table |
+| `schema/05_pg18_migration.sql` | PG18 enhancements: RLS policies, virtual columns, temporal constraints, GIN indexes |
 | `schema/99-seed/010_mock_data.sql` | Extended identity mock dataset (~700 users, ~10K rows) |
 | `schema/99-seed/020_cloud_resources_seed.sql` | Cloud resource seed (12 AWS accounts, 15 GCP projects, 800+ grants) |
 | `schema/99-seed/021_cloud_resources_validation.sql` | 10 validation queries for cloud resource integrity |
@@ -476,17 +479,19 @@ ALXnderia/
 │   │   ├── resources/    # Resources list page
 │   │   ├── access/       # Access explorer page
 │   │   ├── audit/        # Audit log page
-│   │   └── api/          # API route handlers (11 endpoints)
+│   │   ├── analytics/     # Analytics dashboard page
+│   │   └── api/          # API route handlers (12 endpoints)
 │   │       ├── chat/     # POST /api/chat (NL2SQL)
 │   │       ├── access/   # GET /api/access (cross-provider effective access)
 │   │       ├── accounts/ # GET /api/accounts + /api/accounts/[id]
 │   │       ├── people/   # GET /api/people + /api/people/[id]
 │   │       ├── groups/   # GET /api/groups + /api/groups/[id]
 │   │       ├── resources/# GET /api/resources
+│   │       ├── analytics/ # GET /api/analytics
 │   │       ├── audit/    # GET /api/audit
 │   │       └── health/   # GET /api/health
 │   ├── src/
-│   │   ├── client/       # React components (11 components)
+│   │   ├── client/       # React components (12 components)
 │   │   ├── server/       # DB pool, route handlers, NL2SQL agent, SQL validator
 │   │   └── shared/       # TypeScript types and constants
 │   └── tests/            # Vitest tests (14 suites)

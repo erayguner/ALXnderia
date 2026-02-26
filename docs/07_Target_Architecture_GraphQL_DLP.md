@@ -28,7 +28,7 @@
 | Layer | Technology | State |
 |-------|-----------|-------|
 | Frontend | Next.js 15 / React 19 / Tailwind | Working chat UI + access explorer |
-| API | Next.js API routes (REST) | 11 endpoints: `/api/chat`, `/api/access`, `/api/accounts`, `/api/accounts/[id]`, `/api/people`, `/api/people/[id]`, `/api/groups`, `/api/groups/[id]`, `/api/resources`, `/api/audit`, `/api/health` |
+| API | Next.js API routes (REST) | 12 endpoints: `/api/chat`, `/api/access`, `/api/accounts`, `/api/accounts/[id]`, `/api/analytics`, `/api/people`, `/api/people/[id]`, `/api/groups`, `/api/groups/[id]`, `/api/resources`, `/api/audit`, `/api/health` |
 | AI | NL2SQL agent with 7-layer SQL validator | Anthropic / OpenAI / Gemini, provider-agnostic |
 | Database | PostgreSQL (18 Cloud SQL / 16 Aurora) | 26 tables across 4 providers + canonical identity layer + cloud resources (AWS accounts, GCP projects, access grants) + ingestion tracking + audit log, composite PK `(id, tenant_id)`, RLS enabled on all tables |
 | Auth | **Mock** — hardcoded session in route handlers | No real AuthN/AuthZ |
