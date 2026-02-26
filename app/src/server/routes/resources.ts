@@ -14,9 +14,9 @@ type Provider = 'aws' | 'google' | 'github';
 function buildAwsQuery(search: string | null, params: unknown[], paramIdx: number) {
   const conditions: string[] = ['g.deleted_at IS NULL'];
   if (search) {
-    conditions.push(`(g.display_name ILIKE $${paramIdx} OR g.description ILIKE $${paramIdx})`);
-    params.push(`%${search}%`);
-    paramIdx++;
+    conditions.push(`(g.display_name ILIKE $${paramIdx} OR g.description ILIKE $${paramIdx} OR g.id::text = $${paramIdx + 1} OR g.group_id = $${paramIdx + 1})`);
+    params.push(`%${search}%`, search);
+    paramIdx += 2;
   }
   const where = conditions.join(' AND ');
   const countSql = `SELECT COUNT(*) AS total FROM aws_identity_center_groups g WHERE ${where}`;
@@ -37,9 +37,9 @@ function buildAwsQuery(search: string | null, params: unknown[], paramIdx: numbe
 function buildGoogleQuery(search: string | null, params: unknown[], paramIdx: number) {
   const conditions: string[] = ['g.deleted_at IS NULL'];
   if (search) {
-    conditions.push(`(g.name ILIKE $${paramIdx} OR g.email ILIKE $${paramIdx})`);
-    params.push(`%${search}%`);
-    paramIdx++;
+    conditions.push(`(g.name ILIKE $${paramIdx} OR g.email ILIKE $${paramIdx} OR g.id::text = $${paramIdx + 1} OR g.google_id = $${paramIdx + 1})`);
+    params.push(`%${search}%`, search);
+    paramIdx += 2;
   }
   const where = conditions.join(' AND ');
   const countSql = `SELECT COUNT(*) AS total FROM google_workspace_groups g WHERE ${where}`;
@@ -60,9 +60,9 @@ function buildGoogleQuery(search: string | null, params: unknown[], paramIdx: nu
 function buildGithubQuery(search: string | null, params: unknown[], paramIdx: number) {
   const conditions: string[] = ['r.deleted_at IS NULL'];
   if (search) {
-    conditions.push(`(r.name ILIKE $${paramIdx} OR r.full_name ILIKE $${paramIdx})`);
-    params.push(`%${search}%`);
-    paramIdx++;
+    conditions.push(`(r.name ILIKE $${paramIdx} OR r.full_name ILIKE $${paramIdx} OR r.id::text = $${paramIdx + 1} OR r.node_id = $${paramIdx + 1})`);
+    params.push(`%${search}%`, search);
+    paramIdx += 2;
   }
   const where = conditions.join(' AND ');
   const countSql = `SELECT COUNT(*) AS total FROM github_repositories r WHERE ${where}`;
