@@ -12,13 +12,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="bg-slate-50 antialiased" suppressHydrationWarning>
-        <div className="flex min-h-screen">
+        <div className="flex h-screen overflow-hidden">
           <Sidebar />
-          <main className="flex-1 flex flex-col">
-            <header className="flex items-center justify-end px-6 py-3 bg-white/80 backdrop-blur-sm border-b border-slate-200 sticky top-0 z-10">
+          <main className="flex-1 flex flex-col min-w-0">
+            <header className="flex-shrink-0 flex items-center justify-end px-6 py-3 bg-white/80 backdrop-blur-sm border-b border-slate-200 z-10">
               <UserBadge />
             </header>
-            <div className="flex-1 flex flex-col">{children}</div>
+            <div className="flex-1 flex flex-col overflow-y-auto">{children}</div>
           </main>
         </div>
       </body>

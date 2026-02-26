@@ -33,7 +33,7 @@ export function Sidebar() {
     <aside
       className={`${
         collapsed ? 'w-16' : 'w-56'
-      } bg-slate-950 text-slate-400 flex flex-col min-h-screen transition-all duration-200 ease-in-out`}
+      } bg-slate-950 text-slate-400 flex flex-col h-screen flex-shrink-0 transition-all duration-200 ease-in-out`}
     >
       {/* Header */}
       <div className="px-3 py-5 border-b border-slate-800 flex items-center justify-between">
@@ -65,7 +65,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-3 space-y-0.5">
+      <nav className="flex-1 py-3 space-y-0.5 overflow-y-auto">
         {NAV_ITEMS.map(item => {
           const isActive =
             pathname === item.href ||
