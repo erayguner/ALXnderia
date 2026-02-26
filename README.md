@@ -12,8 +12,8 @@
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%2F18-4169E1?logo=postgresql)
-![Terraform](https://img.shields.io/badge/Terraform-IaC-7B42BC?logo=terraform)
-![License](https://img.shields.io/badge/License-Private-red)
+![Terraform](https://img.shields.io/badge/Terraform-1.14+-7B42BC?logo=terraform)
+![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
 
@@ -242,8 +242,8 @@ cd infra/deploy/gcp && terraform apply -var-file=../../environments/prod.tfvars
 | Compute | AWS App Runner / GCP Cloud Run v2, Lambda (ingestion), Cloud Run Jobs (ingestion) |
 | CI/CD | GitHub Actions (5 workflows) |
 | Testing | Vitest 4.x (14 test suites) |
-| Linting | ESLint 10 with eslint-config-next |
+| Linting | ESLint 9 with eslint-config-next |
 
 ## License
 
-Private -- All rights reserved.
+MIT -- See [LICENSE](LICENSE) for details.
