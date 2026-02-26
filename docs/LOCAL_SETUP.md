@@ -75,6 +75,7 @@ psql -U $(whoami) -d cloud_identity_intel -f schema/03_ingestion_runs.sql
 psql -U $(whoami) -d cloud_identity_intel -f schema/04_audit_log.sql
 
 # PG18 enhancements: RLS policies, virtual columns, temporal constraints, GIN indexes
+# Requires CREATE EXTENSION privilege (creates btree_gist). Also adds 'GCP' to provider_type_enum.
 psql -U $(whoami) -d cloud_identity_intel -f schema/05_pg18_migration.sql
 
 # Seed data and example queries
@@ -311,7 +312,7 @@ Validation queries: `schema/99-seed/021_cloud_resources_validation.sql` (10 quer
 - All provider tables include `raw_response JSONB` for full API response storage
 - All tables include `deleted_at` for soft-delete support
 - `provider_type_enum` classifies links: `GOOGLE_WORKSPACE`, `AWS_IDENTITY_CENTER`, `GITHUB`, `GCP`
-- The application sets `SET LOCAL app.current_tenant_id` per transaction; RLS is enabled on all 26 tables
+- The application sets parameterised `set_config('app.current_tenant_id', ...)` per transaction; RLS is enabled on all 26 tables
 
 ---
 

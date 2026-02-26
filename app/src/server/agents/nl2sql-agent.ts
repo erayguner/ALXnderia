@@ -118,10 +118,10 @@ function getSynonymContext(): string {
 
 const FEW_SHOT_EXAMPLES = `
 Example 1:
-Question: "Show Alice's full identity map"
-Query Plan: Look up a canonical user and all linked provider identities.
+Question: "Show Alice's identity links"
+Query Plan: Look up a canonical user and all linked provider identities (identity linkages only, not access).
 SQL: SELECT cu.full_name, cu.primary_email, jsonb_object_agg(link.provider_type, link.provider_user_id) as linked_identities FROM canonical_users cu JOIN canonical_user_provider_links link ON cu.id = link.canonical_user_id AND cu.tenant_id = link.tenant_id WHERE cu.primary_email ILIKE '%alice%' GROUP BY cu.id, cu.full_name, cu.primary_email
-Explanation: The canonical_user_provider_links table links a canonical user to their Google, AWS, and GitHub identities via provider_type and provider_user_id.
+Explanation: The canonical_user_provider_links table links a canonical user to their Google, AWS, and GitHub identities via provider_type and provider_user_id. NOTE: For "full identity map" or "full profile" queries, also include access data from resource_access_grants using UNION ALL (see Example 16).
 
 Example 2:
 Question: "Who are the unmapped GitHub users?"
@@ -206,6 +206,18 @@ Question: "Show the audit log"
 Query Plan: Display recent query audit trail entries.
 SQL: SELECT user_id, question, sql_executed, row_count, execution_time_ms, status, created_at FROM audit_log ORDER BY created_at DESC LIMIT 50
 Explanation: The audit_log table records all NL2SQL query executions with user_id, question text, SQL executed, and performance metrics.
+
+Example 16:
+Question: "Show kai.ahmed500@demo-example.co.uk's full identity map across all providers"
+Query Plan: Retrieve the user's canonical identity, all linked provider identities, AND all access grants across every cloud account and project.
+SQL: SELECT 'identity' AS record_type, cu.full_name, cu.primary_email, link.provider_type, link.provider_user_id AS identifier, NULL AS resource_name, NULL AS role_or_permission, NULL AS access_path, NULL AS via_group FROM canonical_users cu JOIN canonical_user_provider_links link ON cu.id = link.canonical_user_id AND cu.tenant_id = link.tenant_id WHERE cu.primary_email ILIKE '%kai.ahmed500%' UNION ALL SELECT 'access' AS record_type, rag.subject_display_name AS full_name, NULL AS primary_email, rag.provider AS provider_type, NULL AS identifier, rag.resource_display_name AS resource_name, rag.role_or_permission, rag.access_path, rag.via_group_display_name AS via_group FROM resource_access_grants rag WHERE rag.subject_display_name ILIKE '%Kai Ahmed%' AND rag.deleted_at IS NULL ORDER BY record_type, provider_type
+Explanation: A "full identity map" means BOTH the user's linked provider identities AND all their access grants across every cloud account/project. The query uses UNION ALL to combine canonical_user_provider_links (identity linkages) with resource_access_grants (actual access to AWS accounts, GCP projects, etc.).
+
+Example 17:
+Question: "What can Alice access across all providers?"
+Query Plan: List all cloud resources (accounts, projects, repos) the user can access from resource_access_grants.
+SQL: SELECT rag.provider, rag.resource_type, rag.resource_display_name, rag.role_or_permission, rag.access_path, rag.via_group_display_name FROM resource_access_grants rag WHERE rag.subject_display_name ILIKE '%Alice%' AND rag.deleted_at IS NULL ORDER BY rag.provider, rag.resource_display_name
+Explanation: Use resource_access_grants to show everything a user can access. This table is the denormalised cross-provider access matrix covering AWS, GCP, and GitHub.
 `;
 
 // ---------------------------------------------------------------------------
@@ -295,6 +307,8 @@ KEY PATTERNS:
 - "Show audit log" -> query audit_log (columns: user_id, question, sql_executed, status, created_at) ORDER BY created_at DESC
 - "Ingestion status" -> query ingestion_runs (columns: provider, status, records_upserted, started_at, finished_at) ORDER BY started_at DESC
 - "Cross-provider access for user X" -> query resource_access_grants WHERE subject_display_name ILIKE '%X%'
+- "Full identity map for user X" / "full profile across all providers" -> UNION ALL combining canonical_user_provider_links (identity linkages) WITH resource_access_grants (all access across accounts/projects). ALWAYS include access data, not just identity links.
+- "What can user X access?" / "show all access for X" -> query resource_access_grants WHERE subject_display_name ILIKE '%X%' to list all accounts, projects, and roles
 
 ENTITY RECOGNITION HINTS:
 - Account/project names often contain patterns like "demo-*", "prod-*", "dev-*", "sandbox-*"

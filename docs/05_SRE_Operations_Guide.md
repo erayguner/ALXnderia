@@ -296,7 +296,7 @@ With a 99.5% availability SLO over 28 days, the error budget is approximately 20
 
 **Steps**:
 
-1. Read the error output to identify the failing SQL file. The files in `schema/` are applied in lexicographic order (`01_schema.sql`, then `02_cloud_resources.sql`, then `02_seed_and_queries.sql`, then `99-seed/010_mock_data.sql`, then `99-seed/020_cloud_resources_seed.sql`).
+1. Read the error output to identify the failing SQL file. The files in `schema/` are applied in lexicographic order (`01_schema.sql`, `02_cloud_resources.sql`, `02_seed_and_queries.sql`, `03_ingestion_runs.sql`, `04_audit_log.sql`, `05_pg18_migration.sql`, then `99-seed/010_mock_data.sql`, `99-seed/020_cloud_resources_seed.sql`, `99-seed/021_cloud_resources_validation.sql`). Note: `05_pg18_migration.sql` enables RLS on all 26 tables, adds the `GCP` enum value, creates virtual columns, and requires the `btree_gist` extension (the DB user must have permission to `CREATE EXTENSION`).
 2. Connect to the database and check which objects exist to determine how far the migration progressed.
 3. Fix the SQL file, commit, and re-run. The migration script is idempotent where possible (uses `IF NOT EXISTS`), but verify manually for DDL that is not idempotent.
 4. The Terraform `null_resource` triggers on the SHA-256 hash of all SQL files. Changing any file will trigger a re-run.
@@ -377,8 +377,12 @@ python -m scripts.ingestion sync --provider post-process
 **AWS**:
 
 ```bash
-# Requires AWS_ACCOUNT_ID and AWS_REGION
-./build-and-push-aws.sh
+# Preferred: unified build script
+./build-and-push.sh --platform aws
+
+# Alternative: legacy per-platform script
+# ./build-and-push-aws.sh
+
 cd infra/deploy/aws
 terraform plan
 terraform apply
@@ -387,8 +391,12 @@ terraform apply
 **GCP**:
 
 ```bash
-# Requires GCP_PROJECT_ID and GCP_REGION
-./build-and-push-gcp.sh
+# Preferred: unified build script
+./build-and-push.sh --platform gcp
+
+# Alternative: legacy per-platform script
+# ./build-and-push-gcp.sh
+
 cd infra/deploy/gcp
 terraform plan
 terraform apply

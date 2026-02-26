@@ -71,15 +71,16 @@ The front-end and API surface are served by a **Next.js 15** application using t
 | **AuditLog** | Paginated audit log viewer with action type filter. |
 | **ResourcesList** | Resource browser (GitHub repos, Google Workspace groups, AWS IDC groups) with provider filter and search. |
 | **ResultsTable** | Generic data grid with dynamic column inference, client-side sorting, provider badge colouring, and clickable row support via `getRowLink`. |
-| **Sidebar** | Seven-item navigation sidebar: Chat, People, Resources, Accounts, Groups, Access Explorer, Audit Log. |
+| **AnalyticsDashboard** | Identity estate analytics dashboard with summary cards, provider distribution donut, access grants by provider, access path breakdown, identity coverage bars, reconciliation status, top roles, most-accessed resources, largest groups, and ingestion runs table. Fetches from `/api/analytics`. |
+| **Sidebar** | Collapsible eight-item navigation sidebar: Chat, Analytics, People, Resources, Accounts, Groups, Access Explorer, Audit Log. Collapse state persists in `localStorage`. |
 | **UserBadge** | User avatar and identity badge displayed in the header. |
-| **API Routes** | Eleven HTTP endpoints: `/api/chat` (NL2SQL), `/api/access` (cross-provider access), `/api/accounts` (AWS accounts + GCP projects), `/api/accounts/[id]` (account detail), `/api/people` (people list), `/api/people/[id]` (person detail), `/api/groups` (groups list), `/api/groups/[id]` (group detail), `/api/resources` (resources list), `/api/audit` (audit log), `/api/health` (readiness probe). |
+| **API Routes** | Twelve HTTP endpoints: `/api/chat` (NL2SQL), `/api/access` (cross-provider access), `/api/accounts` (AWS accounts + GCP projects), `/api/accounts/[id]` (account detail), `/api/analytics` (identity estate analytics), `/api/people` (people list), `/api/people/[id]` (person detail), `/api/groups` (groups list), `/api/groups/[id]` (group detail), `/api/resources` (resources list), `/api/audit` (audit log), `/api/health` (readiness probe). |
 
 ### 2.2 AI / NL2SQL Pipeline
 
-The **NL2SQL Agent** is the core server-side module responsible for translating natural language into safe, executable SQL. It constructs a system prompt that includes live schema metadata, column synonyms, and few-shot examples, then delegates SQL generation to the configured LLM provider (selected via the `LLM_PROVIDER` environment variable; options include Anthropic Claude, OpenAI GPT, and Google Gemini). The agent receives a structured JSON response containing a query plan, SQL statement, human-readable explanation, and follow-up suggestions.
+The **NL2SQL Agent** is the core server-side module responsible for translating natural language into safe, executable SQL. It constructs a system prompt that includes live schema metadata (cached with 5-minute TTL), column synonyms, 17 few-shot examples covering identity, access, groups, cloud resources, audit, and cross-provider queries, key patterns, and entity recognition hints. SQL generation is delegated to the configured LLM provider (selected via the `LLM_PROVIDER` environment variable; options include Anthropic Claude, OpenAI GPT, and Google Gemini). The agent receives a structured JSON response containing a query plan, SQL statement, human-readable explanation, and follow-up suggestions. If validation or execution fails, the agent retries once by sending the error back to the LLM for correction. A `MOCK_MODE=true` environment variable bypasses the LLM and database for UI testing.
 
-The **SQL Validator** enforces a seven-layer defence-in-depth pipeline before any generated SQL reaches the database: comment stripping, keyword blocklist, AST parsing via libpg-query WASM, statement-type enforcement (SELECT only), table allowlisting, function blocklisting, and automatic LIMIT injection.
+The **SQL Validator** enforces a seven-layer defence-in-depth pipeline before any generated SQL reaches the database: comment stripping, keyword blocklist, AST parsing via libpg-query WASM, statement-type enforcement (SELECT only), table allowlisting (with CTE name exclusion), function blocklisting, and automatic LIMIT injection.
 
 ### 2.3 Database Layer
 
@@ -128,7 +129,7 @@ Cloud deployment: AWS providers run as Lambda functions triggered by EventBridge
 3. The **NL2SQL Agent** assembles a system prompt containing live schema metadata, synonyms, and few-shot examples, then calls the configured **LLM API** (Anthropic, OpenAI, or Google).
 4. The LLM returns structured JSON: `queryPlan`, `SQL`, `explanation`, and `followUpSuggestions`.
 5. The **SQL Validator** processes the SQL through all seven defence layers.
-6. `executeWithTenant()` opens a transaction: `BEGIN` then `SET LOCAL app.current_tenant_id` then executes the validated query then `COMMIT`.
+6. `executeWithTenant()` opens a transaction: `BEGIN` then parameterised `set_config('app.current_tenant_id', ...)` then executes the validated query then `COMMIT`.
 7. The **narrative generator** enriches raw results with contextual summaries (provider distribution, access path breakdown).
 8. A structured `ChatResponse` is returned to the client with results, metadata, and data lineage.
 
@@ -238,7 +239,7 @@ Generated SQL passes through seven sequential validation layers before execution
 
 ### 7.3 Tenant Isolation
 
-All tables include a `tenant_id` column with composite primary keys `(id, tenant_id)`. The application sets `SET LOCAL app.current_tenant_id` in every transaction. Row-Level Security (RLS) is enabled on all 26 tables with a uniform `tenant_isolation` policy that enforces `tenant_id = current_setting('app.current_tenant_id')::uuid`. The NL2SQL agent's generated queries are additionally constrained by the SQL Validator's table allowlist, providing defence-in-depth isolation.
+All tables include a `tenant_id` column with composite primary keys `(id, tenant_id)`. The application sets parameterised `set_config('app.current_tenant_id', ...)` in every transaction. Row-Level Security (RLS) is enabled on all 26 tables with a uniform `tenant_isolation` policy that enforces `tenant_id = current_setting('app.current_tenant_id')::uuid`. The NL2SQL agent's generated queries are additionally constrained by the SQL Validator's table allowlist, providing defence-in-depth isolation.
 
 ### 7.4 Audit Logging
 

@@ -43,13 +43,13 @@
 2. **No GraphQL.** API is bespoke REST endpoints with inline SQL.
 3. **Ingestion service is CLI/scheduled only.** A modular Python ingestion service exists (`scripts/ingestion/`) with 5 providers, identity resolution, and grants backfill. Cloud deployment is wired (Lambda for AWS, Cloud Run Jobs for GCP). No REST/GraphQL ingestion API yet.
 4. **No export/backup jobs.** No export schema or execution layer.
-5. **RLS policies active.** RLS is enabled on all 26 tables with `tenant_isolation` policies. App sets `SET LOCAL app.current_tenant_id` per transaction.
+5. **RLS policies active.** RLS is enabled on all 26 tables with `tenant_isolation` policies. App sets tenant context via parameterised `set_config('app.current_tenant_id', ...)` per transaction.
 6. **Database-backed audit.** `audit_log` table records query metadata (question, SQL, row count, timing, status) with console fallback.
 7. **No database roles.** Single `cloudintel` role; role separation planned for production.
 
 ### What works well (keep)
 
-- Tenant scoping with `SET LOCAL app.current_tenant_id` and RLS policies on all 26 tables.
+- Tenant scoping with parameterised `set_config('app.current_tenant_id', ...)` and RLS policies on all 26 tables.
 - Composite PK `(id, tenant_id)` on all tables — partition-friendly multi-tenancy.
 - SQL validator (7-layer, AST-based) — robust defence-in-depth for NL2SQL path.
 - Canonical identity model with `canonical_users` + `canonical_user_provider_links` — sound cross-provider design.

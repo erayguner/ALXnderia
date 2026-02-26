@@ -1,5 +1,7 @@
 # Cloud Account & Identity Intelligence — Architecture Document
 
+> **SUPERSEDED**: This is an early-stage research/planning document created before the current schema was implemented. Many features described here (e.g. `mv_effective_access`, `entity_history`, `person`/`person_link` tables, 6 database roles, PII redaction views, `legal_hold`, `snapshot_registry`) were not implemented in the final design. The current schema uses `canonical_users`/`canonical_user_provider_links`, a denormalised `resource_access_grants` table, and RLS on all 26 tables. For the authoritative architecture reference, see the numbered documentation files (`01_Executive_Overview.md` through `08_Database_Schema.md`).
+
 ## A. Research Summary
 
 ### Provider Identity Models

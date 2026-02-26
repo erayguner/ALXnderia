@@ -1,6 +1,10 @@
 # Performance Metrics Report
 
-> **Note:** This report was generated against a previous schema (person/person_link model with materialised views, RLS policies, entity_history partitions, and PII redaction views). The current schema uses a flat design with `canonical_users`/`canonical_user_provider_links`, RLS on all 26 tables, and no materialised views or entity_history tables. Access data is now available via the `resource_access_grants` denormalised table and via dynamic UNION ALL across GitHub, Google Workspace, and AWS Identity Center tables rather than a materialised `mv_effective_access` view. These benchmarks serve as a historical reference; new benchmarks should be generated against the current schema.
+> **SUPERSEDED -- HISTORICAL REFERENCE ONLY**
+>
+> This report was generated against a **previous schema** (`person`/`person_link` model with materialised views, `entity_history` partitions, and PII redaction views). All queries reference tables and views that **no longer exist** in the current schema (`mv_effective_access`, `person`, `person_link`, `aws_idc_user`, `entity_history`).
+>
+> The current schema uses `canonical_users`/`canonical_user_provider_links`, a denormalised `resource_access_grants` table, RLS on all 26 tables, and no materialised views or entity_history tables. **New benchmarks should be generated against the current schema before using any of these numbers for capacity planning.**
 
 **Database**: PostgreSQL 16.12 (Alpine, aarch64)
 **Date**: 2026-02-14 (pre-schema-refactor)

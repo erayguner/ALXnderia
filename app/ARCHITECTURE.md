@@ -1,5 +1,7 @@
 # Cloud Account & Identity Intelligence -- Architecture Document
 
+> **SUPERSEDED**: This is an early-stage planning document. Several features described here are not yet implemented, including: `mv_effective_access` materialised view (replaced by `resource_access_grants` table), `Auth.js v5` authentication (currently mocked), Redis session store, `shadcn/ui` (using plain Tailwind), `lru-cache` semantic query caching, and some API endpoints (`/api/people/:id/access`, `/api/export/csv`). For the authoritative architecture reference, see the numbered docs in `docs/` (`01_Executive_Overview.md` through `08_Database_Schema.md`).
+
 ## 1. Research Summary with Citations
 
 ### NL2SQL Best Practices

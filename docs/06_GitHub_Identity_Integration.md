@@ -232,16 +232,31 @@ All tables include a `deleted_at` column for soft-delete support, allowing histo
 
 ## Seed Data Summary
 
+**Base seed** (`02_seed_and_queries.sql`):
+
 | Entity | Count |
 |--------|-------|
 | `github_organisations` | 1 (techco) |
 | `github_users` | 3 (alice, bob, carol) |
-| `github_teams` | 0 (created in extended mock data) |
-| `github_org_memberships` | 0 (created in extended mock data) |
-| `github_team_memberships` | 0 (created in extended mock data) |
+| `github_teams` | 0 |
+| `github_org_memberships` | 0 |
+| `github_team_memberships` | 0 |
 | `github_repositories` | 1 (techco/backend) |
-| `github_repo_team_permissions` | 0 (created in extended mock data) |
+| `github_repo_team_permissions` | 0 |
 | `github_repo_collaborator_permissions` | 1 (carol, external) |
+
+**With extended mock data** (`99-seed/010_mock_data.sql`):
+
+| Entity | Count |
+|--------|-------|
+| `github_organisations` | 2 |
+| `github_users` | 280 |
+| `github_teams` | 20 |
+| `github_org_memberships` | 280 |
+| `github_team_memberships` | 786 |
+| `github_repositories` | 50 |
+| `github_repo_team_permissions` | 100 |
+| `github_repo_collaborator_permissions` | 150 |
 
 ### Edge cases in seed data
 

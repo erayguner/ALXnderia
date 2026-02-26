@@ -2,10 +2,10 @@
 
 | Field        | Value                  |
 |--------------|------------------------|
-| Status       | Draft                  |
+| Status       | Active                 |
 | Authors      | Engineering Team       |
 | Audience     | Developers, Tech Leads |
-| Last Updated | 2026-02-20             |
+| Last Updated | 2026-02-26             |
 
 ---
 
@@ -50,6 +50,8 @@ The application uses Next.js 15 with the App Router convention. All pages reside
 
 **`app/api/audit/route.ts`** -- GET handler. Delegates to `handleAuditList()`. Returns paginated audit log entries.
 
+**`app/api/analytics/route.ts`** -- GET handler. Delegates to `handleAnalytics()` in `src/server/routes/analytics.ts`. Returns aggregated identity estate analytics across 10 parallel queries.
+
 **`app/api/health/route.ts`** -- GET handler. Performs a lightweight connection check against the database pool and returns `{ status: "ok" }` or `{ status: "error", message }`.
 
 ### 1.2 Client Components
@@ -72,23 +74,25 @@ The application uses Next.js 15 with the App Router convention. All pages reside
 
 **`AccountsList.tsx`** -- Unified AWS account and GCP project browser. Queries `/api/accounts` with provider filter (aws/gcp/all), free-text search, and server-side pagination. Displays cloud account metadata including IDs, names, status, and assignment/binding counts.
 
-**`Sidebar.tsx`** -- Navigation sidebar with seven items: Chat, People, Resources, Accounts, Groups, Access Explorer, and Audit Log. Active route is highlighted with an indigo accent. Includes a connection status indicator at the bottom.
+**`AnalyticsDashboard.tsx`** -- Identity estate analytics dashboard. Fetches from `/api/analytics` on mount. Displays: 4 summary stat cards (canonical users, access grants, cloud resources, full coverage percentage), identity provider distribution donut chart, access grants by provider with user/resource counts, access path breakdown donut (direct vs group), identity coverage horizontal bars (links per user), reconciliation status, top 10 roles/permissions with provider badges, most-accessed resources, largest groups across all providers, and recent ingestion runs table. Uses SVG donut charts and horizontal bar components with provider-aware colour coding (AWS=amber, GCP=blue, Google=red, GitHub=slate). Includes loading spinner and error state handling.
+
+**`Sidebar.tsx`** -- Collapsible navigation sidebar with eight items: Chat, Analytics, People, Resources, Accounts, Groups, Access Explorer, and Audit Log. Active route is highlighted with an indigo accent. Collapse toggle button with chevron icon; collapsed state (16rem to 4rem width) persists in `localStorage` under the key `sidebar-collapsed`. Smooth width transition via `transition-all duration-200`. In collapsed mode, shows icons only with title tooltips. Includes a connection status indicator at the bottom.
 
 **`UserBadge.tsx`** -- User avatar and identity badge displayed in the header. Shows a gradient avatar with the user's initials and name/email.
 
 ### 1.3 Server Components
 
-**`llm/` (provider abstraction)** -- Defines an `LLMProvider` interface and implements it for three backends: Anthropic (`anthropic.ts`), OpenAI (`openai.ts`), and Google Gemini (`gemini.ts`). The factory in `index.ts` reads `LLM_PROVIDER` and returns a cached singleton. All providers use dynamic imports so only the selected SDK is loaded at runtime.
+**`llm/` (provider abstraction)** -- Defines an `LLMProvider` interface and implements it for three backends: Anthropic, OpenAI, and Google Gemini, all within `index.ts`. Types are defined in `types.ts`. The factory reads `LLM_PROVIDER` and returns a cached singleton. Default models: Anthropic `claude-sonnet-4-5-20250929`, OpenAI `gpt-4o`, Gemini `gemini-2.5-pro`. Also exports `resetProvider()` for testing/runtime reconfiguration.
 
 **`nl2sql-agent.ts`** -- The core intelligence layer. Calls the LLM provider abstraction layer via `getLLMProvider()` instead of directly importing the Anthropic SDK. Described in full in section 5.1.
 
-**`pool.ts`** -- Wraps `pg.Pool`. On creation, sets connection defaults including `statement_timeout` and `idle_in_transaction_session_timeout`. Exposes a `withTenant(tenantId, callback)` helper that acquires a connection, issues `SET app.current_tenant_id = $1`, invokes the callback, and releases the connection in a `finally` block. Also exposes a `healthCheck()` method that runs `SELECT 1`.
+**`pool.ts`** -- Wraps `pg.Pool`. On creation, sets connection defaults (min 2, max 10, idle timeout 30s, connect timeout 5s). Exports `executeWithTenant(tenantId, sql, params?, timeoutMs?)` which wraps every query in a BEGIN/COMMIT transaction with parameterised `set_config()` calls for `statement_timeout` and `app.current_tenant_id` (avoiding SQL string interpolation). Also exports `executeReadOnly()` for system-level queries (e.g. schema introspection), `getSchemaMetadata()` for live catalogue introspection, and `healthCheck()` for readiness probes.
 
 **`audit.ts`** -- Middleware that writes query audit entries to the `audit_log` table. Records tenant_id, actor identity, question, SQL, row count, timing, and status. Falls back to console logging if the DB write fails.
 
 **`sql-validator.ts`** -- Seven-layer validation pipeline. Described in full in section 5.2.
 
-**`validators/` and `routes/`** -- Each route handler (`chat.ts`, `access.ts`, `accounts.ts`, `people.ts`) validates input, acquires a tenant-scoped connection via `pool.withTenant()`, executes the query, and returns a shaped response. No business logic leaks into the `app/api/` thin wrappers.
+**`validators/` and `routes/`** -- Each route handler (`chat.ts`, `access.ts`, `accounts.ts`, `analytics.ts`, `people.ts`, `groups.ts`, `resources.ts`, `audit.ts`) validates input, executes the query via `executeWithTenant()` for tenant-scoped operations, and returns a shaped response. No business logic leaks into the `app/api/` thin wrappers.
 
 ### 1.4 Shared Code
 
@@ -120,7 +124,9 @@ src/server/agents/nl2sql-agent.ts -- processQuestion()
   |  3. buildSystemPrompt()     -> assembles full prompt
   |  4. Calls LLM Provider      -> receives { sql, explanation }
   |  5. sqlValidator.validate()  -> 7-layer check
-  |  6. pool.withTenant()        -> executes validated SQL
+  |  5a. Validation retry        -> if validation fails, sends error to LLM for correction (1 retry)
+  |  6. executeWithTenant()      -> executes validated SQL in tenant-scoped transaction
+  |  6a. Execution retry         -> if DB error occurs, sends error to LLM for SQL correction (1 retry)
   |  7. generateNarrative()     -> enriches results
   |  8. Returns ChatResponse
   v
@@ -192,11 +198,11 @@ The `canonical_users` table is the hub of the identity graph. Provider-specific 
 
 ### 3.8 Provider Type Enum
 
-A PostgreSQL enum `provider_type_enum` with values: `GOOGLE_WORKSPACE`, `AWS_IDENTITY_CENTER`, `GITHUB`, `GCP`. Used by `canonical_user_provider_links` and `identity_reconciliation_queue`.
+A PostgreSQL enum `provider_type_enum`. Created in `01_schema.sql` with 3 initial values: `GOOGLE_WORKSPACE`, `AWS_IDENTITY_CENTER`, `GITHUB`. The `GCP` value is added by `05_pg18_migration.sql` via `ALTER TYPE ... ADD VALUE IF NOT EXISTS 'GCP'`. Used by `canonical_user_provider_links` and `identity_reconciliation_queue`.
 
 ### 3.9 Multi-Tenancy Model
 
-All tables use composite primary keys `(id, tenant_id)` for partition-friendliness. Every table has a `tenant_id UUID NOT NULL` column. The application sets `app.current_tenant_id` via `SET LOCAL` at the start of each connection lease. RLS policies should be added in production.
+All tables use composite primary keys `(id, tenant_id)` for partition-friendliness. Every table has a `tenant_id UUID NOT NULL` column. The application sets `app.current_tenant_id` via parameterised `set_config()` calls at the start of each transaction. RLS is enabled on all 26 tables via `05_pg18_migration.sql` with a uniform `tenant_isolation` policy.
 
 ### 3.10 Common Columns
 
@@ -286,7 +292,33 @@ All provider tables share these metadata/audit columns:
 
 **Response:** `PaginatedResponse` with unified AWS account and GCP project data. AWS rows include: `account_id`, `name`, `email`, `status`, `org_id`, `assignment_count`. GCP rows include: `project_id`, `project_number`, `display_name`, `lifecycle_state`, `org_id`, `binding_count`. All rows include a `provider` field.
 
-### 4.10 GET /api/health
+### 4.10 GET /api/analytics
+
+**Response:** Aggregated identity estate analytics assembled from 10 parallel tenant-scoped queries:
+
+```json
+{
+  "summary": {
+    "totalUsers": 680,
+    "totalAccessGrants": 7153,
+    "totalResources": 75,
+    "providerCount": 3
+  },
+  "providerBreakdown": [{ "provider_type": "GOOGLE_WORKSPACE", "user_count": 280 }, ...],
+  "accessByProvider": [{ "provider": "aws", "grant_count": 3200, "user_count": 250, "resource_count": 12 }, ...],
+  "accessPathBreakdown": [{ "access_path": "direct", "count": 4100 }, { "access_path": "group", "count": 3053 }],
+  "topRoles": [{ "role_or_permission": "Viewer", "provider": "gcp", "grant_count": 890 }, ...],
+  "topResources": [{ "resource_display_name": "prod-account", "provider": "aws", "resource_type": "account", "grant_count": 150, "unique_users": 120 }, ...],
+  "identityCoverage": [{ "link_count": 0, "user_count": 10 }, { "link_count": 1, "user_count": 200 }, ...],
+  "groupSizes": [{ "group_name": "engineering", "provider": "google", "member_count": 85 }, ...],
+  "reconciliationStatus": [{ "status": "PENDING", "count": 12 }, { "status": "RESOLVED", "count": 340 }],
+  "recentIngestion": [{ "provider": "google_workspace", "entity_type": "users", "status": "completed", "records_upserted": 280, "records_deleted": 0, "started_at": "...", "finished_at": "..." }, ...]
+}
+```
+
+The 10 queries cover: total canonical users, users per identity provider, access grants per provider, access path breakdown (direct vs group), top 10 roles/permissions, top 10 most-accessed resources, identity coverage (provider links per user), largest groups across all providers (Google, AWS, GitHub), identity reconciliation status, and recent ingestion runs. All queries run via `Promise.all()` for parallel execution within tenant-scoped transactions.
+
+### 4.11 GET /api/health
 
 **Response:** `{ "status": "ok" }` or `{ "status": "error", "message": "Connection refused" }`.
 
@@ -298,21 +330,23 @@ All provider tables share these metadata/audit columns:
 
 The `processQuestion()` method in `nl2sql-agent.ts` executes the following steps:
 
-1. **Schema context retrieval** -- `getSchemaContext()` queries `information_schema.columns` and `pg_matviews` to build a text representation of all tables, their columns, and types. The result is cached in-process after the first call; cache invalidation is manual (application restart).
+1. **Schema context retrieval** -- `getSchemaContext()` queries `information_schema.columns` and `pg_matviews` to build a text representation of all tables, their columns, and types. The result is cached in-process with a 5-minute TTL; cache auto-refreshes after expiry. `clearSchemaCache()` is exported for testing or forced refresh after DDL changes.
 
 2. **Synonym mapping** -- `getSynonymContext()` reads `SCHEMA_SYNONYMS` from constants and formats it as a lookup block for the prompt. This maps terms such as "user", "person", "employee" to `canonical_users`, and "repo", "repository" to `github_repositories`.
 
-3. **System prompt assembly** -- `buildSystemPrompt()` concatenates the schema context, synonym context, six few-shot examples, and eight mandatory rules. The rules include: always generate SELECT only; use ILIKE for searches; always add ORDER BY and LIMIT.
+3. **System prompt assembly** -- `buildSystemPrompt()` concatenates the schema context, synonym context, 17 few-shot examples (covering identity, access, groups, cloud resources, audit, and cross-provider queries), key patterns, entity recognition hints, and eight mandatory rules. The rules include: always generate SELECT only; use ILIKE for searches; always add ORDER BY and LIMIT.
 
 4. **LLM invocation** -- Calls the configured LLM provider via `getLLMProvider().complete()`. The provider is selected by `LLM_PROVIDER` (default: `anthropic`). The call includes a system prompt, user message, and `maxTokens: 4096`. The expected response format is a JSON object.
 
-5. **Response parsing** -- Extracts the JSON from the LLM response. If parsing fails, returns a `clarificationNeeded` response.
+5. **Response parsing** -- Extracts the JSON from the LLM response, stripping optional markdown code fences. If parsing fails, throws an error.
 
-6. **SQL validation** -- Passes the extracted SQL through the seven-layer validator (section 5.2). If validation fails, returns the validation error to the user without executing.
+6. **SQL validation** -- Passes the extracted SQL through the seven-layer validator (section 5.2). If validation fails, **retries once**: sends the validation errors back to the LLM with the original question and failed SQL, asking for a corrected query. If the retry also fails validation, throws an error.
 
-7. **Tenant-scoped execution** -- Calls `pool.withTenant(tenantId, ...)`. The SET LOCAL ensures the query runs in tenant context.
+7. **Tenant-scoped execution** -- Calls `executeWithTenant(tenantId, sql)`. The query runs in a BEGIN/COMMIT transaction with parameterised `set_config()` for tenant context. If execution fails (e.g. wrong column name), **retries once**: sends the database error back to the LLM with common column name hints, asking for a corrected query. If the retry also fails, throws an error.
 
-8. **Narrative generation** -- `generateNarrative()` analyses the result set to produce a human-readable summary.
+8. **Narrative generation** -- `generateNarrative()` analyses the result set to produce a human-readable summary, including provider distribution and access-path breakdowns when relevant columns are present.
+
+9. **Mock mode** -- When `MOCK_MODE=true` is set, the pipeline bypasses the LLM and database entirely, returning static test data. This is useful for UI development and integration testing.
 
 ### 5.2 SQL Validation Pipeline
 
@@ -324,22 +358,25 @@ The validator in `sql-validator.ts` applies seven layers in sequence. Failure at
 | 2 | `checkBlockedKeywords()` | Scans for `BLOCKED_KEYWORDS`. Also rejects input containing semicolons (multiple statements). |
 | 3 | Parse via `libpg-query` | Parses the SQL using the WASM build of the PostgreSQL parser. Rejects syntactically invalid SQL. |
 | 4 | Statement type check | Inspects the AST root. Only `SelectStmt` nodes are permitted. |
-| 5 | `extractTableRefs()` | Recursively walks the AST collecting all `RangeVar` nodes. Each table reference is checked against `ALLOWED_TABLES`. System catalogue prefixes (`pg_`, `information_schema`) are rejected. |
+| 5 | `extractTableRefs()` | Recursively walks the AST collecting all `RangeVar` nodes. CTE names are extracted and excluded from the allow-list check. Each table reference is checked against `ALLOWED_TABLES`. System catalogue prefixes (`pg_`, `information_schema`) are rejected. |
 | 6 | `extractFunctionCalls()` | Recursively walks the AST collecting all `FuncCall` nodes. Each function name is checked against `BLOCKED_FUNCTIONS`. |
-| 7 | Auto-LIMIT enforcement | If the parsed AST does not contain a `LIMIT` clause, the SQL is wrapped as `SELECT * FROM (<original_sql>) AS _limited LIMIT 500`. |
+| 7 | Auto-LIMIT enforcement | If the parsed AST does not contain a `LIMIT` clause, the SQL is wrapped as `SELECT * FROM (<original_sql>) AS _limited_query LIMIT 500`. |
 
 ### 5.3 Tenant Execution Model
 
 Every tenant-scoped query follows this connection lifecycle:
 
 ```
-1. pool.connect()                    -> acquire connection from pg.Pool
-2. SET LOCAL statement_timeout       -> per-query timeout
-3. SET LOCAL app.current_tenant_id   -> sets session variable for RLS
-4. Execute application query         -> queries run in tenant context
-5. COMMIT
-6. client.release()                  -> return connection to pool (in finally block)
+1. pool.connect()                                     -> acquire connection from pg.Pool
+2. BEGIN                                              -> start transaction
+3. SELECT set_config('statement_timeout', $1, true)   -> per-query timeout (parameterised)
+4. SELECT set_config('app.current_tenant_id', $2, true) -> sets session variable for RLS (parameterised)
+5. Execute application query                          -> queries run in tenant context
+6. COMMIT
+7. client.release()                                   -> return connection to pool (in finally block)
 ```
+
+Using parameterised `set_config()` calls (rather than `SET LOCAL` with string interpolation) eliminates SQL injection risk in the tenant context setup.
 
 ---
 
@@ -413,6 +450,16 @@ app/api/accounts/route.ts
 app/api/audit/route.ts
   +-> src/server/routes/audit.ts
         +-> src/server/db/pool.ts
+
+app/api/analytics/route.ts
+  +-> src/server/routes/analytics.ts (handleAnalytics)
+        +-> src/server/db/pool.ts
+        (10 parallel aggregate queries across canonical_users,
+         canonical_user_provider_links, resource_access_grants,
+         google_workspace_groups, google_workspace_memberships,
+         aws_identity_center_groups, aws_identity_center_memberships,
+         github_teams, github_team_memberships,
+         identity_reconciliation_queue, ingestion_runs)
 
 app/api/health/route.ts
   +-> src/server/db/pool.ts (healthCheck)
