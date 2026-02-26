@@ -178,6 +178,21 @@ describe('NL2SQL Agent', () => {
         model: 'claude-sonnet-4-5-20250929',
       });
 
+      // The agent retries once after validation failure, so provide a second LLM response
+      mockComplete.mockResolvedValueOnce({
+        text: makeLLMResponse({
+          ...validAgentResponse,
+          sql: 'DROP TABLE canonical_users',
+        }),
+        model: 'claude-sonnet-4-5-20250929',
+      });
+
+      (validateSql as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        valid: false,
+        errors: ['Only SELECT statements are permitted'],
+      });
+
+      // Second validation also fails (retry exhausted)
       (validateSql as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         valid: false,
         errors: ['Only SELECT statements are permitted'],
