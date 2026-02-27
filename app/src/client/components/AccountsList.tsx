@@ -44,7 +44,7 @@ export function AccountsList() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-ons-grey-5">Cloud Accounts</h1>
+        <h1 className="text-2xl font-bold text-ons-grey-5">Accounts & Projects</h1>
         <p className="text-sm text-ons-grey-35 mt-1">
           AWS accounts and GCP projects with access counts
         </p>

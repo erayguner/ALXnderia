@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { href: '/analytics', label: 'Analytics', icon: '\uD83D\uDCCA' },
   { href: '/people', label: 'People', icon: '\uD83D\uDC64' },
   { href: '/resources', label: 'Resources', icon: '\u2601\uFE0F' },
-  { href: '/accounts', label: 'Accounts', icon: '\uD83C\uDFE6' },
+  { href: '/accounts', label: 'Accounts & Projects', icon: '\uD83C\uDFE6' },
   { href: '/groups', label: 'Groups', icon: '\uD83D\uDC65' },
   { href: '/access', label: 'Access Explorer', icon: '\uD83D\uDD11' },
   { href: '/audit', label: 'Audit Log', icon: '\uD83D\uDCCB' },
@@ -35,19 +35,19 @@ export function Sidebar() {
     <aside
       className={`${
         collapsed ? 'w-16' : 'w-56'
-      } bg-ons-night-blue text-ons-grey-35 flex flex-col h-screen flex-shrink-0 transition-all duration-200 ease-in-out`}
+      } bg-ons-sidebar-bg text-ons-text-secondary flex flex-col h-screen flex-shrink-0 transition-all duration-200 ease-in-out`}
     >
       {/* Header */}
-      <div className="px-3 py-5 border-b border-ons-ocean-blue/30 flex items-center justify-between">
+      <div className="px-3 py-5 border-b border-ons-sidebar-border/30 flex items-center justify-between">
         {!collapsed && (
           <div className="min-w-0">
-            <h1 className="text-lg font-bold text-white tracking-tight truncate">ALXnderia</h1>
-            <p className="text-xs text-ons-grey-75 mt-0.5">Cloud Identity Intelligence</p>
+            <h1 className="text-lg font-bold text-ons-text-headline tracking-tight truncate">ALXnderia</h1>
+            <p className="text-xs text-ons-text-muted mt-0.5">Cloud Identity Intelligence</p>
           </div>
         )}
         <button
           onClick={toggle}
-          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded hover:bg-ons-ocean-blue/30 text-ons-grey-75 hover:text-ons-grey-35 transition-colors"
+          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded hover:bg-ons-blue/20 text-ons-text-muted hover:text-ons-text-secondary transition-colors"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
@@ -79,8 +79,8 @@ export function Sidebar() {
               title={collapsed ? item.label : undefined}
               className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
                 isActive
-                  ? 'bg-ons-sky-blue/15 text-ons-sky-blue border-l-2 border-ons-sky-blue'
-                  : 'hover:bg-ons-ocean-blue/20 hover:text-ons-grey-5 border-l-2 border-transparent'
+                  ? 'bg-ons-sidebar-active/15 text-ons-sidebar-active border-l-2 border-ons-sidebar-active'
+                  : 'hover:bg-ons-blue/15 hover:text-ons-text-primary border-l-2 border-transparent'
               } ${collapsed ? 'justify-center px-0' : ''}`}
             >
               <span className="text-base flex-shrink-0">{item.icon}</span>
@@ -91,10 +91,10 @@ export function Sidebar() {
       </nav>
 
       {/* Footer status */}
-      <div className={`px-4 py-4 border-t border-ons-ocean-blue/30 ${collapsed ? 'flex justify-center px-0' : ''}`}>
+      <div className={`px-4 py-4 border-t border-ons-sidebar-border/30 ${collapsed ? 'flex justify-center px-0' : ''}`}>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-ons-spring-green animate-pulse flex-shrink-0" />
-          {!collapsed && <span className="text-xs text-ons-grey-75">Connected</span>}
+          <div className="w-2 h-2 rounded-full bg-ons-green animate-pulse flex-shrink-0" />
+          {!collapsed && <span className="text-xs text-ons-text-muted">Connected</span>}
         </div>
       </div>
     </aside>

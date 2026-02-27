@@ -151,7 +151,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
         onClick={() => router.back()}
         className="text-sm text-ons-grey-35 hover:text-ons-grey-5 flex items-center gap-1 transition-colors"
       >
-        &larr; Back to Accounts
+        &larr; Back to Accounts & Projects
       </button>
 
       {/* Header */}

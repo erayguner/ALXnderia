@@ -2,26 +2,183 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Solarized theme tokens.
+ * Each colour is stored as an R G B triplet so Tailwind's opacity
+ * modifier (e.g.  bg-ons-surface/30) keeps working:
+ *   color: rgb(var(--ons-surface) / <alpha-value>)
+ */
+
+:root,
+[data-theme='solarized-dark'] {
+  /* --- Solarized Dark base tones --- */
+  --ons-bg:               0 43 54;       /* base03  #002b36 */
+  --ons-bg-elevated:      7 54 66;       /* base02  #073642 */
+  --ons-surface:          88 110 117;    /* base01  #586e75 */
+  --ons-surface-hover:    88 110 117;    /* base01 */
+
+  --ons-text-primary:     253 246 227;   /* base1   #fdf6e3 */
+  --ons-text-headline:    238 232 213;   /* base0   #eee8d5 */
+  --ons-text-secondary:   147 161 161;   /* base1   #93a1a1 */
+  --ons-text-muted:       101 123 131;   /* base0   #657b83 */
+
+  --ons-border:           7 54 66;       /* base02  #073642 */
+  --ons-border-subtle:    7 54 66;
+
+  /* --- Solarized accent colours --- */
+  --ons-yellow:           181 137 0;     /* #b58900 */
+  --ons-orange:           203 75 22;     /* #cb4b16 */
+  --ons-red:              220 50 47;     /* #dc322f */
+  --ons-magenta:          211 54 130;    /* #d33682 */
+  --ons-violet:           108 113 196;   /* #6c71c4 */
+  --ons-blue:             38 139 210;    /* #268bd2 */
+  --ons-cyan:             42 161 152;    /* #2aa198 */
+  --ons-green:            133 153 0;     /* #859900 */
+
+  /* --- Semantic mappings (dark) --- */
+  --ons-sidebar-bg:       0 43 54;
+  --ons-sidebar-border:   7 54 66;
+  --ons-sidebar-active:   38 139 210;
+
+  --ons-card-bg:          7 54 66;
+  --ons-card-border:      88 110 117;
+  --ons-card-shadow:      0 0 0;
+
+  --ons-bar-track:        7 54 66;
+
+  /* Provider-branded (unchanged) */
+  --ons-provider-aws:     203 75 22;
+  --ons-provider-google:  220 50 47;
+  --ons-provider-github:  147 161 161;
+
+  color-scheme: dark;
+}
+
+[data-theme='solarized-light'] {
+  /* --- Bright off-white base tones --- */
+  --ons-bg:               249 250 252;   /* #f9fafc  near-white */
+  --ons-bg-elevated:      241 243 246;   /* #f1f3f6  subtle grey */
+  --ons-surface:          195 200 210;   /* #c3c8d2  light surface */
+  --ons-surface-hover:    215 218 224;   /* #d7dae0  hover tint */
+
+  --ons-text-primary:     15 23 42;      /* #0f172a  near-black */
+  --ons-text-headline:    30 41 59;      /* #1e293b  slate-800 */
+  --ons-text-secondary:   71 85 105;     /* #475569  slate-600 */
+  --ons-text-muted:       100 116 139;   /* #64748b  slate-500 */
+
+  --ons-border:           226 232 240;   /* #e2e8f0  slate-200 */
+  --ons-border-subtle:    241 245 249;   /* #f1f5f9  slate-100 */
+
+  /* --- Solarized accents (slightly saturated for white bg) --- */
+  --ons-yellow:           161 120 0;     /* warmer gold */
+  --ons-orange:           194 65 12;     /* #c2410c */
+  --ons-red:              185 28 28;     /* #b91c1c  deeper for contrast */
+  --ons-magenta:          190 24 93;     /* #be185d */
+  --ons-violet:           99 102 241;    /* #6366f1  indigo-500 */
+  --ons-blue:             37 99 235;     /* #2563eb  blue-600 */
+  --ons-cyan:             14 116 144;    /* #0e7490  cyan-700 */
+  --ons-green:            22 101 52;     /* #166534  green-800 */
+
+  /* --- Semantic mappings (light) --- */
+  --ons-sidebar-bg:       241 243 246;   /* matches bg-elevated */
+  --ons-sidebar-border:   226 232 240;   /* slate-200 */
+  --ons-sidebar-active:   37 99 235;     /* blue-600 */
+
+  --ons-card-bg:          255 255 255;   /* pure white cards */
+  --ons-card-border:      226 232 240;   /* slate-200 */
+  --ons-card-shadow:      0 0 0;
+
+  --ons-bar-track:        226 232 240;
+
+  --ons-provider-aws:     194 65 12;
+  --ons-provider-google:  185 28 28;
+  --ons-provider-github:  71 85 105;
+
+  color-scheme: light;
+}
+
 @layer base {
   body {
-    @apply text-ons-grey-15 bg-ons-black;
+    color: rgb(var(--ons-text-primary));
+    background-color: rgb(var(--ons-bg));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   ::selection {
-    @apply bg-ons-ocean-blue text-white;
+    background: rgb(var(--ons-blue));
+    color: rgb(var(--ons-text-primary));
   }
 
-  /* Scrollbar styling for dark theme */
-  ::-webkit-scrollbar {
-    @apply w-2;
-  }
-  ::-webkit-scrollbar-track {
-    @apply bg-transparent;
-  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
-    @apply bg-ons-grey-100 rounded-full;
+    background: rgb(var(--ons-surface) / 0.4);
+    border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-ons-grey-75;
+    background: rgb(var(--ons-surface) / 0.6);
+  }
+
+  /* Smooth theme transition */
+  *, *::before, *::after {
+    transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+    transition-duration: 150ms;
+    transition-timing-function: ease;
+  }
+}
+
+@layer components {
+  .card-glass {
+    background: rgb(var(--ons-card-bg) / 0.28);
+    border: 1px solid rgb(var(--ons-card-border) / 0.12);
+    border-radius: 0.75rem;
+    box-shadow:
+      0 1px 3px rgb(var(--ons-card-shadow) / 0.15),
+      0 1px 2px rgb(var(--ons-card-shadow) / 0.10);
+    transition: box-shadow 200ms ease, border-color 200ms ease;
+  }
+
+  .card-glass:hover {
+    border-color: rgb(var(--ons-card-border) / 0.2);
+    box-shadow:
+      0 4px 16px rgb(var(--ons-card-shadow) / 0.2),
+      0 2px 6px rgb(var(--ons-card-shadow) / 0.1);
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgb(var(--ons-surface) / 0.15) 0%,
+      rgb(var(--ons-surface) / 0.08) 50%,
+      rgb(var(--ons-surface) / 0.15) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+    border-radius: 0.375rem;
+  }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes fadeUp {
+  0%   { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+@layer utilities {
+  .animate-fade-up {
+    animation: fadeUp 0.5s ease-out both;
+  }
+  .animate-pulse-glow {
+    animation: pulseGlow 2.5s ease-in-out infinite;
   }
 }

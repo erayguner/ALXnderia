@@ -166,8 +166,8 @@ export function ChatInterface() {
             <div
               className={`max-w-3xl rounded-xl px-4 py-3 ${
                 msg.role === 'user'
-                  ? 'bg-ons-ocean-blue text-white'
-                  : 'bg-ons-grey-100/80 border border-ons-grey-100 text-ons-grey-15 shadow-sm'
+                  ? 'bg-ons-blue text-ons-text-primary'
+                  : 'bg-ons-bg-elevated/80 border border-ons-border text-ons-text-headline shadow-sm'
               }`}
             >
               {/* User message */}
@@ -324,7 +324,7 @@ export function ChatInterface() {
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="px-4 py-2.5 bg-ons-ocean-blue text-white rounded-lg text-sm font-medium hover:bg-ons-night-blue disabled:opacity-40 disabled:cursor-not-allowed transition"
+            className="px-4 py-2.5 bg-ons-blue text-ons-text-primary rounded-lg text-sm font-medium hover:bg-ons-blue/80 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             {isLoading ? 'Thinking...' : 'Ask'}
           </button>
