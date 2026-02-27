@@ -58,3 +58,6 @@ coverage/
 
 # RuVector intelligence data
 .ruvector/
+
+# RuVector intelligence data
+.claude/statusline.sh

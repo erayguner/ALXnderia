@@ -64,6 +64,22 @@ interface IngestionRow {
   finished_at: string | null;
 }
 
+interface SuspendedRow {
+  provider: string;
+  status_label: string;
+  user_count: number;
+  total_users: number;
+}
+
+interface SuspendedAccessRow {
+  canonical_user_id: string;
+  full_name: string | null;
+  primary_email: string | null;
+  provider: string;
+  status_label: string;
+  active_grants: number;
+}
+
 interface AnalyticsData {
   summary: Summary;
   providerBreakdown: ProviderRow[];
@@ -75,6 +91,8 @@ interface AnalyticsData {
   groupSizes: GroupRow[];
   reconciliationStatus: ReconciliationRow[];
   recentIngestion: IngestionRow[];
+  suspendedUsers: SuspendedRow[];
+  suspendedWithAccess: SuspendedAccessRow[];
 }
 
 // --- Colour helpers ---
@@ -254,6 +272,9 @@ export function AnalyticsDashboard() {
     .filter(r => r.status === 'PENDING')
     .reduce((s, r) => s + Number(r.count), 0);
 
+  const totalSuspended = data.suspendedUsers.reduce((s, r) => s + Number(r.user_count), 0);
+  const suspendedWithAccessCount = data.suspendedWithAccess.length;
+
   const maxRole = Math.max(...data.topRoles.map(r => Number(r.grant_count)), 1);
   const maxResource = Math.max(...data.topResources.map(r => Number(r.unique_users)), 1);
   const maxGroup = Math.max(...data.groupSizes.map(r => Number(r.member_count)), 1);
@@ -270,7 +291,7 @@ export function AnalyticsDashboard() {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <StatCard label="Canonical Users" value={summary.totalUsers} sub="Unified identities" />
           <StatCard label="Access Grants" value={summary.totalAccessGrants} sub="Cross-provider" />
           <StatCard label="Cloud Resources" value={summary.totalResources} sub="Accounts & projects" />
@@ -278,6 +299,11 @@ export function AnalyticsDashboard() {
             label="Full Coverage"
             value={`${coveragePct}%`}
             sub={`${usersWithAllProviders.toLocaleString()} users linked to 3+ providers`}
+          />
+          <StatCard
+            label="Suspended Users"
+            value={totalSuspended}
+            sub={suspendedWithAccessCount > 0 ? `${suspendedWithAccessCount} still have access` : 'No active access'}
           />
         </div>
 
@@ -376,6 +402,94 @@ export function AnalyticsDashboard() {
                   </p>
                 )}
               </div>
+            )}
+          </Card>
+        </div>
+
+        {/* Row: Suspended users */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card title="Suspended / Disabled Users by Provider">
+            {data.suspendedUsers.length === 0 ? (
+              <p className="text-sm text-ons-grey-75">No suspended users found</p>
+            ) : (
+              <div className="space-y-4">
+                {data.suspendedUsers.map(r => {
+                  const total = Number(r.total_users);
+                  const suspended = Number(r.user_count);
+                  const pct = total > 0 ? Math.round((suspended / total) * 100) : 0;
+                  return (
+                    <div key={r.provider} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <ProviderBadge provider={r.provider} />
+                          <span className="text-xs text-ons-grey-75">{r.status_label}</span>
+                        </div>
+                        <span className="text-sm font-semibold text-ons-grey-5">
+                          {suspended.toLocaleString()}
+                          <span className="text-xs text-ons-grey-75 font-normal ml-1">/ {total.toLocaleString()} ({pct}%)</span>
+                        </span>
+                      </div>
+                      <div className="h-2 bg-ons-grey-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-ons-ruby-red transition-all duration-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+
+          <Card title="Suspended Users with Active Access">
+            {data.suspendedWithAccess.length === 0 ? (
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-ons-leaf-green/15 text-ons-spring-green">
+                  All clear
+                </span>
+                <span className="text-sm text-ons-grey-75">No suspended users have active access grants</span>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-ons-ruby-red mb-3">
+                  {data.suspendedWithAccess.length} suspended {data.suspendedWithAccess.length === 1 ? 'user has' : 'users have'} active
+                  access grants that should be reviewed
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-ons-grey-35 uppercase">
+                        <th className="pb-2 pr-4">User</th>
+                        <th className="pb-2 pr-4">Provider</th>
+                        <th className="pb-2 pr-4">Status</th>
+                        <th className="pb-2 text-right">Active Grants</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-ons-grey-100/30">
+                      {data.suspendedWithAccess.map((r, i) => (
+                        <tr key={i}>
+                          <td className="py-1.5 pr-4">
+                            <div>
+                              <p className="text-ons-grey-15 font-medium">{r.full_name ?? 'Unknown'}</p>
+                              <p className="text-xs text-ons-grey-75">{r.primary_email}</p>
+                            </div>
+                          </td>
+                          <td className="py-1.5 pr-4"><ProviderBadge provider={r.provider} /></td>
+                          <td className="py-1.5 pr-4">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-ons-ruby-red/15 text-ons-ruby-red">
+                              {r.status_label}
+                            </span>
+                          </td>
+                          <td className="py-1.5 text-right tabular-nums font-semibold text-ons-grey-5">
+                            {Number(r.active_grants).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </Card>
         </div>

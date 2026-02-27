@@ -34,6 +34,8 @@ export async function handleAnalytics(): Promise<NextResponse> {
       groupSizes,
       reconciliationStatus,
       recentIngestion,
+      suspendedUsers,
+      suspendedWithAccess,
     ] = await Promise.all([
       // 1. Total canonical users
       executeWithTenant(
@@ -159,6 +161,49 @@ export async function handleAnalytics(): Promise<NextResponse> {
          ORDER BY started_at DESC
          LIMIT 10`,
       ),
+
+      // 11. Suspended / disabled users per provider
+      executeWithTenant(
+        session.tenantId,
+        `SELECT provider, status_label, user_count, total_users FROM (
+           SELECT 'google' AS provider, 'Suspended' AS status_label,
+                  COUNT(*) FILTER (WHERE suspended = true) AS user_count,
+                  COUNT(*) AS total_users
+           FROM google_workspace_users WHERE deleted_at IS NULL
+           UNION ALL
+           SELECT 'aws' AS provider, 'Disabled' AS status_label,
+                  COUNT(*) FILTER (WHERE active = false) AS user_count,
+                  COUNT(*) AS total_users
+           FROM aws_identity_center_users WHERE deleted_at IS NULL
+         ) AS t
+         ORDER BY user_count DESC`,
+      ),
+
+      // 12. Suspended / disabled users that still have active access grants (security risk)
+      executeWithTenant(
+        session.tenantId,
+        `SELECT cu.id AS canonical_user_id, cu.full_name, cu.primary_email,
+                sp.provider, sp.status_label,
+                COUNT(rag.id) AS active_grants
+         FROM canonical_users cu
+         JOIN canonical_user_provider_links pl
+           ON pl.canonical_user_id = cu.id AND pl.tenant_id = cu.tenant_id
+         JOIN (
+           SELECT google_id AS provider_user_id, 'google' AS provider, 'Suspended' AS status_label
+           FROM google_workspace_users
+           WHERE suspended = true AND deleted_at IS NULL
+           UNION ALL
+           SELECT user_id AS provider_user_id, 'aws' AS provider, 'Disabled' AS status_label
+           FROM aws_identity_center_users
+           WHERE active = false AND deleted_at IS NULL
+         ) sp ON sp.provider_user_id = pl.provider_user_id
+         JOIN resource_access_grants rag
+           ON rag.canonical_user_id = cu.id AND rag.tenant_id = cu.tenant_id AND rag.deleted_at IS NULL
+         WHERE cu.deleted_at IS NULL
+         GROUP BY cu.id, cu.full_name, cu.primary_email, sp.provider, sp.status_label
+         ORDER BY active_grants DESC
+         LIMIT 20`,
+      ),
     ]);
 
     return NextResponse.json({
@@ -183,6 +228,8 @@ export async function handleAnalytics(): Promise<NextResponse> {
       groupSizes: groupSizes.rows,
       reconciliationStatus: reconciliationStatus.rows,
       recentIngestion: recentIngestion.rows,
+      suspendedUsers: suspendedUsers.rows,
+      suspendedWithAccess: suspendedWithAccess.rows,
     });
   } catch (error) {
     console.error('Analytics error:', error);
