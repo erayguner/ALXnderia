@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
@@ -15,14 +15,14 @@ const NAV_ITEMS = [
   { href: '/audit', label: 'Audit Log', icon: '\uD83D\uDCCB' },
 ];
 
+function getInitialCollapsed(): boolean {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem('sidebar-collapsed') === 'true';
+}
+
 export function Sidebar() {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('sidebar-collapsed');
-    if (saved === 'true') setCollapsed(true);
-  }, []);
+  const [collapsed, setCollapsed] = useState(getInitialCollapsed);
 
   const toggle = () => {
     setCollapsed(prev => {
