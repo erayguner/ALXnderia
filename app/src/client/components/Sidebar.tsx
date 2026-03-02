@@ -7,7 +7,7 @@ import Link from 'next/link';
 const NAV_ITEMS = [
   { href: '/', label: 'Chat', icon: '\uD83D\uDCAC' },
   { href: '/analytics', label: 'Analytics', icon: '\uD83D\uDCCA' },
-  { href: '/people', label: 'People', icon: '\uD83D\uDC64' },
+  { href: '/users', label: 'Users', icon: '\uD83D\uDC64' },
   { href: '/resources', label: 'Resources', icon: '\u2601\uFE0F' },
   { href: '/accounts', label: 'Accounts & Projects', icon: '\uD83C\uDFE6' },
   { href: '/groups', label: 'Groups', icon: '\uD83D\uDC65' },

@@ -194,7 +194,7 @@ Check all API endpoints return data:
 
 ```bash
 curl -s http://localhost:3000/api/health    # {"status":"ok"}
-curl -s http://localhost:3000/api/people    # canonical users list
+curl -s http://localhost:3000/api/users     # canonical users list
 curl -s http://localhost:3000/api/groups    # groups across all 3 providers
 curl -s http://localhost:3000/api/resources # resources (repos, groups) by provider
 curl -s http://localhost:3000/api/accounts  # AWS accounts + GCP projects
@@ -207,7 +207,7 @@ curl -s http://localhost:3000/api/audit     # audit log entries
 
 ```bash
 npm test        # 14 test suites
-npm run lint    # ESLint 9 with eslint-config-next
+npm run lint    # ESLint 10 with eslint-config-next
 ```
 
 ---
@@ -217,8 +217,8 @@ npm run lint    # ESLint 9 with eslint-config-next
 | Page | URL | Description |
 | ---- | --- | ----------- |
 | Chat | `/` | Natural-language query interface (NL2SQL) |
-| People | `/people` | Browse canonical users with identity counts |
-| Person Detail | `/people/[id]` | Full person record with cross-provider identities, accounts/access, and emails |
+| Users | `/users` | Browse canonical users with identity counts |
+| User Detail | `/users/[id]` | Full user record with cross-provider identities, accounts/access, and emails |
 | Resources | `/resources` | GitHub repos, Google Workspace groups, and AWS IDC groups with member/permission counts |
 | Accounts | `/accounts` | Unified AWS account and GCP project browser with assignment/binding counts. Supports provider filter (aws/gcp) and search. |
 | Groups | `/groups` | Google Workspace, AWS Identity Center, and GitHub groups with member counts |
@@ -471,8 +471,8 @@ ALXnderia/
 │   ├── app/              # App Router pages and API routes
 │   │   ├── layout.tsx    # Root layout (sidebar + user badge header)
 │   │   ├── page.tsx      # Chat interface (home)
-│   │   ├── people/       # People list page
-│   │   │   └── [id]/     # Person detail page
+│   │   ├── users/        # Users list page
+│   │   │   └── [id]/     # User detail page
 │   │   ├── accounts/     # Accounts page (AWS accounts + GCP projects)
 │   │   ├── groups/       # Groups list page
 │   │   │   └── [id]/     # Group detail page
@@ -484,14 +484,14 @@ ALXnderia/
 │   │       ├── chat/     # POST /api/chat (NL2SQL)
 │   │       ├── access/   # GET /api/access (cross-provider effective access)
 │   │       ├── accounts/ # GET /api/accounts + /api/accounts/[id]
-│   │       ├── people/   # GET /api/people + /api/people/[id]
+│   │       ├── users/    # GET /api/users + /api/users/[id]
 │   │       ├── groups/   # GET /api/groups + /api/groups/[id]
 │   │       ├── resources/# GET /api/resources
 │   │       ├── analytics/ # GET /api/analytics
 │   │       ├── audit/    # GET /api/audit
 │   │       └── health/   # GET /api/health
 │   ├── src/
-│   │   ├── client/       # React components (12 components)
+│   │   ├── client/       # React components (14 components)
 │   │   ├── server/       # DB pool, route handlers, NL2SQL agent, SQL validator
 │   │   └── shared/       # TypeScript types and constants
 │   └── tests/            # Vitest tests (14 suites)

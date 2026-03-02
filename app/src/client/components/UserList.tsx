@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ResultsTable } from './ResultsTable';
 
-interface PersonRow {
+interface UserRow {
   id: string;
   display_name: string;
   primary_email: string;
@@ -13,8 +13,8 @@ interface PersonRow {
   created_at: string;
 }
 
-export function PeopleList() {
-  const [data, setData] = useState<PersonRow[]>([]);
+export function UserList() {
+  const [data, setData] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -30,8 +30,8 @@ export function PeopleList() {
         const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
         if (search) params.set('search', search);
 
-        const res = await fetch(`/api/people?${params}`);
-        if (!res.ok) throw new Error('Failed to load people');
+        const res = await fetch(`/api/users?${params}`);
+        if (!res.ok) throw new Error('Failed to load users');
         const json = await res.json();
         setData(json.data);
         setTotal(json.total);
@@ -50,7 +50,7 @@ export function PeopleList() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-ons-grey-5">People</h1>
+        <h1 className="text-2xl font-bold text-ons-grey-5">Users</h1>
         <p className="text-sm text-ons-grey-35 mt-1">
           Unified identity directory across all cloud providers
         </p>
@@ -65,7 +65,7 @@ export function PeopleList() {
           className="px-3 py-2 border border-ons-grey-100 bg-ons-black rounded-lg text-sm w-72 text-ons-grey-15 placeholder:text-ons-grey-75 focus:outline-none focus:ring-2 focus:ring-ons-sky-blue focus:border-transparent"
         />
         <span className="self-center text-xs text-ons-grey-35">
-          {total.toLocaleString()} {total === 1 ? 'person' : 'people'}
+          {total.toLocaleString()} {total === 1 ? 'user' : 'users'}
         </span>
       </div>
 
@@ -77,7 +77,7 @@ export function PeopleList() {
           <ResultsTable
             data={data as unknown as Record<string, unknown>[]}
             pageSize={limit}
-            getRowLink={row => (row.id ? `/people/${row.id}` : null)}
+            getRowLink={row => (row.id ? `/users/${row.id}` : null)}
           />
 
           {totalPages > 1 && (

@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server';
-import { handlePersonDetail } from '@server/routes/people';
+import { handleUserDetail } from '@server/routes/users';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  return handlePersonDetail(request, id);
+  return handleUserDetail(request, id);
 }

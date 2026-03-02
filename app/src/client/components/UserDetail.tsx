@@ -64,7 +64,7 @@ interface GithubRepoAccess {
   is_outside_collaborator: boolean;
 }
 
-interface PersonRecord {
+interface UserRecord {
   id: string;
   full_name: string | null;
   primary_email: string | null;
@@ -81,8 +81,8 @@ interface PersonRecord {
   github_repo_access: GithubRepoAccess[] | null;
 }
 
-interface PersonDetailResponse {
-  person: PersonRecord;
+interface UserDetailResponse {
+  user: UserRecord;
 }
 
 interface AccountAccessRow {
@@ -95,18 +95,18 @@ interface AccountAccessRow {
   access_flags: string;
 }
 
-interface PersonDetailProps {
-  personId: string;
+interface UserDetailProps {
+  userId: string;
 }
 
 function normalizeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
 }
 
-function buildAccountAccessRows(person: PersonRecord): AccountAccessRow[] {
+function buildAccountAccessRows(user: UserRecord): AccountAccessRow[] {
   const rows: AccountAccessRow[] = [];
 
-  for (const identity of normalizeArray(person.google_identities)) {
+  for (const identity of normalizeArray(user.google_identities)) {
     rows.push({
       provider: 'Google Workspace',
       account_id: identity.google_id,
@@ -122,7 +122,7 @@ function buildAccountAccessRows(person: PersonRecord): AccountAccessRow[] {
     });
   }
 
-  for (const identity of normalizeArray(person.aws_idc_identities)) {
+  for (const identity of normalizeArray(user.aws_idc_identities)) {
     rows.push({
       provider: 'AWS Identity Center',
       account_id: identity.user_name || identity.id,
@@ -138,7 +138,7 @@ function buildAccountAccessRows(person: PersonRecord): AccountAccessRow[] {
     });
   }
 
-  for (const identity of normalizeArray(person.github_identities)) {
+  for (const identity of normalizeArray(user.github_identities)) {
     rows.push({
       provider: 'GitHub',
       account_id: identity.login || identity.id,
@@ -177,20 +177,20 @@ function Badge({ label, colorMap }: { label: string; colorMap: Record<string, st
   );
 }
 
-export function PersonDetail({ personId }: PersonDetailProps) {
-  const [person, setPerson] = useState<PersonRecord | null>(null);
+export function UserDetail({ userId }: UserDetailProps) {
+  const [user, setUser] = useState<UserRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchPerson = async () => {
+    const fetchUser = async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/people/${personId}`);
-        if (!res.ok) throw new Error('Failed to load person');
-        const json = await res.json() as PersonDetailResponse;
-        setPerson(json.person);
+        const res = await fetch(`/api/users/${userId}`);
+        if (!res.ok) throw new Error('Failed to load user');
+        const json = await res.json() as UserDetailResponse;
+        setUser(json.user);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
@@ -198,13 +198,13 @@ export function PersonDetail({ personId }: PersonDetailProps) {
       }
     };
 
-    fetchPerson();
-  }, [personId]);
+    fetchUser();
+  }, [userId]);
 
   const accountRows = useMemo(() => {
-    if (!person) return [];
-    return buildAccountAccessRows(person);
-  }, [person]);
+    if (!user) return [];
+    return buildAccountAccessRows(user);
+  }, [user]);
 
   if (loading) {
     return <p className="text-sm text-ons-grey-35">Loading...</p>;
@@ -214,27 +214,27 @@ export function PersonDetail({ personId }: PersonDetailProps) {
     return <p className="text-sm text-ons-ruby-red">{error}</p>;
   }
 
-  if (!person) {
-    return <p className="text-sm text-ons-grey-35">No person found.</p>;
+  if (!user) {
+    return <p className="text-sm text-ons-grey-35">No user found.</p>;
   }
 
-  const linkedIdentities = normalizeArray(person.linked_identities);
-  const emails = normalizeArray(person.emails);
-  const orgMemberships = normalizeArray(person.github_org_memberships);
-  const teamMemberships = normalizeArray(person.github_team_memberships);
-  const repoAccess = normalizeArray(person.github_repo_access);
+  const linkedIdentities = normalizeArray(user.linked_identities);
+  const emails = normalizeArray(user.emails);
+  const orgMemberships = normalizeArray(user.github_org_memberships);
+  const teamMemberships = normalizeArray(user.github_team_memberships);
+  const repoAccess = normalizeArray(user.github_repo_access);
 
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-ons-grey-5">
-          {person.full_name || 'Unnamed person'}
+          {user.full_name || 'Unnamed user'}
         </h1>
         <p className="text-sm text-ons-grey-35 mt-1">
-          {person.primary_email || 'No primary email'}
+          {user.primary_email || 'No primary email'}
         </p>
         <div className="text-xs text-ons-grey-75 mt-2">
-          Status: {person.status || '-'}
+          Status: {user.status || '-'}
         </div>
       </div>
 

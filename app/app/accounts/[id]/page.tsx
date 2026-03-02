@@ -247,23 +247,23 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
               </thead>
               <tbody className="divide-y divide-ons-grey-100/50">
                 {accessEntries.map((entry, i) => {
-                  const personHref = entry.canonical_user_id ? `/people/${entry.canonical_user_id}` : null;
+                  const userHref = entry.canonical_user_id ? `/users/${entry.canonical_user_id}` : null;
                   return (
                     <tr
                       key={i}
-                      onClick={() => personHref && router.push(personHref)}
+                      onClick={() => userHref && router.push(userHref)}
                       onKeyDown={e => {
-                        if (!personHref) return;
-                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(personHref); }
+                        if (!userHref) return;
+                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(userHref); }
                       }}
-                      role={personHref ? 'link' : undefined}
-                      tabIndex={personHref ? 0 : undefined}
-                      className={`transition-colors ${personHref ? 'cursor-pointer hover:bg-ons-ocean-blue/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ons-sky-blue' : 'hover:bg-ons-grey-100/30'}`}
+                      role={userHref ? 'link' : undefined}
+                      tabIndex={userHref ? 0 : undefined}
+                      className={`transition-colors ${userHref ? 'cursor-pointer hover:bg-ons-ocean-blue/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ons-sky-blue' : 'hover:bg-ons-grey-100/30'}`}
                     >
                       <td className="px-6 py-3">
-                        {personHref ? (
+                        {userHref ? (
                           <a
-                            href={personHref}
+                            href={userHref}
                             className="text-ons-sky-blue hover:text-ons-aqua-teal hover:underline font-medium"
                             onClick={e => e.stopPropagation()}
                           >

@@ -9,7 +9,7 @@ function getSession() {
   };
 }
 
-export async function handlePeopleList(req: NextRequest): Promise<NextResponse> {
+export async function handleUserList(req: NextRequest): Promise<NextResponse> {
   const session = getSession();
   const { page, limit, offset } = parsePagination(req);
   const search = new URL(req.url).searchParams.get('search');
@@ -33,16 +33,16 @@ export async function handlePeopleList(req: NextRequest): Promise<NextResponse> 
   try {
     return await executePaginatedQuery(session.tenantId, countSql, dataSql, pb.params, page, limit, offset);
   } catch (error) {
-    console.error('People list error:', error);
-    return NextResponse.json({ error: 'Failed to load people' }, { status: 500 });
+    console.error('User list error:', error);
+    return NextResponse.json({ error: 'Failed to load users' }, { status: 500 });
   }
 }
 
-export async function handlePersonDetail(req: NextRequest, id: string): Promise<NextResponse> {
+export async function handleUserDetail(req: NextRequest, id: string): Promise<NextResponse> {
   const session = getSession();
 
   try {
-    const personResult = await executeWithTenant(session.tenantId,
+    const userResult = await executeWithTenant(session.tenantId,
       `SELECT cu.*,
               (SELECT json_agg(json_build_object(
                 'provider_type', pl.provider_type, 'provider_user_id', pl.provider_user_id,
@@ -117,15 +117,15 @@ export async function handlePersonDetail(req: NextRequest, id: string): Promise<
       [id],
     );
 
-    if (personResult.rowCount === 0) {
-      return NextResponse.json({ error: 'Person not found' }, { status: 404 });
+    if (userResult.rowCount === 0) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     return NextResponse.json({
-      person: personResult.rows[0],
+      user: userResult.rows[0],
     });
   } catch (error) {
-    console.error('Person detail error:', error);
-    return NextResponse.json({ error: 'Failed to load person' }, { status: 500 });
+    console.error('User detail error:', error);
+    return NextResponse.json({ error: 'Failed to load user' }, { status: 500 });
   }
 }

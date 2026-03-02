@@ -59,7 +59,7 @@ ALXnderia enables security teams, compliance officers, and identity administrato
 - **NL2SQL** -- Ask questions in plain English; get validated, tenant-isolated SQL
 - **Multi-cloud identity** -- AWS Identity Center, Google Workspace, GitHub Orgs/Users/Teams
 - **Cloud resource inventory** -- AWS accounts (12-digit IDs, org structure) and GCP projects (project IDs, folders, labels)
-- **Person graph** -- Cross-provider identity linkage via email matching
+- **User graph** -- Cross-provider identity linkage via email matching
 - **Access Explorer** -- Cross-provider effective access view combining GitHub (direct + team-derived), Google Workspace group memberships, and AWS Identity Center group memberships
 - **Accounts browser** -- Unified AWS account and GCP project view with assignment/binding counts
 - **Defence-in-depth** -- 7-layer SQL validation (libpg-query WASM AST parser), tenant-scoped queries, composite PK multi-tenancy
@@ -115,7 +115,7 @@ Open [http://localhost:3000](http://localhost:3000) and try a question like *"Sh
 ```bash
 cd app
 npm test        # 14 test suites
-npm run lint    # ESLint 9 with eslint-config-next
+npm run lint    # ESLint 10 with eslint-config-next
 ```
 
 ## Project Structure
@@ -218,16 +218,19 @@ cd infra/deploy/gcp && terraform apply -var-file=../../environments/prod.tfvars
 
 | Document | Description |
 |----------|-------------|
-| [Executive Overview](docs/01_Executive_Overview.md) | Business context and capabilities |
-| [High-Level Architecture](docs/02_High_Level_Architecture.md) | Components, data flows, security boundaries |
-| [Low-Level Design](docs/03_Low_Level_Design.md) | Schema DDL, validation logic, API contracts |
-| [Engineering Implementation](docs/04_Engineering_Implementation.md) | Setup, conventions, common tasks |
-| [SRE Operations Guide](docs/05_SRE_Operations_Guide.md) | Deployment, monitoring, runbooks |
-| [GitHub Identity Integration](docs/06_GitHub_Identity_Integration.md) | GitHub provider design and mapping |
-| [Target Architecture](docs/07_Target_Architecture_GraphQL_DLP.md) | GraphQL API and Export/DLP roadmap |
-| [Database Schema](docs/08_Database_Schema.md) | Complete schema reference (26 tables, indexes, constraints) |
+| [Executive Summary](project-documents/01_Executive_Summary.md) | Business context and capabilities |
+| [Problem Statement](project-documents/02_Problem_Statement_and_Objectives.md) | Problem framing and objectives |
+| [Target Architecture](project-documents/03_Target_Architecture.md) | System architecture and component design |
+| [Security Architecture](project-documents/04_Security_Architecture.md) | 7-layer SQL validation, RLS, auth model |
+| [Data Architecture](project-documents/05_Data_Architecture.md) | Schema design and data flows |
+| [AI Governance](project-documents/06_AI_Governance.md) | LLM governance and prompt design |
+| [Operational Model](project-documents/07_Operational_Model.md) | Ops runbooks and monitoring |
+| [Compliance & Regulatory](project-documents/08_Compliance_and_Regulatory.md) | ISO 27001, SOC 2, GDPR coverage |
+| [Risk Assessment](project-documents/09_Risk_Assessment.md) | Risk register and mitigations |
+| [Cost & FinOps](project-documents/10_Cost_and_FinOps.md) | Cost model and optimisation |
+| [Roadmap](project-documents/11_Roadmap_and_Extensibility.md) | Phase 1-4 roadmap and extension points |
 | [Local Setup](docs/LOCAL_SETUP.md) | Complete local setup guide (native PG + Docker options, troubleshooting, reset procedures) |
-| [Performance Metrics](docs/performance-metrics.md) | Query benchmarks and index analysis |
+| [App Architecture](app/ARCHITECTURE.md) | Early-stage architecture research (superseded by project-documents) |
 
 ## Tech Stack
 
@@ -242,7 +245,7 @@ cd infra/deploy/gcp && terraform apply -var-file=../../environments/prod.tfvars
 | Compute | AWS App Runner / GCP Cloud Run v2, Lambda (ingestion), Cloud Run Jobs (ingestion) |
 | CI/CD | GitHub Actions (5 workflows) |
 | Testing | Vitest 4.x (14 test suites) |
-| Linting | ESLint 9 with eslint-config-next |
+| Linting | ESLint 10 with eslint-config-next |
 
 ## License
 

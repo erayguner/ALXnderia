@@ -30,19 +30,19 @@ function getDrilldownLink(key: string, value: unknown, row: Record<string, unkno
   const stringValue = value === null || value === undefined ? '' : String(value);
   if (!stringValue) return null;
 
-  // Person name -> person detail page
+  // User name -> user detail page
   if (key === 'display_name' && row.person_id) {
-    return `/people/${row.person_id}`;
+    return `/users/${row.person_id}`;
   }
 
-  // Person name -> person detail page (people list rows only, not GitHub repo full_name)
+  // User name -> user detail page (user list rows only, not GitHub repo full_name)
   if (key === 'full_name' && row.id && 'primary_email' in row) {
-    return `/people/${row.id}`;
+    return `/users/${row.id}`;
   }
 
-  // Identity count -> person detail page
+  // Identity count -> user detail page
   if (key === 'identity_count' && row.id) {
-    return `/people/${row.id}`;
+    return `/users/${row.id}`;
   }
 
   // Account ID -> accounts page (AWS)
