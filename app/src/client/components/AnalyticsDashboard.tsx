@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 // --- Types ---
 
@@ -127,29 +128,60 @@ function providerLabel(p: string): string {
 
 // --- Sub-components ---
 
-function StatCard({ label, value, sub, delay = 0 }: { label: string; value: string | number; sub?: string; delay?: number }) {
-  return (
-    <div
-      className="card-glass p-5 animate-fade-up"
-      style={{ animationDelay: `${delay}ms` }}
-    >
+function StatCard({ label, value, sub, delay = 0, href }: { label: string; value: string | number; sub?: string; delay?: number; href?: string }) {
+  const content = (
+    <>
       <p className="text-[10px] font-semibold text-ons-grey-75 uppercase tracking-[0.1em]">{label}</p>
       <p className="text-[1.75rem] font-bold text-ons-grey-5 mt-1.5 tabular-nums leading-none tracking-tight">
         {typeof value === 'number' ? value.toLocaleString() : value}
       </p>
       {sub && <p className="text-xs text-ons-grey-75 mt-2 leading-relaxed">{sub}</p>}
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="card-glass p-5 animate-fade-up hover:ring-1 hover:ring-ons-sky-blue/40 transition-all duration-150 cursor-pointer"
+        style={{ animationDelay: `${delay}ms` }}
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div
+      className="card-glass p-5 animate-fade-up"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      {content}
     </div>
   );
 }
 
-function HorizontalBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+function HorizontalBar({ label, value, max, color, href }: { label: string; value: number; max: number; color: string; href?: string }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
+
+  const labelEl = href ? (
+    <Link
+      href={href}
+      className="w-36 truncate text-ons-sky-blue text-xs hover:text-ons-aqua-teal hover:underline transition-colors duration-150"
+      title={label}
+      onClick={e => e.stopPropagation()}
+    >
+      {label}
+    </Link>
+  ) : (
+    <span className="w-36 truncate text-ons-grey-35 text-xs group-hover:text-ons-grey-15 transition-colors duration-150" title={label}>
+      {label}
+    </span>
+  );
 
   return (
     <div className="flex items-center gap-3 text-sm group">
-      <span className="w-36 truncate text-ons-grey-35 text-xs group-hover:text-ons-grey-15 transition-colors duration-150" title={label}>
-        {label}
-      </span>
+      {labelEl}
       <div className="flex-1 h-1.5 bg-ons-bar-track/20 rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full ${color} transition-all duration-700`}
@@ -202,6 +234,23 @@ function ProviderBadge({ provider }: { provider: string }) {
       {providerLabel(provider)}
     </span>
   );
+}
+
+function getResourceHref(resource: ResourceRow): string {
+  const name = resource.resource_display_name;
+  const p = resource.provider?.toLowerCase();
+  if (p === 'aws') return `/accounts?provider=aws&search=${encodeURIComponent(name)}`;
+  if (p === 'gcp') return `/accounts?provider=gcp&search=${encodeURIComponent(name)}`;
+  if (p === 'github') return `/resources?search=${encodeURIComponent(name)}`;
+  return `/resources?search=${encodeURIComponent(name)}`;
+}
+
+function getGroupHref(group: GroupRow): string {
+  return `/groups?search=${encodeURIComponent(group.group_name)}`;
+}
+
+function getAccessProviderHref(provider: string): string {
+  return `/access?provider=${encodeURIComponent(provider)}`;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -429,15 +478,16 @@ export function AnalyticsDashboard() {
 
         {/* Summary cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <StatCard label="Canonical Users" value={summary.totalUsers} sub="Unified identities" delay={40} />
-          <StatCard label="Access Grants" value={summary.totalAccessGrants} sub="Cross-provider" delay={80} />
-          <StatCard label="Cloud Resources" value={summary.totalResources} sub="Accounts & projects" delay={120} />
-          <StatCard label="Full Coverage" value={`${coveragePct}%`} sub={`${usersWithAllProviders.toLocaleString()} users linked to 3+ providers`} delay={160} />
+          <StatCard label="Canonical Users" value={summary.totalUsers} sub="Unified identities" delay={40} href="/users" />
+          <StatCard label="Access Grants" value={summary.totalAccessGrants} sub="Cross-provider" delay={80} href="/access" />
+          <StatCard label="Cloud Resources" value={summary.totalResources} sub="Accounts & projects" delay={120} href="/accounts" />
+          <StatCard label="Full Coverage" value={`${coveragePct}%`} sub={`${usersWithAllProviders.toLocaleString()} users linked to 3+ providers`} delay={160} href="/users" />
           <StatCard
             label="Suspended Users"
             value={totalSuspended}
             sub={suspendedWithAccessCount > 0 ? `${suspendedWithAccessCount} still have access` : 'No active access'}
             delay={200}
+            href="/users"
           />
         </div>
 
@@ -459,7 +509,11 @@ export function AnalyticsDashboard() {
               {data.accessByProvider.map(r => {
                 const p = r.provider ?? '';
                 return (
-                  <div key={p} className="flex items-center justify-between group hover:bg-ons-surface/10 -mx-2 px-2 py-1.5 rounded-lg transition-colors duration-100">
+                  <Link
+                    key={p}
+                    href={getAccessProviderHref(p)}
+                    className="flex items-center justify-between group hover:bg-ons-ocean-blue/15 -mx-2 px-2 py-1.5 rounded-lg transition-colors duration-100 cursor-pointer"
+                  >
                     <div className="flex items-center gap-3">
                       <ProviderBadge provider={p} />
                       <span className="text-xs text-ons-grey-35 tabular-nums">
@@ -470,7 +524,7 @@ export function AnalyticsDashboard() {
                       {Number(r.user_count).toLocaleString()} users &middot;{' '}
                       {Number(r.resource_count).toLocaleString()} resources
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
@@ -510,15 +564,20 @@ export function AnalyticsDashboard() {
             ) : (
               <div className="space-y-3">
                 {data.reconciliationStatus.map(r => (
-                  <div key={r.status} className="flex items-center justify-between">
+                  <Link
+                    key={r.status}
+                    href={`/users?reconciliation=${encodeURIComponent(r.status.toLowerCase())}`}
+                    className="flex items-center justify-between hover:bg-ons-ocean-blue/15 -mx-2 px-2 py-1.5 rounded-lg transition-colors duration-100 cursor-pointer"
+                  >
                     <StatusBadge status={r.status} />
                     <span className="text-lg font-bold text-ons-grey-5 tabular-nums">{Number(r.count).toLocaleString()}</span>
-                  </div>
+                  </Link>
                 ))}
                 {reconciliationPending > 0 && (
-                  <p className="text-xs text-ons-jaffa-orange mt-2">
-                    {reconciliationPending} identities need manual review
-                  </p>
+                  <Link href="/users?reconciliation=pending" className="flex items-center gap-1 text-xs text-ons-jaffa-orange mt-2 hover:text-ons-sun-yellow transition-colors duration-150">
+                    <span>{reconciliationPending} identities need manual review</span>
+                    <span aria-hidden="true">&rarr;</span>
+                  </Link>
                 )}
               </div>
             )}
@@ -589,9 +648,11 @@ export function AnalyticsDashboard() {
                     </thead>
                     <tbody>
                       {data.suspendedWithAccess.map((r, i) => (
-                        <tr key={i} className="border-b border-ons-border/8 last:border-0 transition-colors duration-100 hover:bg-ons-surface/10">
+                        <tr key={i} className="border-b border-ons-border/8 last:border-0 transition-colors duration-100 hover:bg-ons-ocean-blue/15 cursor-pointer">
                           <td className="py-2.5 pr-4">
-                            <p className="text-sm text-ons-grey-15 font-medium">{r.full_name ?? 'Unknown'}</p>
+                            <Link href={`/users/${r.canonical_user_id}`} className="text-ons-sky-blue hover:text-ons-aqua-teal hover:underline text-sm font-medium">
+                              {r.full_name ?? 'Unknown'}
+                            </Link>
                             <p className="text-[11px] text-ons-grey-75">{r.primary_email}</p>
                           </td>
                           <td className="py-2.5 pr-4"><ProviderBadge provider={r.provider} /></td>
@@ -614,7 +675,7 @@ export function AnalyticsDashboard() {
               {data.topRoles.map((r, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <ProviderBadge provider={r.provider} />
-                  <HorizontalBar label={r.role_or_permission} value={Number(r.grant_count)} max={maxRole} color={providerStyle(r.provider).bar} />
+                  <HorizontalBar label={r.role_or_permission} value={Number(r.grant_count)} max={maxRole} color={providerStyle(r.provider).bar} href={`/access?provider=${encodeURIComponent(r.provider)}&search=${encodeURIComponent(r.role_or_permission)}`} />
                 </div>
               ))}
             </div>
@@ -625,7 +686,7 @@ export function AnalyticsDashboard() {
               {data.topResources.map((r, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <ProviderBadge provider={r.provider} />
-                  <HorizontalBar label={r.resource_display_name} value={Number(r.unique_users)} max={maxResource} color={providerStyle(r.provider).bar} />
+                  <HorizontalBar label={r.resource_display_name} value={Number(r.unique_users)} max={maxResource} color={providerStyle(r.provider).bar} href={getResourceHref(r)} />
                 </div>
               ))}
             </div>
@@ -638,7 +699,7 @@ export function AnalyticsDashboard() {
             {data.groupSizes.map((r, i) => (
               <div key={i} className="flex items-center gap-2">
                 <ProviderBadge provider={r.provider} />
-                <HorizontalBar label={r.group_name} value={Number(r.member_count)} max={maxGroup} color={providerStyle(r.provider).bar} />
+                <HorizontalBar label={r.group_name} value={Number(r.member_count)} max={maxGroup} color={providerStyle(r.provider).bar} href={getGroupHref(r)} />
               </div>
             ))}
           </div>
