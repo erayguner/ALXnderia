@@ -13,6 +13,8 @@ const NAV_ITEMS = [
   { href: '/groups', label: 'Groups', icon: '\uD83D\uDC65' },
   { href: '/access', label: 'Access Explorer', icon: '\uD83D\uDD11' },
   { href: '/audit', label: 'Audit Log', icon: '\uD83D\uDCCB' },
+  { href: '/galaxy', label: 'Identity Galaxy', icon: '\uD83C\uDF0C' },
+  { href: '/neural-map', label: 'Neural Map', icon: '\uD83E\uDDE0' },
 ];
 
 function getInitialCollapsed(): boolean {

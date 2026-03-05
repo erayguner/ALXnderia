@@ -201,6 +201,8 @@ curl -s http://localhost:3000/api/accounts  # AWS accounts + GCP projects
 curl -s http://localhost:3000/api/access    # cross-provider effective access
 curl -s http://localhost:3000/api/analytics # identity analytics
 curl -s http://localhost:3000/api/audit     # audit log entries
+curl -s http://localhost:3000/api/galaxy    # 3D galaxy visualisation data
+curl -s http://localhost:3000/api/neural-map # 2D neural map graph data
 ```
 
 ### 4. Run tests
@@ -226,6 +228,8 @@ npm run lint    # ESLint 10 with eslint-config-next
 | Access Explorer | `/access` | Cross-provider effective access: GitHub (direct + team-derived), Google Workspace groups, AWS Identity Center groups. Supports provider, access path, and search filters with CSV export. |
 | Analytics | `/analytics` | Identity analytics dashboard with provider distribution, access metrics, and ingestion status |
 | Audit Log | `/audit` | Query execution audit trail with action type filter |
+| Identity Galaxy | `/galaxy` | Interactive 3D WebGL visualisation of identity relationships across providers with canonical hub, cross-provider arcs, and drill-down navigation |
+| Neural Map | `/neural-map` | Force-directed 2D graph of identity relationships with physics simulation, provider filtering, and node inspection |
 
 ---
 
@@ -479,8 +483,10 @@ ALXnderia/
 │   │   ├── resources/    # Resources list page
 │   │   ├── access/       # Access explorer page
 │   │   ├── audit/        # Audit log page
-│   │   ├── analytics/     # Analytics dashboard page
-│   │   └── api/          # API route handlers (12 endpoints)
+│   │   ├── analytics/    # Analytics dashboard page
+│   │   ├── galaxy/       # Identity Galaxy 3D visualisation page
+│   │   ├── neural-map/   # Neural Map 2D graph page
+│   │   └── api/          # API route handlers (14 endpoints)
 │   │       ├── chat/     # POST /api/chat (NL2SQL)
 │   │       ├── access/   # GET /api/access (cross-provider effective access)
 │   │       ├── accounts/ # GET /api/accounts + /api/accounts/[id]
@@ -489,12 +495,14 @@ ALXnderia/
 │   │       ├── resources/# GET /api/resources
 │   │       ├── analytics/ # GET /api/analytics
 │   │       ├── audit/    # GET /api/audit
+│   │       ├── galaxy/   # GET /api/galaxy (3D visualisation data)
+│   │       ├── neural-map/ # GET /api/neural-map (2D graph data)
 │   │       └── health/   # GET /api/health
 │   ├── src/
-│   │   ├── client/       # React components (14 components)
+│   │   ├── client/       # React components (16 components + 8 visualisation sub-modules)
 │   │   ├── server/       # DB pool, route handlers, NL2SQL agent, SQL validator
 │   │   └── shared/       # TypeScript types and constants
-│   └── tests/            # Vitest tests (14 suites)
+│   └── tests/            # Vitest tests (14 suites, server-side)
 ├── schema/               # SQL files: DDL, cloud resources, seed data, mock data
 │   ├── 01_schema.sql     # Identity table DDL, indexes, enums, extensions
 │   ├── 02_cloud_resources.sql   # AWS accounts, GCP projects, access grants DDL

@@ -62,6 +62,8 @@ ALXnderia enables security teams, compliance officers, and identity administrato
 - **User graph** -- Cross-provider identity linkage via email matching
 - **Access Explorer** -- Cross-provider effective access view combining GitHub (direct + team-derived), Google Workspace group memberships, and AWS Identity Center group memberships
 - **Accounts browser** -- Unified AWS account and GCP project view with assignment/binding counts
+- **Identity Galaxy** -- Interactive 3D WebGL visualisation of identity provider relationships with canonical hub, cross-provider arcs, and drill-down navigation
+- **Neural Map** -- Force-directed 2D graph of identity relationships with physics simulation, provider filtering, and node inspection
 - **Defence-in-depth** -- 7-layer SQL validation (libpg-query WASM AST parser), tenant-scoped queries, composite PK multi-tenancy
 - **LLM-agnostic** -- Swap between Anthropic Claude, OpenAI GPT, or Google Gemini via env var
 - **Live ingestion** -- Modular Python service syncs live data from all 5 providers with pagination, rate limiting, and run tracking
@@ -122,11 +124,12 @@ npm run lint    # ESLint 10 with eslint-config-next
 
 ```
 ALXnderia/
-  app/              Next.js 15 application (App Router, API routes, NL2SQL agent)
+  app/              Next.js 15 application (App Router, API routes, NL2SQL agent, visualisations)
   schema/           SQL files: DDL, cloud resources extension, ingestion tracking, seed data
   infra/            Terraform modules for local Docker, AWS, and GCP deployments (incl. ingestion)
   scripts/          Utility scripts (preflight, seed_cloud_resources.py, ingestion service)
-  docs/             Architecture and operations documentation
+  docs/             LOCAL_SETUP.md and operations documentation
+  project-documents/ 11-part formal architecture specification
   .github/          5 GitHub Actions CI/CD workflows
 ```
 
@@ -236,7 +239,7 @@ cd infra/deploy/gcp && terraform apply -var-file=../../environments/prod.tfvars
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS |
+| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS v4 |
 | LLM | Anthropic Claude / OpenAI GPT / Google Gemini (configurable) |
 | SQL Validation | libpg-query (PostgreSQL parser compiled to WASM) |
 | Database | PostgreSQL 16 (Aurora) / 18 (Cloud SQL) |
@@ -244,8 +247,9 @@ cd infra/deploy/gcp && terraform apply -var-file=../../environments/prod.tfvars
 | Infrastructure | Terraform, Docker |
 | Compute | AWS App Runner / GCP Cloud Run v2, Lambda (ingestion), Cloud Run Jobs (ingestion) |
 | CI/CD | GitHub Actions (5 workflows) |
-| Testing | Vitest 4.x (14 test suites) |
-| Linting | ESLint 10 with eslint-config-next |
+| Visualisation | Canvas 2D/3D with custom WebGL galaxy renderer and force-directed graph engine |
+| Testing | Vitest 4.x (14 test suites, server-side) |
+| Linting | ESLint 10 with eslint-config-next 16 |
 
 ## License
 

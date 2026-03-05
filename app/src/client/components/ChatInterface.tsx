@@ -198,15 +198,20 @@ export function ChatInterface() {
                 <div>
                   <p className="mb-3">{msg.clarificationNeeded.message}</p>
                   <div className="flex flex-wrap gap-2">
-                    {msg.clarificationNeeded.options.map((opt, i) => (
-                      <button
-                        key={i}
-                        onClick={() => handleSubmit(undefined, opt)}
-                        className="px-3 py-1.5 text-sm bg-ons-ocean-blue/20 border border-ons-ocean-blue/40 rounded-md hover:bg-ons-ocean-blue/30 transition"
-                      >
-                        {opt}
-                      </button>
-                    ))}
+                    {msg.clarificationNeeded.options.map((opt, i) => {
+                      const text = typeof opt === 'string'
+                        ? opt
+                        : (opt as Record<string, unknown>).label as string ?? String(opt);
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => handleSubmit(undefined, text)}
+                          className="px-3 py-1.5 text-sm bg-ons-ocean-blue/20 border border-ons-ocean-blue/40 rounded-md hover:bg-ons-ocean-blue/30 transition"
+                        >
+                          {text}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -289,15 +294,20 @@ export function ChatInterface() {
                   {/* Follow-up suggestions */}
                   {msg.followUpSuggestions && msg.followUpSuggestions.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-2">
-                      {msg.followUpSuggestions.map((suggestion, i) => (
-                        <button
-                          key={i}
-                          onClick={() => handleSubmit(undefined, suggestion)}
-                          className="px-2.5 py-1 text-xs bg-ons-ocean-blue/20 border border-ons-ocean-blue/40 rounded-full hover:bg-ons-ocean-blue/30 transition text-ons-sky-blue"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
+                      {msg.followUpSuggestions.map((suggestion, i) => {
+                        const text = typeof suggestion === 'string'
+                          ? suggestion
+                          : (suggestion as Record<string, unknown>).label as string ?? String(suggestion);
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => handleSubmit(undefined, text)}
+                            className="px-2.5 py-1 text-xs bg-ons-ocean-blue/20 border border-ons-ocean-blue/40 rounded-full hover:bg-ons-ocean-blue/30 transition text-ons-sky-blue"
+                          >
+                            {text}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
