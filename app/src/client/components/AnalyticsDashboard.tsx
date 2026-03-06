@@ -72,6 +72,21 @@ interface SuspendedRow {
   total_users: number;
 }
 
+interface GithubOrgMemberRow {
+  org_login: string;
+  org_name: string | null;
+  role: string;
+  member_count: string | number;
+}
+
+interface GithubExternalCollabRow {
+  login: string;
+  user_name: string | null;
+  repo_name: string;
+  permission: string;
+  visibility: string;
+}
+
 interface SuspendedAccessRow {
   canonical_user_id: string;
   full_name: string | null;
@@ -92,6 +107,8 @@ interface AnalyticsData {
   groupSizes: GroupRow[];
   reconciliationStatus: ReconciliationRow[];
   recentIngestion: IngestionRow[];
+  githubOrgMembers: GithubOrgMemberRow[];
+  githubExternalCollabs: GithubExternalCollabRow[];
   suspendedUsers: SuspendedRow[];
   suspendedWithAccess: SuspendedAccessRow[];
 }
@@ -197,7 +214,7 @@ function HorizontalBar({ label, value, max, color, href }: { label: string; valu
 }
 
 function ProviderLogo({ provider, size = 20 }: { provider: string; size?: number }) {
-  const key = provider.toLowerCase().replace('_identity_center', '').replace('_workspace', '');
+  const key = (provider ?? '').toLowerCase().replace('_identity_center', '').replace('_workspace', '');
   switch (key) {
     case 'aws':
       return (
@@ -241,8 +258,8 @@ function getResourceHref(resource: ResourceRow): string {
   const p = resource.provider?.toLowerCase();
   if (p === 'aws') return `/accounts?provider=aws&search=${encodeURIComponent(name)}`;
   if (p === 'gcp') return `/accounts?provider=gcp&search=${encodeURIComponent(name)}`;
-  if (p === 'github') return `/resources?search=${encodeURIComponent(name)}`;
-  return `/resources?search=${encodeURIComponent(name)}`;
+  if (p === 'github') return `/identity-resources?search=${encodeURIComponent(name)}`;
+  return `/identity-resources?search=${encodeURIComponent(name)}`;
 }
 
 function getGroupHref(group: GroupRow): string {
@@ -347,6 +364,87 @@ function DonutChart({ segments }: { segments: { label: string; value: number; co
         ))}
       </div>
     </div>
+  );
+}
+
+function SuspendedUsersCard({ data: rows, delay }: { data: SuspendedRow[]; delay: number }) {
+  const [showNumbers, setShowNumbers] = useState(false);
+
+  if (rows.length === 0) {
+    return (
+      <Card title="Suspended / Disabled Users" delay={delay}>
+        <p className="text-sm text-ons-grey-75">No suspended users found</p>
+      </Card>
+    );
+  }
+
+  const segments: { label: string; value: number; total: number; color: string; provider: string; statusLabel: string }[] = [];
+  for (const r of rows) {
+    const total = Number(r.total_users) || 0;
+    const suspended = Number(r.user_count) || 0;
+    const p = (r.provider ?? '').toLowerCase();
+    const color = p === 'google' ? 'text-ons-ruby-red' : p === 'aws' ? 'text-ons-jaffa-orange' : 'text-ons-sky-blue';
+    segments.push({ label: r.status_label ?? r.provider, value: suspended, total, color, provider: r.provider, statusLabel: r.status_label });
+  }
+
+  const totalSuspended = segments.reduce((s, seg) => s + seg.value, 0);
+  const totalUsers = segments.reduce((s, seg) => s + seg.total, 0);
+
+  return (
+    <Card title="Suspended / Disabled Users" delay={delay}>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <DonutChart
+            segments={segments.map(s => ({
+              label: providerLabel(s.provider),
+              value: s.value,
+              color: s.color,
+              provider: s.provider,
+            }))}
+          />
+          <button
+            onClick={() => setShowNumbers(prev => !prev)}
+            className="ml-4 flex-shrink-0 text-[10px] font-semibold text-ons-grey-75 uppercase tracking-[0.08em] px-2.5 py-1.5 rounded-md border border-ons-border/20 hover:bg-ons-ocean-blue/15 hover:text-ons-text-primary transition-colors duration-100"
+          >
+            {showNumbers ? 'Hide' : 'Details'}
+          </button>
+        </div>
+        {showNumbers && (
+          <div className="space-y-3 pt-2 border-t border-ons-border/10">
+            {segments.map((s, i) => {
+              const pct = s.total > 0 ? Math.round((s.value / s.total) * 100) : 0;
+              return (
+                <div key={`${s.provider}-${i}`} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ProviderBadge provider={s.provider} />
+                      <StatusBadge status={s.statusLabel} />
+                    </div>
+                    <span className="text-sm font-bold text-ons-grey-5 tabular-nums">
+                      {s.value.toLocaleString()}
+                      <span className="text-xs text-ons-grey-75 font-normal ml-1">/ {s.total.toLocaleString()} ({pct}%)</span>
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-ons-bar-track/20 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-ons-ruby-red"
+                      style={{ width: `${pct}%`, transition: 'width 700ms cubic-bezier(0.16, 1, 0.3, 1)' }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            <div className="flex items-center justify-between pt-2 border-t border-ons-border/10">
+              <span className="text-xs text-ons-grey-75">Total suspended / disabled</span>
+              <span className="text-sm font-bold text-ons-grey-5 tabular-nums">
+                {totalSuspended.toLocaleString()}
+                <span className="text-xs text-ons-grey-75 font-normal ml-1">/ {totalUsers.toLocaleString()}</span>
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }
 
@@ -462,6 +560,20 @@ export function AnalyticsDashboard() {
   const totalSuspended = data.suspendedUsers.reduce((s, r) => s + Number(r.user_count), 0);
   const suspendedWithAccessCount = data.suspendedWithAccess.length;
 
+  // Pre-compute GitHub org member breakdown
+  const githubOrgBreakdown = (() => {
+    const m = new Map<string, { name: string; admins: number; members: number }>();
+    for (const r of data.githubOrgMembers) {
+      const key = r.org_login;
+      if (!m.has(key)) m.set(key, { name: r.org_name ?? r.org_login, admins: 0, members: 0 });
+      const entry = m.get(key)!;
+      const n = Number(r.member_count) || 0;
+      if (r.role === 'admin') entry.admins += n;
+      else entry.members += n;
+    }
+    return Array.from(m, ([login, v]) => ({ login, ...v, total: v.admins + v.members }));
+  })();
+
   const maxRole = Math.max(...data.topRoles.map(r => Number(r.grant_count)), 1);
   const maxResource = Math.max(...data.topResources.map(r => Number(r.unique_users)), 1);
   const maxGroup = Math.max(...data.groupSizes.map(r => Number(r.member_count)), 1);
@@ -506,11 +618,11 @@ export function AnalyticsDashboard() {
 
           <Card title="Access Grants by Provider" delay={280}>
             <div className="space-y-3">
-              {data.accessByProvider.map(r => {
+              {data.accessByProvider.map((r, i) => {
                 const p = r.provider ?? '';
                 return (
                   <Link
-                    key={p}
+                    key={`${p}-${i}`}
                     href={getAccessProviderHref(p)}
                     className="flex items-center justify-between group hover:bg-ons-ocean-blue/15 -mx-2 px-2 py-1.5 rounded-lg transition-colors duration-100 cursor-pointer"
                   >
@@ -541,31 +653,127 @@ export function AnalyticsDashboard() {
           </Card>
         </div>
 
+        {/* Row: GitHub Overview */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card title="GitHub Organisation Members" delay={320}>
+            {githubOrgBreakdown.length === 0 ? (
+              <p className="text-sm text-ons-grey-75">No GitHub org membership data</p>
+            ) : (
+              <div className="space-y-4">
+                {githubOrgBreakdown.map((org, i) => (
+                  <div key={org.login ?? i} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <ProviderLogo provider="github" size={18} />
+                      <span className="text-sm font-semibold text-ons-grey-5">{org.name}</span>
+                      <span className="text-xs text-ons-grey-75 ml-auto tabular-nums">{org.total} total</span>
+                    </div>
+                    <div className="flex gap-3">
+                      <div className="flex-1 bg-ons-surface/20 rounded-lg p-3 border border-ons-border/10">
+                        <p className="text-[10px] font-semibold text-ons-grey-75 uppercase tracking-[0.08em]">Admins</p>
+                        <p className="text-xl font-bold text-ons-ruby-red tabular-nums mt-1">{org.admins}</p>
+                      </div>
+                      <div className="flex-1 bg-ons-surface/20 rounded-lg p-3 border border-ons-border/10">
+                        <p className="text-[10px] font-semibold text-ons-grey-75 uppercase tracking-[0.08em]">Members</p>
+                        <p className="text-xl font-bold text-ons-grey-15 tabular-nums mt-1">{org.members}</p>
+                      </div>
+                    </div>
+                    {org.total > 0 && (
+                      <div className="h-2 bg-ons-bar-track/20 rounded-full overflow-hidden flex">
+                        {org.admins > 0 && (
+                          <div
+                            className="h-full bg-ons-ruby-red rounded-l-full"
+                            style={{ width: `${(org.admins / org.total) * 100}%` }}
+                            title={`${org.admins} admins`}
+                          />
+                        )}
+                        <div
+                          className="h-full bg-ons-grey-35"
+                          style={{ width: `${(org.members / org.total) * 100}%` }}
+                          title={`${org.members} members`}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card title="GitHub External Collaborators" delay={360}>
+            {data.githubExternalCollabs.length === 0 ? (
+              <div className="flex items-center gap-2">
+                <StatusBadge status="completed" />
+                <span className="text-sm text-ons-grey-75">No outside collaborators found</span>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-ons-jaffa-orange mb-3">
+                  {new Set(data.githubExternalCollabs.map(c => c.login)).size} external {new Set(data.githubExternalCollabs.map(c => c.login)).size === 1 ? 'collaborator has' : 'collaborators have'} direct
+                  access to repositories
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr>
+                        <th className="text-left pb-2.5 pr-4 text-[10px] font-semibold text-ons-grey-75 uppercase tracking-[0.08em] border-b border-ons-border/10">User</th>
+                        <th className="text-left pb-2.5 pr-4 text-[10px] font-semibold text-ons-grey-75 uppercase tracking-[0.08em] border-b border-ons-border/10">Repository</th>
+                        <th className="text-left pb-2.5 pr-4 text-[10px] font-semibold text-ons-grey-75 uppercase tracking-[0.08em] border-b border-ons-border/10">Permission</th>
+                        <th className="text-left pb-2.5 text-[10px] font-semibold text-ons-grey-75 uppercase tracking-[0.08em] border-b border-ons-border/10">Visibility</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.githubExternalCollabs.map((r, i) => (
+                        <tr key={i} className="border-b border-ons-border/8 last:border-0 transition-colors duration-100 hover:bg-ons-ocean-blue/15">
+                          <td className="py-2 pr-4">
+                            <span className="text-sm font-medium text-ons-grey-5">{r.login}</span>
+                            {r.user_name && <p className="text-[11px] text-ons-grey-75">{r.user_name}</p>}
+                          </td>
+                          <td className="py-2 pr-4 text-xs text-ons-grey-35">{r.repo_name}</td>
+                          <td className="py-2 pr-4">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
+                              r.permission === 'admin' ? 'bg-ons-ruby-red/10 text-ons-ruby-red border-ons-ruby-red/20' :
+                              r.permission === 'push' || r.permission === 'write' ? 'bg-ons-jaffa-orange/10 text-ons-jaffa-orange border-ons-jaffa-orange/20' :
+                              'bg-ons-grey-100/40 text-ons-grey-35 border-ons-grey-75/20'
+                            }`}>
+                              {r.permission}
+                            </span>
+                          </td>
+                          <td className="py-2 text-xs text-ons-grey-75">{r.visibility}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </Card>
+        </div>
+
         {/* Row: Identity coverage + Reconciliation */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card title="Identity Coverage" delay={320}>
+          <Card title="Identity Coverage" delay={400}>
             <div className="space-y-3">
-              {data.identityCoverage.map(r => {
+              {data.identityCoverage.map((r, i) => {
                 const linkCount = Number(r.link_count);
                 const labels: Record<number, string> = { 0: 'No providers', 1: '1 provider', 2: '2 providers', 3: '3 providers' };
                 const label = labels[linkCount] ?? `${linkCount} providers`;
                 const colors: Record<number, string> = { 0: 'bg-ons-ruby-red', 1: 'bg-ons-jaffa-orange', 2: 'bg-ons-sky-blue', 3: 'bg-ons-spring-green' };
                 const color = colors[linkCount] ?? 'bg-ons-ocean-blue';
                 return (
-                  <HorizontalBar key={linkCount} label={label} value={Number(r.user_count)} max={totalCoverageUsers} color={color} />
+                  <HorizontalBar key={`${linkCount}-${i}`} label={label} value={Number(r.user_count)} max={totalCoverageUsers} color={color} />
                 );
               })}
             </div>
           </Card>
 
-          <Card title="Identity Reconciliation" delay={360}>
+          <Card title="Identity Reconciliation" delay={440}>
             {data.reconciliationStatus.length === 0 ? (
               <p className="text-sm text-ons-grey-75">No reconciliation items</p>
             ) : (
               <div className="space-y-3">
-                {data.reconciliationStatus.map(r => (
+                {data.reconciliationStatus.map((r, i) => (
                   <Link
-                    key={r.status}
+                    key={`${r.status}-${i}`}
                     href={`/users?reconciliation=${encodeURIComponent(r.status.toLowerCase())}`}
                     className="flex items-center justify-between hover:bg-ons-ocean-blue/15 -mx-2 px-2 py-1.5 rounded-lg transition-colors duration-100 cursor-pointer"
                   >
@@ -586,45 +794,9 @@ export function AnalyticsDashboard() {
 
         {/* Row: Suspended users */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card title="Suspended / Disabled Users" delay={400}>
-            {data.suspendedUsers.length === 0 ? (
-              <p className="text-sm text-ons-grey-75">No suspended users found</p>
-            ) : (
-              <div className="space-y-4">
-                {data.suspendedUsers.map(r => {
-                  const total = Number(r.total_users);
-                  const suspended = Number(r.user_count);
-                  const pct = total > 0 ? Math.round((suspended / total) * 100) : 0;
-                  return (
-                    <div key={r.provider} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <ProviderBadge provider={r.provider} />
-                          <StatusBadge status={r.status_label} />
-                        </div>
-                        <span className="text-sm font-bold text-ons-grey-5 tabular-nums">
-                          {suspended.toLocaleString()}
-                          <span className="text-xs text-ons-grey-75 font-normal ml-1">/ {total.toLocaleString()} ({pct}%)</span>
-                        </span>
-                      </div>
-                      <div className="h-1.5 bg-ons-bar-track/20 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-ons-ruby-red"
-                          style={{
-                            width: `${pct}%`,
-                            transition: 'width 700ms cubic-bezier(0.16, 1, 0.3, 1)',
-                            /* progress bar shine handled by color opacity */
-                          }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
+          <SuspendedUsersCard data={data.suspendedUsers} delay={480} />
 
-          <Card title="Suspended Users with Active Access" delay={440}>
+          <Card title="Suspended Users with Active Access" delay={520}>
             {data.suspendedWithAccess.length === 0 ? (
               <div className="flex items-center gap-2">
                 <StatusBadge status="completed" />
@@ -670,7 +842,7 @@ export function AnalyticsDashboard() {
 
         {/* Row: Top roles + Top resources */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card title="Top Roles / Permission Sets" delay={480}>
+          <Card title="Top Roles / Permission Sets" delay={560}>
             <div className="space-y-2.5">
               {data.topRoles.map((r, i) => (
                 <div key={i} className="flex items-center gap-2">
@@ -681,7 +853,7 @@ export function AnalyticsDashboard() {
             </div>
           </Card>
 
-          <Card title="Most-Accessed Resources" delay={520}>
+          <Card title="Most-Accessed Resources" delay={600}>
             <div className="space-y-2.5">
               {data.topResources.map((r, i) => (
                 <div key={i} className="flex items-center gap-2">
@@ -694,7 +866,7 @@ export function AnalyticsDashboard() {
         </div>
 
         {/* Row: Largest groups */}
-        <Card title="Largest Groups" delay={560}>
+        <Card title="Largest Groups" delay={640}>
           <div className="space-y-2.5">
             {data.groupSizes.map((r, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -707,7 +879,7 @@ export function AnalyticsDashboard() {
 
         {/* Row: Recent ingestion */}
         {data.recentIngestion.length > 0 && (
-          <Card title="Recent Ingestion Runs" delay={600}>
+          <Card title="Recent Ingestion Runs" delay={680}>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>

@@ -41,7 +41,7 @@ export async function handleAccountList(req: NextRequest): Promise<NextResponse>
     if (provider === 'aws') {
       const countSql = `SELECT COUNT(*) AS total FROM aws_accounts WHERE deleted_at IS NULL ${searchClause}`;
       const dataSql = `
-        SELECT a.id, a.account_id, a.name, a.email, a.status, a.org_id, a.last_synced_at,
+        SELECT a.id, a.account_id, a.name, a.email, a.status, a.org_id, a.owner_email, a.last_synced_at,
                'aws' AS provider,
                (SELECT COUNT(*) FROM aws_account_assignments aa
                 WHERE aa.account_id = a.account_id AND aa.tenant_id = a.tenant_id
@@ -63,7 +63,7 @@ export async function handleAccountList(req: NextRequest): Promise<NextResponse>
       const countSql = `SELECT COUNT(*) AS total FROM gcp_projects WHERE deleted_at IS NULL ${gcpSearchClause}`;
       const dataSql = `
         SELECT p.id, p.project_id, p.project_number, p.display_name AS name, p.lifecycle_state AS status,
-               p.org_id, p.last_synced_at, 'gcp' AS provider,
+               p.org_id, p.owner_email, p.last_synced_at, 'gcp' AS provider,
                (SELECT COUNT(*) FROM gcp_project_iam_bindings ib
                 WHERE ib.project_id = p.project_id AND ib.tenant_id = p.tenant_id
                   AND ib.deleted_at IS NULL) AS access_count
@@ -88,7 +88,7 @@ export async function handleAccountList(req: NextRequest): Promise<NextResponse>
 
     const unionSql = `
       SELECT a.id::text, a.account_id AS resource_id, a.name AS display_name,
-             a.status, a.org_id, a.last_synced_at, 'aws' AS provider,
+             a.status, a.org_id, a.owner_email, a.last_synced_at, 'aws' AS provider,
              (SELECT COUNT(*) FROM aws_account_assignments aa
               WHERE aa.account_id = a.account_id AND aa.tenant_id = a.tenant_id
                 AND aa.deleted_at IS NULL) AS access_count
@@ -96,7 +96,7 @@ export async function handleAccountList(req: NextRequest): Promise<NextResponse>
       WHERE a.deleted_at IS NULL ${awsSearchRaw}
       UNION ALL
       SELECT p.id::text, p.project_id AS resource_id, COALESCE(p.display_name, p.project_id) AS display_name,
-             p.lifecycle_state AS status, p.org_id, p.last_synced_at, 'gcp' AS provider,
+             p.lifecycle_state AS status, p.org_id, p.owner_email, p.last_synced_at, 'gcp' AS provider,
              (SELECT COUNT(*) FROM gcp_project_iam_bindings ib
               WHERE ib.project_id = p.project_id AND ib.tenant_id = p.tenant_id
                 AND ib.deleted_at IS NULL) AS access_count
@@ -134,7 +134,7 @@ export async function handleAccountDetail(req: NextRequest, id: string): Promise
     if (!provider || provider === 'aws') {
       const awsAcctSql = `
         SELECT id, account_id, name, email, status, joined_method, joined_at, org_id, parent_id,
-               last_synced_at, 'aws' AS provider
+               owner_email, last_synced_at, 'aws' AS provider
         FROM aws_accounts
         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
       `;
@@ -228,7 +228,7 @@ export async function handleAccountDetail(req: NextRequest, id: string): Promise
     if (!provider || provider === 'gcp') {
       const gcpProjSql = `
         SELECT id, project_id, project_number, display_name AS name, lifecycle_state AS status,
-               org_id, folder_id, labels, last_synced_at, 'gcp' AS provider
+               org_id, folder_id, labels, owner_email, last_synced_at, 'gcp' AS provider
         FROM gcp_projects
         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
       `;

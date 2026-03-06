@@ -29,77 +29,89 @@ TRUNCATE gcp_projects CASCADE;
 TRUNCATE gcp_project_iam_bindings CASCADE;
 TRUNCATE resource_access_grants CASCADE;
 
-INSERT INTO aws_accounts (id, tenant_id, account_id, name, email, status, joined_method, joined_at, org_id, parent_id, raw_response, created_at, updated_at, last_synced_at)
+INSERT INTO aws_accounts (id, tenant_id, account_id, name, email, status, joined_method, joined_at, org_id, parent_id, owner_email, raw_response, created_at, updated_at, last_synced_at)
 VALUES
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    '111222333001', 'demo-management', 'aws-mgmt@demo-example.co.uk', 'ACTIVE', 'CREATED',
    '2024-01-15T09:00:00Z', 'o-demo0org001', 'r-root001',
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 0),
    '{"AccountType": "management"}'::jsonb,
    '2024-01-15T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    '111222333002', 'demo-security', 'aws-security@demo-example.co.uk', 'ACTIVE', 'CREATED',
    '2024-02-01T10:00:00Z', 'o-demo0org001', 'ou-security',
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 1),
    '{"AccountType": "security"}'::jsonb,
    '2024-02-01T10:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    '111222333003', 'demo-log-archive', 'aws-logs@demo-example.co.uk', 'ACTIVE', 'CREATED',
    '2024-02-01T10:30:00Z', 'o-demo0org001', 'ou-security',
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 1),
    '{"AccountType": "log-archive"}'::jsonb,
    '2024-02-01T10:30:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    '111222333004', 'demo-networking', 'aws-network@demo-example.co.uk', 'ACTIVE', 'CREATED',
    '2024-03-01T09:00:00Z', 'o-demo0org001', 'ou-infrastructure',
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 2),
    '{"AccountType": "shared-services"}'::jsonb,
    '2024-03-01T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    '111222333005', 'demo-shared-services', 'aws-shared@demo-example.co.uk', 'ACTIVE', 'CREATED',
    '2024-03-15T09:00:00Z', 'o-demo0org001', 'ou-infrastructure',
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 2),
    '{"AccountType": "shared-services"}'::jsonb,
    '2024-03-15T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    '111222333006', 'demo-dev', 'aws-dev@demo-example.co.uk', 'ACTIVE', 'CREATED',
    '2024-04-01T09:00:00Z', 'o-demo0org001', 'ou-workloads-dev',
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 3),
    '{"AccountType": "workload", "Environment": "development"}'::jsonb,
    '2024-04-01T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    '111222333007', 'demo-staging', 'aws-staging@demo-example.co.uk', 'ACTIVE', 'CREATED',
    '2024-04-01T10:00:00Z', 'o-demo0org001', 'ou-workloads-staging',
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 3),
    '{"AccountType": "workload", "Environment": "staging"}'::jsonb,
    '2024-04-01T10:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    '111222333008', 'demo-production', 'aws-prod@demo-example.co.uk', 'ACTIVE', 'CREATED',
    '2024-04-15T09:00:00Z', 'o-demo0org001', 'ou-workloads-prod',
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 4),
    '{"AccountType": "workload", "Environment": "production"}'::jsonb,
    '2024-04-15T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    '111222333009', 'demo-data-dev', 'aws-data-dev@demo-example.co.uk', 'ACTIVE', 'CREATED',
    '2024-05-01T09:00:00Z', 'o-demo0org001', 'ou-workloads-dev',
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 5),
    '{"AccountType": "workload", "Environment": "development", "Team": "data"}'::jsonb,
    '2024-05-01T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    '111222333010', 'demo-data-prod', 'aws-data-prod@demo-example.co.uk', 'ACTIVE', 'CREATED',
    '2024-05-01T10:00:00Z', 'o-demo0org001', 'ou-workloads-prod',
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 5),
    '{"AccountType": "workload", "Environment": "production", "Team": "data"}'::jsonb,
    '2024-05-01T10:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    '111222333011', 'demo-ml-sandbox', 'aws-ml@demo-example.co.uk', 'ACTIVE', 'INVITED',
    '2024-06-01T09:00:00Z', 'o-demo0org001', 'ou-sandbox',
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 6),
    '{"AccountType": "sandbox", "Team": "ml"}'::jsonb,
    '2024-06-01T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    '111222333012', 'demo-deprecated', 'aws-old@demo-example.co.uk', 'SUSPENDED', 'CREATED',
    '2024-01-20T09:00:00Z', 'o-demo0org001', 'ou-suspended',
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 0),
    '{"AccountType": "deprecated", "SuspendReason": "migration_complete"}'::jsonb,
    '2024-01-20T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z');
 
@@ -202,96 +214,111 @@ VALUES (
 -- 4. GCP Projects (15)
 -- ============================================================
 
-INSERT INTO gcp_projects (id, tenant_id, project_id, project_number, display_name, lifecycle_state, org_id, folder_id, labels, raw_response, created_at, updated_at, last_synced_at)
+INSERT INTO gcp_projects (id, tenant_id, project_id, project_number, display_name, lifecycle_state, org_id, folder_id, labels, owner_email, raw_response, created_at, updated_at, last_synced_at)
 VALUES
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-platform-prod', '100000000001', 'Platform Production', 'ACTIVE',
    'organizations/901234567890', 'folders/prod',
    '{"env": "production", "team": "platform"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 7),
    '{}'::jsonb, '2024-03-01T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-platform-dev', '100000000002', 'Platform Development', 'ACTIVE',
    'organizations/901234567890', 'folders/dev',
    '{"env": "development", "team": "platform"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 7),
    '{}'::jsonb, '2024-03-01T09:30:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-data-analytics', '100000000003', 'Data Analytics', 'ACTIVE',
    'organizations/901234567890', 'folders/prod',
    '{"env": "production", "team": "data"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 8),
    '{}'::jsonb, '2024-04-01T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-data-warehouse', '100000000004', 'Data Warehouse', 'ACTIVE',
    'organizations/901234567890', 'folders/prod',
    '{"env": "production", "team": "data"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 8),
    '{}'::jsonb, '2024-04-01T10:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-ml-training', '100000000005', 'ML Training', 'ACTIVE',
    'organizations/901234567890', 'folders/prod',
    '{"env": "production", "team": "ml"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 9),
    '{}'::jsonb, '2024-05-01T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-ml-sandbox', '100000000006', 'ML Sandbox', 'ACTIVE',
    'organizations/901234567890', 'folders/sandbox',
    '{"env": "sandbox", "team": "ml"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 9),
    '{}'::jsonb, '2024-05-15T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-security-ops', '100000000007', 'Security Operations', 'ACTIVE',
    'organizations/901234567890', 'folders/security',
    '{"env": "production", "team": "security"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 1),
    '{}'::jsonb, '2024-03-15T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-networking-hub', '100000000008', 'Networking Hub', 'ACTIVE',
    'organizations/901234567890', 'folders/infrastructure',
    '{"env": "production", "team": "infrastructure"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 2),
    '{}'::jsonb, '2024-03-15T10:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-frontend-prod', '100000000009', 'Frontend Production', 'ACTIVE',
    'organizations/901234567890', 'folders/prod',
    '{"env": "production", "team": "frontend"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 10),
    '{}'::jsonb, '2024-06-01T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-frontend-dev', '100000000010', 'Frontend Development', 'ACTIVE',
    'organizations/901234567890', 'folders/dev',
    '{"env": "development", "team": "frontend"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 10),
    '{}'::jsonb, '2024-06-01T10:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-billing-prod', '100000000011', 'Billing Production', 'ACTIVE',
    'organizations/901234567890', 'folders/prod',
    '{"env": "production", "team": "billing"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 11),
    '{}'::jsonb, '2024-07-01T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-ci-cd', '100000000012', 'CI/CD Pipelines', 'ACTIVE',
    'organizations/901234567890', 'folders/infrastructure',
    '{"env": "production", "team": "devops"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 2),
    '{}'::jsonb, '2024-04-15T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-monitoring', '100000000013', 'Monitoring & Observability', 'ACTIVE',
    'organizations/901234567890', 'folders/infrastructure',
    '{"env": "production", "team": "sre"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 3),
    '{}'::jsonb, '2024-04-15T10:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-api-gateway-prod', '100000000014', 'API Gateway Production', 'ACTIVE',
    'organizations/901234567890', 'folders/prod',
    '{"env": "production", "team": "backend"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 4),
    '{}'::jsonb, '2024-08-01T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z'),
 
   (uuidv7(), '11111111-1111-1111-1111-111111111111'::uuid,
    'demo-decommissioned', '100000000015', 'Decommissioned Project', 'DELETE_REQUESTED',
    'organizations/901234567890', NULL,
    '{"env": "deprecated"}'::jsonb,
+   (SELECT primary_email FROM canonical_users WHERE tenant_id = '11111111-1111-1111-1111-111111111111'::uuid AND deleted_at IS NULL ORDER BY created_at LIMIT 1 OFFSET 0),
    '{}'::jsonb, '2024-02-01T09:00:00Z', '2026-02-14T00:00:00Z', '2026-02-14T00:00:00Z');
 
 

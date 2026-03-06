@@ -35,6 +35,8 @@ export async function handleAnalytics(): Promise<NextResponse> {
       reconciliationStatus,
       recentIngestion,
       suspendedUsers,
+      githubOrgMembers,
+      githubExternalCollabs,
       suspendedWithAccess,
     ] = await Promise.all([
       // 1. Total canonical users
@@ -179,7 +181,36 @@ export async function handleAnalytics(): Promise<NextResponse> {
          ORDER BY user_count DESC`,
       ),
 
-      // 12. Suspended / disabled users that still have active access grants (security risk)
+      // 12. GitHub org members by role (admin vs member)
+      executeWithTenant(
+        session.tenantId,
+        `SELECT o.login AS org_login, o.name AS org_name,
+                gom.role, COUNT(*) AS member_count
+         FROM github_org_memberships gom
+         JOIN github_organisations o
+           ON o.node_id = gom.org_node_id AND o.tenant_id = gom.tenant_id AND o.deleted_at IS NULL
+         WHERE gom.deleted_at IS NULL
+         GROUP BY o.login, o.name, gom.role
+         ORDER BY o.login, gom.role`,
+      ),
+
+      // 13. GitHub external collaborators (outside collaborators with repo access)
+      executeWithTenant(
+        session.tenantId,
+        `SELECT gu.login, gu.name AS user_name,
+                r.name AS repo_name, rcp.permission,
+                r.visibility
+         FROM github_repo_collaborator_permissions rcp
+         JOIN github_users gu
+           ON gu.node_id = rcp.user_node_id AND gu.tenant_id = rcp.tenant_id AND gu.deleted_at IS NULL
+         JOIN github_repositories r
+           ON r.node_id = rcp.repo_node_id AND r.tenant_id = rcp.tenant_id AND r.deleted_at IS NULL
+         WHERE rcp.is_outside_collaborator = true AND rcp.deleted_at IS NULL
+         ORDER BY gu.login, r.name
+         LIMIT 50`,
+      ),
+
+      // 14. Suspended / disabled users that still have active access grants (security risk)
       executeWithTenant(
         session.tenantId,
         `SELECT cu.id AS canonical_user_id, cu.full_name, cu.primary_email,
@@ -228,6 +259,8 @@ export async function handleAnalytics(): Promise<NextResponse> {
       groupSizes: groupSizes.rows,
       reconciliationStatus: reconciliationStatus.rows,
       recentIngestion: recentIngestion.rows,
+      githubOrgMembers: githubOrgMembers.rows,
+      githubExternalCollabs: githubExternalCollabs.rows,
       suspendedUsers: suspendedUsers.rows,
       suspendedWithAccess: suspendedWithAccess.rows,
     });

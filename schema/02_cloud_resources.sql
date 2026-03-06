@@ -23,6 +23,7 @@ CREATE TABLE aws_accounts (
     joined_at       TIMESTAMP WITH TIME ZONE,
     org_id          TEXT,                    -- AWS Organization ID, e.g. 'o-exampleorgid11'
     parent_id       TEXT,                    -- Org root or OU node ID
+    owner_email     TEXT,                    -- Account owner / primary contact email
 
     -- Metadata & Audit
     raw_response    JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -97,6 +98,7 @@ CREATE TABLE gcp_projects (
     org_id          TEXT,                    -- references gcp_organisations.org_id (nullable)
     folder_id       TEXT,                    -- parent folder if applicable
     labels          JSONB DEFAULT '{}'::jsonb,
+    owner_email     TEXT,                    -- Project owner / primary contact email
 
     -- Metadata & Audit
     raw_response    JSONB NOT NULL DEFAULT '{}'::jsonb,

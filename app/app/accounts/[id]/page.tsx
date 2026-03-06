@@ -39,6 +39,7 @@ interface AccountRecord {
   status?: string | null;
   lifecycle_state?: string | null;
   org_id?: string | null;
+  owner_email?: string | null;
   last_synced_at?: string | null;
   provider: string;
 }
@@ -199,6 +200,17 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
                   <div className="flex items-center gap-2">
                     <span className="font-medium">Org:</span>
                     <span className="font-mono text-xs">{account.org_id}</span>
+                  </div>
+                )}
+                {account.owner_email && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">Owner:</span>
+                    <a
+                      href={`/users?search=${encodeURIComponent(account.owner_email)}`}
+                      className="text-ons-sky-blue hover:text-ons-aqua-teal hover:underline"
+                    >
+                      {account.owner_email}
+                    </a>
                   </div>
                 )}
                 {account.last_synced_at && (

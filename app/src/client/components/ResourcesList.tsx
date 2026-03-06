@@ -45,7 +45,7 @@ export function ResourcesList() {
         });
         if (search) params.set('search', search);
 
-        const res = await fetch(`/api/resources?${params}`);
+        const res = await fetch(`/api/identity-resources?${params}`);
         if (!res.ok) throw new Error('Failed to load resources');
         const json = await res.json();
         setData(json.data);

@@ -75,6 +75,11 @@ function getDrilldownLink(key: string, value: unknown, row: Record<string, unkno
     return `/groups?provider=github&search=${encodeURIComponent(String(row.full_name ?? ''))}`;
   }
 
+  // Owner email -> users search
+  if (key === 'owner_email' && stringValue) {
+    return `/users?search=${encodeURIComponent(stringValue)}`;
+  }
+
   return null;
 }
 

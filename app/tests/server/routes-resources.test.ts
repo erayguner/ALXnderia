@@ -11,7 +11,7 @@ import { executeWithTenant } from '../../src/server/db/pool';
 const mockExecute = executeWithTenant as ReturnType<typeof vi.fn>;
 
 function makeRequest(params: Record<string, string> = {}): NextRequest {
-  const url = new URL('http://localhost:3000/api/resources');
+  const url = new URL('http://localhost:3000/api/identity-resources');
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, v);
   }
