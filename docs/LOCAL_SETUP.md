@@ -196,13 +196,12 @@ Check all API endpoints return data:
 curl -s http://localhost:3000/api/health    # {"status":"ok"}
 curl -s http://localhost:3000/api/users     # canonical users list
 curl -s http://localhost:3000/api/groups    # groups across all 3 providers
-curl -s http://localhost:3000/api/resources # resources (repos, groups) by provider
+curl -s http://localhost:3000/api/identity-resources # resources (repos, groups) by provider
 curl -s http://localhost:3000/api/accounts  # AWS accounts + GCP projects
 curl -s http://localhost:3000/api/access    # cross-provider effective access
 curl -s http://localhost:3000/api/analytics # identity analytics
 curl -s http://localhost:3000/api/audit     # audit log entries
 curl -s http://localhost:3000/api/galaxy    # 3D galaxy visualisation data
-curl -s http://localhost:3000/api/neural-map # 2D neural map graph data
 ```
 
 ### 4. Run tests
@@ -221,15 +220,15 @@ npm run lint    # ESLint 10 with eslint-config-next
 | Chat | `/` | Natural-language query interface (NL2SQL) |
 | Users | `/users` | Browse canonical users with identity counts |
 | User Detail | `/users/[id]` | Full user record with cross-provider identities, accounts/access, and emails |
-| Resources | `/resources` | GitHub repos, Google Workspace groups, and AWS IDC groups with member/permission counts |
+| Identity Resources | `/identity-resources` | GitHub repos, Google Workspace groups, and AWS IDC groups with member/permission counts |
 | Accounts | `/accounts` | Unified AWS account and GCP project browser with assignment/binding counts. Supports provider filter (aws/gcp) and search. |
+| Account Detail | `/accounts/[id]` | Account details with assignments (AWS) or IAM bindings (GCP) |
 | Groups | `/groups` | Google Workspace, AWS Identity Center, and GitHub groups with member counts |
 | Group Detail | `/groups/[id]` | Group metadata and resolved member list with names, emails, roles, and status |
 | Access Explorer | `/access` | Cross-provider effective access: GitHub (direct + team-derived), Google Workspace groups, AWS Identity Center groups. Supports provider, access path, and search filters with CSV export. |
 | Analytics | `/analytics` | Identity analytics dashboard with provider distribution, access metrics, and ingestion status |
 | Audit Log | `/audit` | Query execution audit trail with action type filter |
 | Identity Galaxy | `/galaxy` | Interactive 3D WebGL visualisation of identity relationships across providers with canonical hub, cross-provider arcs, and drill-down navigation |
-| Neural Map | `/neural-map` | Force-directed 2D graph of identity relationships with physics simulation, provider filtering, and node inspection |
 
 ---
 
@@ -485,21 +484,20 @@ ALXnderia/
 │   │   ├── audit/        # Audit log page
 │   │   ├── analytics/    # Analytics dashboard page
 │   │   ├── galaxy/       # Identity Galaxy 3D visualisation page
-│   │   ├── neural-map/   # Neural Map 2D graph page
-│   │   └── api/          # API route handlers (14 endpoints)
+│   │   ├── identity-resources/ # Identity resources page
+│   │   └── api/          # API route handlers (13 endpoints)
 │   │       ├── chat/     # POST /api/chat (NL2SQL)
 │   │       ├── access/   # GET /api/access (cross-provider effective access)
 │   │       ├── accounts/ # GET /api/accounts + /api/accounts/[id]
 │   │       ├── users/    # GET /api/users + /api/users/[id]
 │   │       ├── groups/   # GET /api/groups + /api/groups/[id]
-│   │       ├── resources/# GET /api/resources
+│   │       ├── identity-resources/ # GET /api/identity-resources
 │   │       ├── analytics/ # GET /api/analytics
 │   │       ├── audit/    # GET /api/audit
 │   │       ├── galaxy/   # GET /api/galaxy (3D visualisation data)
-│   │       ├── neural-map/ # GET /api/neural-map (2D graph data)
 │   │       └── health/   # GET /api/health
 │   ├── src/
-│   │   ├── client/       # React components (16 components + 8 visualisation sub-modules)
+│   │   ├── client/       # React components (16 components + 4 visualisation sub-modules)
 │   │   ├── server/       # DB pool, route handlers, NL2SQL agent, SQL validator
 │   │   └── shared/       # TypeScript types and constants
 │   └── tests/            # Vitest tests (14 suites, server-side)

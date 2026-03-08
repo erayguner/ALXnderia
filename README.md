@@ -63,7 +63,6 @@ ALXnderia enables security teams, compliance officers, and identity administrato
 - **Access Explorer** -- Cross-provider effective access view combining GitHub (direct + team-derived), Google Workspace group memberships, and AWS Identity Center group memberships
 - **Accounts browser** -- Unified AWS account and GCP project view with assignment/binding counts
 - **Identity Galaxy** -- Interactive 3D WebGL visualisation of identity provider relationships with canonical hub, cross-provider arcs, and drill-down navigation
-- **Neural Map** -- Force-directed 2D graph of identity relationships with physics simulation, provider filtering, and node inspection
 - **Defence-in-depth** -- 7-layer SQL validation (libpg-query WASM AST parser), tenant-scoped queries, composite PK multi-tenancy
 - **LLM-agnostic** -- Swap between Anthropic Claude, OpenAI GPT, or Google Gemini via env var
 - **Live ingestion** -- Modular Python service syncs live data from all 5 providers with pagination, rate limiting, and run tracking
@@ -247,7 +246,7 @@ cd infra/deploy/gcp && terraform apply -var-file=../../environments/prod.tfvars
 | Infrastructure | Terraform, Docker |
 | Compute | AWS App Runner / GCP Cloud Run v2, Lambda (ingestion), Cloud Run Jobs (ingestion) |
 | CI/CD | GitHub Actions (5 workflows) |
-| Visualisation | Canvas 2D/3D with custom WebGL galaxy renderer and force-directed graph engine |
+| Visualisation | Canvas 3D with custom WebGL galaxy renderer |
 | Testing | Vitest 4.x (14 test suites, server-side) |
 | Linting | ESLint 10 with eslint-config-next 16 |
 
